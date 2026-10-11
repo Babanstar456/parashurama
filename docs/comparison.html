@@ -1,0 +1,233 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PARASHURAMA: cost and comparison matrix</title>
+<meta name="description" content="What it costs to train counter-drone operators with PARASHURAMA, live drills and vendor simulators, and how they compare.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Condensed:wght@400;600&family=Saira+Stencil+One&display=swap" rel="stylesheet">
+<style>:root{
+  --paper:#E2E6DB;--card:#EDF0E8;--card2:#F5F6F1;--ink:#18231D;--ink2:#46554C;--ink3:#6A786F;--rule:#B9C3B4;--rule2:#D2D9CD;
+  --red:#B3122A;--blue:#1C5BA3;--ochre:#946F00;--green:#2B7746;--teal:#1F7F74;
+  --jam:#1E9A8C;--spoof:#7C5FD6;--intc:#2F7FDB;--gun:#D9662A;
+  --stencil:"Saira Stencil One","DejaVu Sans Condensed",Impact,sans-serif;
+  --cond:"Barlow Condensed","DejaVu Sans Condensed","Arial Narrow",sans-serif;
+  --body:"Barlow","Liberation Sans",Arial,sans-serif;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0F161C;--card:#16212A;--card2:#1B2833;--ink:#DCE6EE;--ink2:#A9B9C6;--ink3:#8396A6;--rule:#2C3D4C;--rule2:#223241;
+  --red:#FF6B70;--blue:#6CB2FF;--ochre:#F2C94C;--green:#6FCF97;--teal:#4CC3B3;
+  --jam:#2BB3A3;--spoof:#A386F0;--intc:#5DA9FF;--gun:#FF8A4C;}}
+:root[data-theme="dark"]{
+  --paper:#0F161C;--card:#16212A;--card2:#1B2833;--ink:#DCE6EE;--ink2:#A9B9C6;--ink3:#8396A6;--rule:#2C3D4C;--rule2:#223241;
+  --red:#FF6B70;--blue:#6CB2FF;--ochre:#F2C94C;--green:#6FCF97;--teal:#4CC3B3;
+  --jam:#2BB3A3;--spoof:#A386F0;--intc:#5DA9FF;--gun:#FF8A4C;}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--body);-webkit-font-smoothing:antialiased}
+a{color:var(--teal);text-underline-offset:3px}
+a:focus-visible{outline:2px solid var(--teal);outline-offset:3px;border-radius:2px}
+.bar{border-bottom:1px solid var(--rule);background:var(--card)}
+.bar .in{max-width:1120px;margin:0 auto;padding:14px 24px;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline;justify-content:space-between}
+.wm{font-family:var(--stencil);font-size:24px;letter-spacing:.06em;line-height:1}
+.bar .meta{font-family:var(--cond);font-size:15px;color:var(--ink3)}
+main{max-width:1120px;margin:0 auto;padding:40px 24px 64px}
+h1{font-family:var(--stencil);font-weight:400;font-size:clamp(34px,5.4vw,56px);line-height:1.02;letter-spacing:.02em;margin:0 0 18px;max-width:16ch}
+.lede{font-size:18px;color:var(--ink2);max-width:66ch;margin:0 0 10px}
+h2{font-family:var(--stencil);font-weight:400;font-size:26px;letter-spacing:.04em;margin:0 0 6px}
+section{margin-top:56px}
+.sub{color:var(--ink2);max-width:70ch;margin:0 0 20px}
+.small{font-size:14px;color:var(--ink3)}
+.scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:4px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:10px 14px;border-bottom:1px solid var(--rule2)}
+thead th{font-family:var(--cond);font-weight:600;font-size:15px;color:var(--ink2);background:var(--card2);border-bottom:1px solid var(--rule)}
+tbody tr:last-child td{border-bottom:0}
+th.num{text-align:right}
+td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-family:var(--cond);font-size:17px;font-weight:600}
+td.k{white-space:nowrap}
+.k{font-family:var(--cond);font-weight:600;font-size:17px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:1px}
+.hostile{color:var(--red)} .friendly{color:var(--blue)} .neutral{color:var(--green)}
+.bg-hostile{background:var(--red)} .bg-friendly{background:var(--blue)} .bg-neutral{background:var(--green)}
+.tag{display:inline-block;font-family:var(--cond);font-size:14px;font-weight:600;padding:1px 8px;border:1px solid currentColor;border-radius:3px;white-space:nowrap}
+.note{border-left:3px solid var(--ochre);padding:10px 16px;background:var(--card);color:var(--ink2);font-size:15px;max-width:80ch;margin-top:18px}
+footer{border-top:1px solid var(--rule);margin-top:64px;padding-top:20px;font-size:14px;color:var(--ink3)}
+footer p{margin:0 0 6px;max-width:90ch}
+@media (max-width:640px){main{padding:28px 16px 48px}.bar .in{padding:12px 16px}th,td{padding:9px 10px}}
+/* v2: sticky nav, buttons, chips */
+.bar{position:sticky;top:0;z-index:20;padding-top:env(safe-area-inset-top,0px)}
+.bar .in{align-items:center}
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.nav{max-width:1120px;margin:0 auto;padding:0 24px;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-family:var(--cond);font-weight:600;font-size:15px;color:var(--ink2);text-decoration:none;padding:8px 10px 9px;border-bottom:3px solid transparent;white-space:nowrap}
+.nav a:hover{color:var(--ink)}
+.nav a.on{color:var(--teal);border-bottom-color:var(--teal)}
+.btns{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 0}
+.btn{display:inline-flex;align-items:center;gap:8px;font-family:var(--cond);font-weight:600;font-size:17px;padding:9px 16px;border-radius:4px;border:1px solid var(--rule);background:var(--card);color:var(--ink);text-decoration:none;cursor:pointer}
+.btn:hover{border-color:var(--ink3)}
+.btn.primary{background:var(--teal);border-color:var(--teal);color:#fff}
+.btn:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+section{scroll-margin-top:110px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--cond);font-weight:600;font-size:14px;line-height:1;padding:4px 8px;border-radius:3px;white-space:nowrap}
+.c-yes{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+.c-part{background:color-mix(in srgb,var(--ochre) 18%,transparent);color:var(--ochre)}
+.c-no{background:color-mix(in srgb,var(--red) 14%,transparent);color:var(--red)}
+.c-unk{background:color-mix(in srgb,var(--ink3) 16%,transparent);color:var(--ink2)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+html{scroll-behavior:smooth}
+@media (max-width:640px){.nav{padding:0 10px}.bar .meta{display:none}}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.primary{color:#0F161C}}
+:root[data-theme="dark"] .btn.primary{color:#0F161C}
+@media (max-width:640px){.bar .btn{font-size:15px;padding:6px 10px}}
+main section{scroll-margin-top:128px}
+.glance{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.glance div{border:1px solid var(--rule);border-top:4px solid var(--teal);border-radius:4px;background:var(--card);padding:14px 16px}
+.glance b{display:block;font-family:var(--stencil);font-weight:400;font-size:30px;line-height:1.1;margin-bottom:6px}
+.glance span{color:var(--ink2);font-size:15px}
+.tri{display:grid;grid-template-columns:1fr 1fr 1.25fr;border:1px solid var(--rule);border-radius:6px;overflow:hidden}
+.blk{padding:20px 22px;background:var(--card);border-right:1px solid var(--rule)}
+.blk:last-child{border-right:0}
+.blk .who{display:block;font-family:var(--cond);font-weight:600;font-size:16px;color:var(--ink3)}
+.blk b{display:block;font-family:var(--stencil);font-weight:400;font-size:34px;line-height:1.1;margin:6px 0 8px;color:var(--ink2)}
+.blk p{margin:0;font-size:15px;color:var(--ink2)}
+.blk.us{background:#1F5F57;color:#EAF4F1}
+.blk.us .who{color:#BFE3DC}.blk.us b{color:#fff;font-size:64px;line-height:1}.blk.us p{color:#DDEEEA}
+.toolbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.switch{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.swl{font-family:var(--cond);font-weight:600;color:var(--ink3);margin-right:6px}
+.switch button{font-family:var(--cond);font-weight:600;font-size:15px;padding:7px 12px;border:1px solid var(--rule);border-radius:4px;background:var(--card);color:var(--ink2);cursor:pointer}
+.switch button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.legend{display:flex;flex-wrap:wrap;gap:6px}
+table.mx{min-width:760px}
+table.mx td:first-child{width:20%}
+table.mx[data-view="live"] .col-vendor,table.mx[data-view="vendor"] .col-live{display:none}
+table.mx[data-view="live"],table.mx[data-view="vendor"]{min-width:560px}
+table.mx td .chip{margin-right:4px;min-width:24px;justify-content:center}
+.usc{background:color-mix(in srgb,var(--teal) 10%,transparent)}
+thead th.usc{color:var(--teal)}
+td.usc{color:var(--ink)}
+.steps{list-style:none;counter-reset:s;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.steps li{counter-increment:s;border:1px solid var(--rule);border-top:4px solid var(--teal);border-radius:4px;background:var(--card);padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.steps li:last-child{border-top-color:var(--ochre)}
+.steps b{font-family:var(--stencil);font-weight:400;font-size:24px}
+.steps b::before{content:counter(s) ". ";color:var(--teal)}
+.steps span{color:var(--ink2);font-size:15px}
+.steps em{font-style:normal;font-family:var(--cond);font-weight:600;font-size:14px;color:var(--ink3);margin-top:auto}
+@media (max-width:760px){.tri{grid-template-columns:1fr}.blk{border-right:0;border-bottom:1px solid var(--rule)}.blk:last-child{border-bottom:0}.blk.us b{font-size:52px}}
+@media (max-width:700px){table.mx[data-view="live"],table.mx[data-view="vendor"]{min-width:0}table.mx[data-view="live"] td:first-child,table.mx[data-view="vendor"] td:first-child{width:34%}table.mx th,table.mx td{font-size:14px}}
+@media (max-width:700px){table.mx td.k{white-space:normal}}
+</style></head><body>
+<header class="bar">
+<div class="in"><div class="brand"><span class="wm">PARASHURAMA</span><span class="meta">Cost and comparison matrix</span></div>
+<a class="btn" href="https://parashurama-docs.vercel.app/threat-library.html">Threat library and scoring rules</a></div>
+<nav class="nav" aria-label="Sections">
+<a href="#glance">At a glance</a><a href="#onemore">One more drill</a><a href="#capabilities">Capabilities</a><a href="#cost">Cost to run</a><a href="#fit">Where it fits</a>
+</nav>
+</header>
+<main>
+<h1>Cost and comparison matrix</h1>
+<p class="lede">What it takes to give a soldier one more counter-drone drill, and how PARASHURAMA compares with the ways units train today.</p>
+<div class="btns">
+<a class="btn primary" href="#capabilities">Compare capabilities</a>
+<a class="btn" href="https://parashurama-docs.vercel.app/">Open the live prototype</a>
+<a class="btn" href="https://github.com/JitendraSethia/parashurama">GitHub repository</a>
+</div>
+
+<section id="glance">
+<h2>At a glance</h2>
+<div class="glance">
+<div><b>₹0</b><span>per extra drill: no drones, ammunition or range time used</span></div>
+<div><b>Any laptop</b><span>runs in a browser, fully offline; no simulator hardware to buy</span></div>
+<div><b>Every point explained</b><span>each score cites a doctrine rule; the unit server re-checks every drill</span></div>
+</div>
+</section>
+
+<section id="onemore">
+<h2>The cost of one more drill</h2>
+<div class="tri">
+  <div class="blk"><span class="who">Classroom + live drill</span><b>Every repeat</b><p>Range time, target drones, ammunition, transport and safety staff are spent again each session, and weather or darkness can cancel it.</p></div>
+  <div class="blk"><span class="who">Vendor C-UAS simulator</span><b>Not published</b><p>Needs a dedicated simulator station or the vendor's own control kit. Prices are quoted per contract.</p></div>
+  <div class="blk us"><span class="who">PARASHURAMA</span><b>₹0</b><p>No consumables. Runs on a laptop the unit already has, offline, day or night, as often as the soldier needs.</p></div>
+</div>
+</section>
+
+<section id="capabilities">
+<h2>Capability comparison</h2>
+<p class="sub">Against the outcomes the problem statement asks for, plus what a unit needs to trust the results.</p>
+<div class="toolbar">
+  <div class="switch" role="group" aria-label="Compare PARASHURAMA with">
+    <span class="swl">Compare with</span>
+    <button type="button" data-v="both" aria-pressed="true">Both</button>
+    <button type="button" data-v="live" aria-pressed="false">Live drill</button>
+    <button type="button" data-v="vendor" aria-pressed="false">Vendor simulators</button>
+  </div>
+  <div class="legend" aria-label="Legend"><span class="chip c-yes">✓ Yes</span><span class="chip c-part">◐ Partly</span><span class="chip c-no">✕ No</span><span class="chip c-unk">? Not stated publicly</span></div>
+</div>
+<div class="scroll"><table class="mx" id="capTable" data-view="both">
+<thead><tr><th>Capability</th><th class="col-live">Classroom + live drill</th><th class="col-vendor">Vendor C-UAS simulators*</th><th class="usc">PARASHURAMA <span class="small">(prototype v0.6)</span></th></tr></thead>
+<tbody id="capRows"></tbody></table></div>
+<p class="note">* Vendors reviewed: Liteye, ST Engineering AGIL, OP-1 (Operator XR / DroneShield) and Zen Technologies, from public material only. "Not stated publicly" means we did not find it in their public material, not that the product lacks it.</p>
+</section>
+
+<section id="cost">
+<h2>Cost to set up and run</h2>
+<p class="sub">Costs are described, not priced: live-drill costs vary by unit and range, and vendor prices are not public.</p>
+<div class="scroll"><table class="mx" id="costTable" data-view="both">
+<thead><tr><th>Factor</th><th class="col-live">Classroom + live drill</th><th class="col-vendor">Vendor C-UAS simulators*</th><th class="usc">PARASHURAMA</th></tr></thead>
+<tbody>
+<tr><td class="k">Hardware to start</td><td class="col-live">Range, target drones, jammers and effectors</td><td class="col-vendor">VR station or vendor C2 kit</td><td class="usc">Any laptop with a browser (8 GB RAM). Optional: one PC as the unit LAN server, a VR headset</td></tr>
+<tr><td class="k">Software licence</td><td class="col-live">None</td><td class="col-vendor">Per contract, not published</td><td class="usc">Built on open-source tools, no third-party licence fees. Proposed: institutional licence plus an annual threat-pack and support subscription</td></tr>
+<tr><td class="k">Cost of one more drill</td><td class="col-live">Consumables, range time and transport every time</td><td class="col-vendor">Not stated publicly</td><td class="usc"><b>₹0</b></td></tr>
+<tr><td class="k">Drills per soldier</td><td class="col-live">A few range slots a year</td><td class="col-vendor">Limited by stations available</td><td class="usc"><b>Unlimited</b></td></tr>
+<tr><td class="k">Lost to weather or night</td><td class="col-live">Often: safety limits apply</td><td class="col-vendor">None</td><td class="usc">None: rain, fog, dust and night are simulated</td></tr>
+<tr><td class="k">Internet or cloud</td><td class="col-live">Not needed</td><td class="col-vendor">Not stated publicly</td><td class="usc">Not needed: fully offline</td></tr>
+<tr><td class="k">Instructor time</td><td class="col-live">Plan, supervise and score each session by eye</td><td class="col-vendor">Not stated publicly</td><td class="usc">Drills are generated and scored automatically; instructors review the debriefs</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="fit">
+<h2>Where PARASHURAMA fits</h2>
+<p class="sub">It does not replace live fire. It moves basic learning and repetition off the range, so range time is spent on final validation.</p>
+<ol class="steps">
+<li><b>Learn</b><span>The Academy teaches each clue and decision in about 10 minutes, on any laptop.</span><em>PARASHURAMA</em></li>
+<li><b>Repeat</b><span>Unlimited scored drills that target each soldier's weak conditions, at no extra cost.</span><em>PARASHURAMA</em></li>
+<li><b>Prove</b><span>The readiness board shows who is ready; live drills on the range confirm it with real equipment.</span><em>PARASHURAMA + live range</em></li>
+</ol>
+</section>
+
+<footer>
+<p>Comparison based on public material and the PARASHURAMA v0.6 prototype. All simulation values are training values, not equipment specifications.</p>
+<p>PARASHURAMA, Team Dhwanik_TH06, Smart India Hackathon 2026, PS SIH26247.</p>
+</footer>
+</main>
+
+<script>(function(){
+const R=[
+ ['Desktop simulator, VR option',['no','No'],['yes','VR station or vendor kit'],['yes','2D radar console and live 3D view in the browser; WebXR entry for headsets']],
+ ['Scripted and procedural drills',['part','Planned by hand'],['unk','Not stated publicly'],['yes','4 real-world missions plus seeded procedural drills: never the same twice, any drill replayable']],
+ ['Explainable scoring',['part',"Instructor's impression"],['unk','Not stated publicly'],['yes','Decision tree: every point cites a doctrine rule']],
+ ['After-action review',['part','Verbal debrief'],['yes','Replay (OP-1)'],['yes','Scored replay, expert-ghost run, what-if rewinds, unit trends']],
+ ['Adaptive difficulty',['no','No'],['unk','Not stated publicly'],['yes',"Next drill built around each soldier's weakest skill"]],
+ ['Night, weather, sensor faults',['part','Limited by safety and weather'],['unk','Not stated publicly'],['yes','Day and night; rain, fog, dust; radar, camera and RF faults']],
+ ['Swarm drills',['part','Hard to stage safely'],['unk','Not stated publicly'],['yes','Yes, with flocking swarms']],
+ ['Lessons for beginners',['yes','Classroom'],['unk','Not stated publicly'],['yes','Four-lesson Academy with a coach that explains every clue']],
+ ['Unit readiness',['part','Manual records'],['unk','Not stated publicly'],['yes','Readiness board by condition: who is ready for night, swarm or bad weather']],
+ ["Results that can't be faked",['part','Paper records'],['unk','Not stated publicly'],['yes','Unit server re-runs every drill from its seed; SHA-256 chained decision log']],
+ ['New threats added by',['part','Buying new targets'],['part','Vendor updates'],['yes','Instructors, by editing JSON files']],
+ ['Vendor-neutral',['yes','Yes'],['no','Often tied to one product (Liteye, DroneGun, Zen)'],['yes','Yes: threats and effectors are set in config files']],
+ ['Indigenous',['yes','In-house'],['part','Mostly foreign; Zen Technologies (India)'],['yes','Yes']]
+];
+const SYM={yes:'✓',part:'◐',no:'✕',unk:'?'},LBL={yes:'Yes',part:'Partly',no:'No',unk:'Not stated'};
+const cell=(c,[s,t])=>`<td class="${c}"><span class="chip c-${s}" aria-label="${LBL[s]}">${SYM[s]}</span> ${t}</td>`;
+document.getElementById('capRows').innerHTML=R.map(([n,a,b,c])=>`<tr><td class="k">${n}</td>${cell('col-live',a)}${cell('col-vendor',b)}${cell('usc',c)}</tr>`).join('');
+const btns=[...document.querySelectorAll('.switch button')];
+function view(v){btns.forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===v));document.querySelectorAll('table.mx').forEach(t=>t.dataset.view=v)}
+btns.forEach(b=>b.addEventListener('click',()=>view(b.dataset.v)));
+if(window.matchMedia('(max-width:700px)').matches)view('live');
+const links=[...document.querySelectorAll('.nav a')];
+const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting)links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id))})},{rootMargin:'-45% 0px -50% 0px'});
+document.querySelectorAll('main section[id]').forEach(s=>io.observe(s));
+})();
+</script>
+</body></html>
