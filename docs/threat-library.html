@@ -1,0 +1,450 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PARASHURAMA: threat library and scoring rules</title>
+<meta name="description" content="Every threat, effector, scoring rule and condition used by the PARASHURAMA counter-drone trainer.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Condensed:wght@400;600&family=Saira+Stencil+One&display=swap" rel="stylesheet">
+<style>:root{
+  --paper:#E2E6DB;--card:#EDF0E8;--card2:#F5F6F1;--ink:#18231D;--ink2:#46554C;--ink3:#6A786F;--rule:#B9C3B4;--rule2:#D2D9CD;
+  --red:#B3122A;--blue:#1C5BA3;--ochre:#946F00;--green:#2B7746;--teal:#1F7F74;
+  --jam:#1E9A8C;--spoof:#7C5FD6;--intc:#2F7FDB;--gun:#D9662A;
+  --stencil:"Saira Stencil One","DejaVu Sans Condensed",Impact,sans-serif;
+  --cond:"Barlow Condensed","DejaVu Sans Condensed","Arial Narrow",sans-serif;
+  --body:"Barlow","Liberation Sans",Arial,sans-serif;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0F161C;--card:#16212A;--card2:#1B2833;--ink:#DCE6EE;--ink2:#A9B9C6;--ink3:#8396A6;--rule:#2C3D4C;--rule2:#223241;
+  --red:#FF6B70;--blue:#6CB2FF;--ochre:#F2C94C;--green:#6FCF97;--teal:#4CC3B3;
+  --jam:#2BB3A3;--spoof:#A386F0;--intc:#5DA9FF;--gun:#FF8A4C;}}
+:root[data-theme="dark"]{
+  --paper:#0F161C;--card:#16212A;--card2:#1B2833;--ink:#DCE6EE;--ink2:#A9B9C6;--ink3:#8396A6;--rule:#2C3D4C;--rule2:#223241;
+  --red:#FF6B70;--blue:#6CB2FF;--ochre:#F2C94C;--green:#6FCF97;--teal:#4CC3B3;
+  --jam:#2BB3A3;--spoof:#A386F0;--intc:#5DA9FF;--gun:#FF8A4C;}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--body);-webkit-font-smoothing:antialiased}
+a{color:var(--teal);text-underline-offset:3px}
+a:focus-visible{outline:2px solid var(--teal);outline-offset:3px;border-radius:2px}
+.bar{border-bottom:1px solid var(--rule);background:var(--card)}
+.bar .in{max-width:1120px;margin:0 auto;padding:14px 24px;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline;justify-content:space-between}
+.wm{font-family:var(--stencil);font-size:24px;letter-spacing:.06em;line-height:1}
+.bar .meta{font-family:var(--cond);font-size:15px;color:var(--ink3)}
+main{max-width:1120px;margin:0 auto;padding:40px 24px 64px}
+h1{font-family:var(--stencil);font-weight:400;font-size:clamp(34px,5.4vw,56px);line-height:1.02;letter-spacing:.02em;margin:0 0 18px;max-width:16ch}
+.lede{font-size:18px;color:var(--ink2);max-width:66ch;margin:0 0 10px}
+h2{font-family:var(--stencil);font-weight:400;font-size:26px;letter-spacing:.04em;margin:0 0 6px}
+section{margin-top:56px}
+.sub{color:var(--ink2);max-width:70ch;margin:0 0 20px}
+.small{font-size:14px;color:var(--ink3)}
+.scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:4px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:10px 14px;border-bottom:1px solid var(--rule2)}
+thead th{font-family:var(--cond);font-weight:600;font-size:15px;color:var(--ink2);background:var(--card2);border-bottom:1px solid var(--rule)}
+tbody tr:last-child td{border-bottom:0}
+th.num{text-align:right}
+td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-family:var(--cond);font-size:17px;font-weight:600}
+td.k{white-space:nowrap}
+.k{font-family:var(--cond);font-weight:600;font-size:17px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:1px}
+.hostile{color:var(--red)} .friendly{color:var(--blue)} .neutral{color:var(--green)}
+.bg-hostile{background:var(--red)} .bg-friendly{background:var(--blue)} .bg-neutral{background:var(--green)}
+.tag{display:inline-block;font-family:var(--cond);font-size:14px;font-weight:600;padding:1px 8px;border:1px solid currentColor;border-radius:3px;white-space:nowrap}
+.note{border-left:3px solid var(--ochre);padding:10px 16px;background:var(--card);color:var(--ink2);font-size:15px;max-width:80ch;margin-top:18px}
+footer{border-top:1px solid var(--rule);margin-top:64px;padding-top:20px;font-size:14px;color:var(--ink3)}
+footer p{margin:0 0 6px;max-width:90ch}
+@media (max-width:640px){main{padding:28px 16px 48px}.bar .in{padding:12px 16px}th,td{padding:9px 10px}}
+/* v2: sticky nav, buttons, chips */
+.bar{position:sticky;top:0;z-index:20;padding-top:env(safe-area-inset-top,0px)}
+.bar .in{align-items:center}
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.nav{max-width:1120px;margin:0 auto;padding:0 24px;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-family:var(--cond);font-weight:600;font-size:15px;color:var(--ink2);text-decoration:none;padding:8px 10px 9px;border-bottom:3px solid transparent;white-space:nowrap}
+.nav a:hover{color:var(--ink)}
+.nav a.on{color:var(--teal);border-bottom-color:var(--teal)}
+.btns{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 0}
+.btn{display:inline-flex;align-items:center;gap:8px;font-family:var(--cond);font-weight:600;font-size:17px;padding:9px 16px;border-radius:4px;border:1px solid var(--rule);background:var(--card);color:var(--ink);text-decoration:none;cursor:pointer}
+.btn:hover{border-color:var(--ink3)}
+.btn.primary{background:var(--teal);border-color:var(--teal);color:#fff}
+.btn:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+section{scroll-margin-top:110px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--cond);font-weight:600;font-size:14px;line-height:1;padding:4px 8px;border-radius:3px;white-space:nowrap}
+.c-yes{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+.c-part{background:color-mix(in srgb,var(--ochre) 18%,transparent);color:var(--ochre)}
+.c-no{background:color-mix(in srgb,var(--red) 14%,transparent);color:var(--red)}
+.c-unk{background:color-mix(in srgb,var(--ink3) 16%,transparent);color:var(--ink2)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+html{scroll-behavior:smooth}
+@media (max-width:640px){.nav{padding:0 10px}.bar .meta{display:none}}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.primary{color:#0F161C}}
+:root[data-theme="dark"] .btn.primary{color:#0F161C}
+@media (max-width:640px){.bar .btn{font-size:15px;padding:6px 10px}}
+.band{display:flex;margin-top:30px;border-radius:4px;overflow:hidden;border:1px solid var(--rule);max-width:860px}
+.seg{display:flex;align-items:baseline;gap:10px;padding:14px 18px;color:#fff}
+.seg b{font-family:var(--stencil);font-weight:400;font-size:40px;line-height:1}
+.seg span{font-family:var(--cond);font-size:19px;font-weight:600}
+.s1{flex:30;background:#1C5BA3}.s2{flex:30;background:#7A5A00}.s3{flex:40;background:#B3122A}
+.bandcap{margin:8px 0 0}
+h3{font-family:var(--cond);font-weight:600;font-size:20px;margin:0 0 6px}
+.h3gap{margin-top:28px}
+/* calculator */
+.calc{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:0;border:1px solid var(--rule);border-radius:6px;overflow:hidden;background:var(--card)}
+.ctl{padding:18px 20px;border-right:1px solid var(--rule)}
+fieldset{border:0;margin:0 0 16px;padding:0;min-width:0}
+fieldset:last-child{margin-bottom:0}
+legend{font-family:var(--cond);font-weight:600;font-size:17px;margin-bottom:8px;padding:0}
+.seg-pick{display:flex;flex-wrap:wrap;gap:6px}
+.seg-pick button{font-family:var(--cond);font-weight:600;font-size:15px;padding:7px 11px;border:1px solid var(--rule);border-radius:4px;background:var(--card2);color:var(--ink2);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.seg-pick button[aria-checked="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.seg-pick .dot{margin:0}
+.slide{display:flex;align-items:center;gap:12px}
+.slide input{flex:1;accent-color:var(--teal)}
+.slide output{font-family:var(--cond);font-weight:600;font-size:17px;min-width:42px;text-align:right}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row2 label{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--ink2)}
+select{font:15px var(--body);padding:7px 8px;border:1px solid var(--rule);border-radius:4px;background:var(--card2);color:var(--ink)}
+.tick{display:flex;align-items:center;gap:8px;font-size:15px;padding:3px 0;cursor:pointer}
+.tick input{width:17px;height:17px;accent-color:var(--teal)}
+#sitBox[disabled]{opacity:.45}
+.out{padding:18px 20px;background:var(--card2)}
+.total{display:flex;align-items:baseline;gap:10px}
+.total b{font-family:var(--stencil);font-weight:400;font-size:72px;line-height:.95}
+.total span{font-family:var(--cond);font-size:17px;color:var(--ink3)}
+.total.pass b{color:var(--green)}.total.mid b{color:var(--ochre)}.total.low b{color:var(--red)}
+.parts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0 18px}
+.part span{display:block;font-family:var(--cond);font-weight:600;font-size:15px;color:var(--ink2)}
+.part b{font-family:var(--stencil);font-weight:400;font-size:26px}
+.part i{font-style:normal;font-family:var(--cond);color:var(--ink3);margin-left:3px}
+.meter{height:6px;border-radius:3px;background:var(--rule2);overflow:hidden;margin-top:4px}
+.fill{height:100%;width:0;transition:width .35s ease}
+.why{list-style:none;margin:0 0 16px;padding:0;border-top:1px solid var(--rule2)}
+.why li{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule2);font-size:15px;align-items:baseline}
+.why .r{font-family:var(--stencil);color:var(--teal)}
+.why .p{font-family:var(--cond);font-weight:600;font-size:16px;white-space:nowrap}
+.why .neg{color:var(--red)}
+/* threat tabs */
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.tabs button{font-family:var(--cond);font-weight:600;font-size:16px;padding:8px 13px;border:1px solid var(--rule);border-radius:4px;background:var(--card);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.tabs button[aria-selected="true"]{border-color:var(--ink);box-shadow:inset 0 -3px 0 var(--ink)}
+.tabs .dot{margin:0}
+.tcard{border:1px solid var(--rule);border-radius:6px;background:var(--card);display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
+.tcard .clues{padding:18px 20px}
+.tcard .clues h3{font-size:24px;margin-bottom:12px}
+.tcard dl{display:grid;grid-template-columns:120px minmax(0,1fr);margin:0}
+.tcard dt,.tcard dd{margin:0;padding:7px 0;border-bottom:1px solid var(--rule2)}
+.tcard dt{font-family:var(--cond);font-weight:600;color:var(--ink3)}
+.tcard .ans{padding:18px 20px;border-left:1px solid var(--rule);background:var(--card2);display:flex;flex-direction:column;gap:10px}
+.tcard .ans .lab{font-family:var(--cond);font-weight:600;color:var(--ink3)}
+.tcard .ans .resp{font-family:var(--cond);font-weight:600;font-size:24px;line-height:1.15}
+.tcard .ans p{margin:0;color:var(--ink2);font-size:15px}
+.all{margin-top:14px}
+.all summary{cursor:pointer;font-family:var(--cond);font-weight:600;font-size:16px;color:var(--teal);padding:6px 0}
+.all .scroll{margin-top:8px}
+/* effector reach */
+.reach{border:1px solid var(--rule);border-radius:6px;background:var(--card);padding:14px 20px 8px}
+.rrow{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;align-items:center;padding:10px 0;border-bottom:1px solid var(--rule2)}
+.rrow:last-of-type{border-bottom:0}
+.rname{font-family:var(--cond);font-weight:600;font-size:18px;display:flex;align-items:center}
+.rname small{display:block;font-family:var(--body);font-weight:400;font-size:13px;color:var(--ink3)}
+.track{position:relative;height:22px;background:var(--rule2);border-radius:3px}
+.track .on{position:absolute;top:0;bottom:0;border-radius:3px}
+.track .lbl{position:absolute;top:50%;transform:translateY(-50%);font-family:var(--cond);font-weight:600;font-size:14px;color:#fff;padding:0 8px;white-space:nowrap}
+.rmeta{grid-column:2;font-size:14px;color:var(--ink2);margin-top:2px}
+.axis{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;padding:6px 0 4px}
+.axis .sc{position:relative;height:18px;font-family:var(--cond);font-size:13px;color:var(--ink3)}
+.axis .sc span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.axis .sc span:first-child{transform:none}.axis .sc span:last-child{transform:translateX(-100%)}
+/* weather */
+.wx{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.wcard{border:1px solid var(--rule);border-radius:6px;background:var(--card);padding:14px 16px}
+.wcard h3{margin-bottom:10px}
+.wbar{display:grid;grid-template-columns:62px minmax(0,1fr) 44px;gap:8px;align-items:center;font-size:14px;color:var(--ink2);margin:6px 0}
+.wbar .t{height:8px;background:var(--rule2);border-radius:4px;overflow:hidden}
+.wbar .t i{display:block;height:100%;background:var(--blue)}
+.wbar .t i.cam{background:var(--teal)}
+.wbar b{font-family:var(--cond);text-align:right}
+.wcard p{margin:10px 0 0;font-size:14px;color:var(--ink2)}
+/* rules, missions, readiness */
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.cols>div{background:var(--card);border:1px solid var(--rule);border-radius:6px;padding:16px 18px}
+.cols p{margin:0;color:var(--ink2);font-size:15px}
+td.best{color:var(--green);background:color-mix(in srgb,var(--green) 12%,transparent)}
+.rules{display:grid;grid-template-columns:52px minmax(0,1fr);margin:0;max-width:880px;border-top:1px solid var(--rule2)}
+.rules dt,.rules dd{padding:9px 0;border-bottom:1px solid var(--rule2);margin:0}
+.rules dt{font-family:var(--stencil);color:var(--teal);font-size:18px}
+.rules dd{color:var(--ink2)}
+.missions{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.missions article{border:1px solid var(--rule);border-left:4px solid var(--teal);border-radius:4px;background:var(--card);padding:14px 16px}
+.missions .mm{font-family:var(--cond);font-weight:600;color:var(--ink3);margin:0 0 6px}
+.missions p{margin:0;font-size:15px;color:var(--ink2)}
+.ready{display:flex;flex-wrap:wrap;gap:12px}
+.ready div{display:flex;align-items:center;gap:12px;border:1px solid var(--rule);border-radius:6px;background:var(--card);padding:12px 16px}
+.ready b{font-family:var(--cond);font-size:18px}
+@media (max-width:860px){.calc{grid-template-columns:1fr}.ctl{border-right:0;border-bottom:1px solid var(--rule)}.tcard{grid-template-columns:1fr}.tcard .ans{border-left:0;border-top:1px solid var(--rule)}}
+@media (max-width:640px){.seg{flex-direction:column;gap:2px;padding:10px 12px}.seg b{font-size:30px}.seg span{font-size:15px}.rrow,.axis{grid-template-columns:96px minmax(0,1fr);gap:10px}.rname{font-size:16px}.total b{font-size:60px}.tcard dl{grid-template-columns:100px minmax(0,1fr)}}
+main section{scroll-margin-top:128px}
+</style></head><body>
+<header class="bar">
+<div class="in"><div class="brand"><span class="wm">PARASHURAMA</span><span class="meta">Threat library and scoring rules</span></div>
+<a class="btn" href="https://parashurama-docs.vercel.app/comparison.html">Cost and comparison matrix</a></div>
+<nav class="nav" aria-label="Sections">
+<a href="#calc">Try the scoring</a><a href="#threats">Threats</a><a href="#effectors">Effectors</a><a href="#scoring">Points</a><a href="#rules">Rules</a><a href="#conditions">Conditions</a><a href="#missions">Missions</a><a href="#readiness">Readiness</a>
+</nav>
+</header>
+<main>
+<h1>Threat library and scoring rules</h1>
+<p class="lede">Every drone a trainee meets, every weapon they can use and every point they earn comes from the rules on this page. Instructors change them by editing files, without touching code.</p>
+<div class="band" role="img" aria-label="Score per contact: detect 30 points, identify 30 points, defeat 40 points, total 100">
+  <div class="seg s1"><b>30</b><span>Detect</span></div>
+  <div class="seg s2"><b>30</b><span>Identify</span></div>
+  <div class="seg s3"><b>40</b><span>Defeat</span></div>
+</div>
+<p class="small bandcap">Each contact is scored out of 100. A drill's score is the average of its contacts, and 75 passes.</p>
+<div class="btns">
+<a class="btn primary" href="#calc">Score a decision yourself</a>
+<a class="btn" href="https://parashurama-docs.vercel.app/">Open the live prototype</a>
+<a class="btn" href="https://github.com/JitendraSethia/parashurama/tree/main/config">See the source files</a>
+</div>
+
+<section id="calc">
+<h2>Score a decision yourself</h2>
+<p class="sub">Pick a contact and play the trainee. The score and the rules behind it update as you go, exactly as the debrief scores a drill.</p>
+<div class="calc">
+<form class="ctl" id="calcForm" onsubmit="return false">
+  <fieldset><legend>1. The contact on radar</legend>
+    <div class="seg-pick" id="pickType" role="radiogroup" aria-label="Contact type"></div>
+  </fieldset>
+  <fieldset><legend>2. Detect: time to start tracking</legend>
+    <div class="slide"><input type="range" id="det" min="0" max="25" step="1" value="2" aria-describedby="detOut"><output id="detOut">2 s</output></div>
+  </fieldset>
+  <fieldset><legend>3. Identify: what the trainee called it</legend>
+    <div class="row2">
+      <label>Called it as<select id="idType"></select></label>
+      <label>How sure<select id="conf"><option value="0.6">Likely</option><option value="0.8" selected>Confident</option><option value="0.95">Certain</option></select></label>
+    </div>
+  </fieldset>
+  <fieldset><legend>4. Decide: first response</legend>
+    <div class="seg-pick" id="pickEff" role="radiogroup" aria-label="Response"></div>
+  </fieldset>
+  <fieldset id="sitBox"><legend>5. The situation</legend>
+    <label class="tick"><input type="checkbox" id="urban"> Urban area</label>
+    <label class="tick"><input type="checkbox" id="late"> Under 8 s to impact when engaged</label>
+    <label class="tick"><input type="checkbox" id="prio"> A more urgent threat was waiting</label>
+    <label class="tick"><input type="checkbox" id="leak"> The drone reached the asset</label>
+  </fieldset>
+</form>
+<div class="out" aria-live="polite">
+  <div class="total"><b id="tot">100</b><span>/ 100 for this contact</span></div>
+  <div class="parts">
+    <div class="part"><span>Detect</span><b id="pD">30</b><i>/ 30</i><div class="meter"><div id="mD" class="fill s1"></div></div></div>
+    <div class="part"><span>Identify</span><b id="pC">28</b><i>/ 30</i><div class="meter"><div id="mC" class="fill s2"></div></div></div>
+    <div class="part"><span>Defeat</span><b id="pF">40</b><i>/ 40</i><div class="meter"><div id="mF" class="fill s3"></div></div></div>
+  </div>
+  <h3>Why, rule by rule</h3>
+  <ul class="why" id="why"></ul>
+  <button type="button" class="btn" id="bestBtn">Show the best answer</button>
+</div>
+</div>
+</section>
+
+<section id="threats">
+<h2>Threat library</h2>
+<p class="sub">Six contact types. The skill being trained is telling them apart from radar, the friendly check, the radio signal, behaviour and, when close enough, the camera. Pick one to see its clues.</p>
+<div class="tabs" role="tablist" aria-label="Contact types" id="threatTabs"></div>
+<div class="tcard" id="threatCard" role="tabpanel"></div>
+<details class="all"><summary>Compare all six side by side</summary>
+<div class="scroll"><table>
+<thead><tr><th>Contact</th><th class="num">Speed</th><th>Altitude</th><th>Radar echo</th><th>Radio signal</th><th>Behaviour</th><th>Right response</th></tr></thead>
+<tbody id="threatRows"></tbody></table></div>
+</details>
+</section>
+
+<section id="effectors">
+<h2>Effectors the trainee can use</h2>
+<p class="sub">Each effector works only on drones it can actually affect, and only inside its reach. Choosing one that cannot work scores nothing. Bars show reach against the 3 km radar range.</p>
+<div class="reach" id="reach"></div>
+</section>
+
+<section id="scoring">
+<h2>How the 100 points are earned</h2>
+<div class="cols">
+<div><h3>Detect, 30 points</h3><p>Full 30 if tracking starts within 3 s of the first radar paint, falling evenly to 0 at 20 s.</p></div>
+<div><h3>Identify, 30 points</h3><p>The trainee names the type and how sure they are: Likely, Confident or Certain. A correct call earns 25 to 29. A wrong call earns 1 to 4, plus 5 if friend or foe was still right. Being certain and wrong earns the least.</p></div>
+<div><h3>Defeat, 40 points</h3><p>Points for the first response, by how well it suits the drone (table below). A hostile that reaches the asset scores 0.</p></div>
+</div>
+<div class="scroll" style="margin-top:20px"><table>
+<thead><tr><th>Drone type</th><th class="num">RF jam</th><th class="num">GNSS spoof</th><th class="num">Interceptor</th><th class="num">Gun</th></tr></thead>
+<tbody>
+<tr><td>Radio-linked (recon, FPV)</td><td class="num best">40</td><td class="num">30</td><td class="num">30</td><td class="num">28</td></tr>
+<tr><td>GNSS-guided, no radio (loitering munition, swarm)</td><td class="num">0</td><td class="num best">40</td><td class="num">36</td><td class="num">26</td></tr>
+<tr><td>No radio and no GNSS (instructor-added types)</td><td class="num">0</td><td class="num">0</td><td class="num best">40</td><td class="num">30</td></tr>
+<tr><td>Friendly UAV</td><td colspan="4">Hold fire: 40. Any engagement: 0</td></tr>
+<tr><td>Bird / clutter</td><td colspan="4">Hold: 40. Any effector: 10</td></tr>
+</tbody></table></div>
+<p class="small">Highlighted: the preferred first choice. A hostile that was held but destroyed anyway (for example by a spoof's area effect) scores 20.</p>
+<h3 class="h3gap">Deductions</h3>
+<div class="scroll"><table>
+<thead><tr><th>Mistake</th><th class="num">Points</th><th>Rule</th></tr></thead>
+<tbody>
+<tr><td>Gun used in an urban area</td><td class="num hostile">−15</td><td>R6</td></tr>
+<tr><td>Engaged with under 8 s to impact</td><td class="num hostile">−8</td><td>R7</td></tr>
+<tr><td>Engaged while a more urgent threat was waiting (its time to impact under 60% of this one's)</td><td class="num hostile">−5</td><td>R5</td></tr>
+<tr><td>Hostile reached the asset, or a recon drone watched unchallenged</td><td class="num hostile">Defeat = 0</td><td>R8</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="rules">
+<h2>Doctrine rules</h2>
+<p class="sub">Every point in the debrief cites one of these rules, so a trainee always knows why they gained or lost it.</p>
+<dl class="rules" id="ruleList"></dl>
+</section>
+
+<section id="conditions">
+<h2>Conditions that make it harder</h2>
+<p class="sub">Radar reaches 3 km. The camera confirms a drone up to 2.6 km by day and 2.0 km at night. Weather cuts both.</p>
+<div class="wx" id="wx"></div>
+<p class="sub" style="margin-top:16px">Instructors can also add a radar fault (a 60° blind sector at 30% detection), a camera fault or a dead RF sensor, and set the drill at night or in urban terrain.</p>
+</section>
+
+<section id="missions">
+<h2>Real-world missions</h2>
+<p class="sub">Scripted drills based on public reporting. Each one teaches a single lesson.</p>
+<div class="missions">
+<article><h3>Air base at night</h3><p class="mm">Army / IAF air defence. Night, rural.</p><p>Inspired by the Jammu Air Force Station attack (27 June 2021). Identify slow 2.4 GHz quadcopters from RF and behaviour and jam them before they hover over the asset.</p></article>
+<article><h3>Border post in dense fog</h3><p class="mm">BSF. Day, fog.</p><p>Fog cuts camera range below a kilometre. Trust the RF signal and slow approach, and don't jam your own patrol UAV.</p></article>
+<article><h3>Airport in heavy rain</h3><p class="mm">CISF. Day, urban, rain.</p><p>Many contacts are birds: hold on them. In a city the gun causes collateral damage; jam instead.</p></article>
+<article><h3>Forward post: swarm in a dust storm</h3><p class="mm">Army air defence. Day, dust, swarm.</p><p>The swarm and the loitering munition have no radio link, so jamming fails. One GNSS spoof hits the whole swarm; keep interceptors for what spoofing cannot stop.</p></article>
+</div>
+</section>
+
+<section id="readiness">
+<h2>When a trainee counts as ready</h2>
+<p class="sub">A learning model tracks mastery of each skill and condition (detect, identify, defeat, timing, night, swarm, faulty sensors, bad weather) after every drill. Commanders see it on the readiness board.</p>
+<div class="ready">
+<div><span class="chip c-yes">Certified</span><b>80% or more</b></div>
+<div><span class="chip c-part">Developing</span><b>55% to 80%</b></div>
+<div><span class="chip c-no">Not yet</span><b>Below 55%</b></div>
+</div>
+</section>
+
+<footer>
+<p>All values are training values chosen for instruction. They are not equipment specifications or real incident data, and instructors can change every one of them. Source: <a href="https://github.com/JitendraSethia/parashurama/tree/main/config">config/</a> (threats 1.0.0, effectors 1.0.0, doctrine 1.0.0, training 1.1.0).</p>
+<p>PARASHURAMA, Team Dhwanik_TH06, Smart India Hackathon 2026, PS SIH26247.</p>
+</footer>
+</main>
+
+<script>(function(){
+const T={
+ recon:{label:'Recon quadcopter',side:'hostile',speed:12,alt:'60–150 m',echo:'Small',rf:'Control link, 2.4 GHz',rfOn:true,gnss:true,cam:'Quadcopter',beh:'Slow, steady approach, then hovers to watch',resp:'RF jam',rule:'R3',why:'Its 2.4 GHz control link is its weak point. Jam it before it hovers over the asset.'},
+ fpv:{label:'FPV attack drone',side:'hostile',speed:32,alt:'15–60 m',echo:'Very small',rf:'Video link, 5.8 GHz',rfOn:true,gnss:false,cam:'Quadcopter',beh:'Fast, low, weaving',resp:'RF jam, at once',rule:'R3, R7',why:'It arrives in seconds. Jam the video link straight away; a gun is the short-range backup.'},
+ loiter:{label:'Loitering munition',side:'hostile',speed:42,alt:'250–500 m',echo:'Medium',rf:'No emission',rfOn:false,gnss:true,cam:'Fixed wing',beh:'Fast, straight at the asset',resp:'GNSS spoof or interceptor',rule:'R4',why:'No radio link, so jamming does nothing. It navigates by GNSS: spoof it, or use an interceptor.'},
+ swarm:{label:'Swarm drone',side:'hostile',speed:20,alt:'60–120 m',echo:'Very small',rf:'No emission',rfOn:false,gnss:true,cam:'Quadcopter',beh:'Moves in formation with others',resp:'GNSS spoof',rule:'R4, R5',why:'One spoof takes every swarm drone within 450 m. Deal with the closest threat first.'},
+ friendly:{label:'Friendly UAV',side:'friendly',speed:16,alt:'150–300 m',echo:'Medium',rf:'Own-force link',rfOn:true,gnss:true,cam:'Fixed wing',beh:'Orbits a set route; friendly check matches a flight plan',resp:'Hold fire',rule:'R1',why:'The friendly check matched a flight plan. Engaging it is fratricide.'},
+ bird:{label:'Bird / clutter',side:'neutral',speed:8,alt:'20–180 m',echo:'Very small',rf:'No emission',rfOn:false,gnss:false,cam:'Bird',beh:'Erratic, keeps changing direction',resp:'Hold',rule:'R2',why:'Tiny echo, no radio, erratic path. Don\'t waste an effector on it.'}
+};
+const ORDER=['recon','fpv','loiter','swarm','friendly','bird'];
+const EF={jam:{label:'RF jam',affects:'rf',min:0,max:2000,delay:2.5,color:'var(--jam)',note:'Drones with a radio link. No effect on GNSS-guided drones.'},
+ spoof:{label:'GNSS spoof',affects:'gnss',min:0,max:2500,delay:3,color:'var(--spoof)',note:'GNSS-guided drones. Area effect: also takes swarm drones within 450 m.'},
+ intc:{label:'Interceptor',affects:'all',min:300,max:2500,delay:4,color:'var(--intc)',note:'Any drone. Only 4 per drill, and not below 300 m.'},
+ gun:{label:'Gun',affects:'all',min:0,max:1000,delay:1.5,color:'var(--gun)',note:'Any drone, close in. Collateral risk in urban areas (−15).'}};
+const TABLE={rfLinked:{jam:40,intc:30,spoof:30,gun:28},gnssOnly:{spoof:40,intc:36,gun:26,jam:0},autonomous:{intc:40,gun:30,jam:0,spoof:0}};
+const PREF={rfLinked:'jam',gnssOnly:'spoof',autonomous:'intc'};
+const REASON={rfLinked:'Radio link present',gnssOnly:'No radio link, GNSS-guided',autonomous:'No radio link and no GNSS'};
+const RULES={D1:'Detection: full marks within 3 s of the first radar paint, zero at 20 s.',C1:'Identification: correct = 18 + 12 × confidence; wrong = 10 × (1 − confidence), +5 if friend/foe was right.',R1:'Friendly identified: hold fire.',R2:'Bird or clutter: hold; don\'t waste an effector.',R3:'Radio-controlled hostile: RF jam first.',R4:'No radio link, GNSS-guided: GNSS spoof or interceptor.',R5:'Engage the most urgent threat first.',R6:'Gun in an urban area: collateral risk.',R7:'Engage with at least 8 s to impact.',R8:'A hostile must not reach the asset or observe unchallenged.'};
+const WX=[['Clear',1,1,'Baseline.'],['Heavy rain',.7,.6,'Track early: blips drop out.'],['Dense fog',.95,.35,'Decide from the radio signal, not the picture.'],['Dust storm',.85,.5,'Expect noisy tracks and late camera confirmation.']];
+const $=id=>document.getElementById(id);
+const dot=s=>`<span class="dot bg-${T[s].side}"></span>`;
+const cls=t=>t.rfOn?'rfLinked':t.gnss?'gnssOnly':'autonomous';
+const effective=(t,e)=>e.affects==='all'||(e.affects==='rf'&&t.rfOn)||(e.affects==='gnss'&&t.gnss);
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const confLabel={0.6:'Likely',0.8:'Confident',0.95:'Certain'};
+
+/* threat tabs, card, table */
+function showThreat(k){
+  document.querySelectorAll('#threatTabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.k===k));
+  const t=T[k];
+  $('threatCard').innerHTML=`<div class="clues"><h3 class="${t.side}">${t.label}</h3><dl>
+  <dt>Radar echo</dt><dd>${t.echo}</dd><dt>Speed</dt><dd>${t.speed} m/s</dd><dt>Altitude</dt><dd>${t.alt}</dd>
+  <dt>Radio signal</dt><dd>${t.rf}</dd><dt>Behaviour</dt><dd>${t.beh}</dd><dt>Camera</dt><dd>${t.cam} (only when close enough)</dd></dl></div>
+  <div class="ans"><span class="lab">Right response</span><span class="resp ${t.side}">${t.resp}</span><p>${t.why}</p><span class="small">Rule ${t.rule}</span>
+  <button type="button" class="btn" data-try="${k}">Try it in the calculator</button></div>`;
+}
+$('threatTabs').innerHTML=ORDER.map(k=>`<button type="button" role="tab" data-k="${k}" aria-selected="false">${dot(k)}${T[k].label}</button>`).join('');
+$('threatTabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)showThreat(b.dataset.k)});
+$('threatCard').addEventListener('click',e=>{const b=e.target.closest('[data-try]');if(!b)return;setType(b.dataset.try,true);$('calc').scrollIntoView()});
+$('threatRows').innerHTML=ORDER.map(k=>{const t=T[k];return `<tr><td class="k ${t.side}">${dot(k)}${t.label}</td><td class="num">${t.speed} m/s</td><td>${t.alt}</td><td>${t.echo}</td><td>${t.rf}</td><td>${t.beh}</td><td>${t.resp} <span class="small">(${t.rule})</span></td></tr>`}).join('');
+showThreat('recon');
+
+/* effector reach */
+const km=m=>(m/1000).toFixed(1).replace('.0','')+' km';
+$('reach').innerHTML=Object.values(EF).map(e=>{const l=e.min/3000*100,w=(e.max-e.min)/3000*100;
+ return `<div class="rrow"><div class="rname"><span class="dot" style="background:${e.color}"></span><span>${e.label}<small>${e.delay} s to take effect</small></span></div>
+ <div><div class="track"><div class="on" style="left:${l}%;width:${w}%;background:${e.color}"><span class="lbl">${e.min?km(e.min)+'–':'up to '}${km(e.max)}</span></div></div><div class="rmeta">${e.note}</div></div></div>`}).join('')+
+ `<div class="axis"><div></div><div class="sc"><span style="left:0">0</span><span style="left:33.3%">1 km</span><span style="left:66.6%">2 km</span><span style="left:100%">3 km radar</span></div></div>`;
+
+/* weather */
+$('wx').innerHTML=WX.map(([n,r,c,tip])=>`<div class="wcard"><h3>${n}</h3>
+ <div class="wbar"><span>Radar</span><div class="t"><i style="width:${r*100}%"></i></div><b>${Math.round(r*100)}%</b></div>
+ <div class="wbar"><span>Camera</span><div class="t"><i class="cam" style="width:${c*100}%"></i></div><b>${Math.round(c*100)}%</b></div><p>${tip}</p></div>`).join('');
+
+/* rules */
+$('ruleList').innerHTML=Object.entries(RULES).map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('');
+
+/* calculator */
+const S={type:'recon',eff:'jam'};
+$('pickType').innerHTML=ORDER.map(k=>`<button type="button" role="radio" data-k="${k}" aria-checked="false">${dot(k)}${T[k].label}</button>`).join('');
+const EFF_OPTS=[['hold','Hold fire'],['jam','RF jam'],['spoof','GNSS spoof'],['intc','Interceptor'],['gun','Gun']];
+$('pickEff').innerHTML=EFF_OPTS.map(([k,l])=>`<button type="button" role="radio" data-k="${k}" aria-checked="false">${l}</button>`).join('');
+$('idType').innerHTML='<option value="none">Not identified</option>'+ORDER.map(k=>`<option value="${k}">${T[k].label}</option>`).join('');
+function mark(id,k){document.querySelectorAll('#'+id+' button').forEach(b=>b.setAttribute('aria-checked',b.dataset.k===k))}
+function setType(k,syncId){S.type=k;mark('pickType',k);if(syncId)$('idType').value=k;run()}
+$('pickType').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setType(b.dataset.k,true)});
+$('pickEff').addEventListener('click',e=>{const b=e.target.closest('button');if(b){S.eff=b.dataset.k;mark('pickEff',S.eff);run()}});
+['det','idType','conf','urban','late','prio','leak'].forEach(id=>$(id).addEventListener('input',run));
+$('bestBtn').addEventListener('click',()=>{const t=T[S.type];$('det').value=2;$('idType').value=S.type;$('conf').value='0.95';
+ ['urban','late','prio','leak'].forEach(id=>$(id).checked=false);
+ S.eff=t.side!=='hostile'?'hold':PREF[cls(t)];mark('pickEff',S.eff);run()});
+
+function run(){
+  const t=T[S.type],det=+$('det').value,idT=$('idType').value,p=+$('conf').value,eff=S.eff;
+  const hostile=t.side==='hostile';
+  $('sitBox').disabled=!hostile;
+  const urban=hostile&&$('urban').checked,late=hostile&&$('late').checked,prio=hostile&&$('prio').checked,leak=hostile&&$('leak').checked;
+  $('detOut').textContent=det+' s';
+  const why=[];
+  const D=Math.round(30*clamp(1-(det-3)/17,0,1));
+  why.push(['D1',det<=3?'Tracked within 3 s of the first radar paint':det>=20?`Tracked after ${det} s: too late for any points`:`Tracked after ${det} s`,D]);
+  let C=0;
+  if(idT==='none'){why.push(['C1','Never identified',0])}
+  else if(idT===S.type){C=Math.round(18+12*p);why.push(['C1',`Correct call, ${confLabel[p].toLowerCase()}`,C])}
+  else{const ff=(T[idT].side==='hostile')===hostile;C=Math.round(10*(1-p)+(ff?5:0));
+    why.push(['C1',`Wrong call (${T[idT].label}), ${confLabel[p].toLowerCase()}${ff?'; friend or foe was still right (+5)':''}`,C])}
+  let F=0;
+  if(t.side==='friendly'){F=eff==='hold'?40:0;why.push(['R1',eff==='hold'?'Friendly: held fire':'Engaged a friendly UAV: fratricide',F])}
+  else if(t.side==='neutral'){F=eff==='hold'?40:10;why.push(['R2',eff==='hold'?'Bird: no effector wasted':'Effector wasted on a bird',F])}
+  else if(leak){F=0;why.push(['R8','Reached the protected asset',0])}
+  else if(eff==='hold'){F=0;why.push(['R8',S.type==='recon'?'Recon left to observe unchallenged':'Held fire on a hostile',0])}
+  else{const c=cls(t),ef=EF[eff],pref=PREF[c],ok=effective(t,ef);F=ok?TABLE[c][eff]:0;
+    const rule=c==='rfLinked'?'R3':'R4';
+    why.push([rule,eff===pref?`${REASON[c]}: ${ef.label} was right`:!ok?(ef.affects==='rf'?'Jammed a drone with no radio link: no effect':`${ef.label} has no effect on this drone`):`${ef.label} works, but ${EF[pref].label} was the better first choice`,F]);
+    if(urban&&eff==='gun'){const n=Math.max(0,F-15);why.push(['R6','Gun in an urban area',n-F]);F=n}
+    if(late){const n=Math.max(0,F-8);why.push(['R7','Under 8 s to impact',n-F]);F=n}
+    if(prio){const n=Math.max(0,F-5);why.push(['R5','A more urgent threat was waiting',n-F]);F=n}
+  }
+  const tot=D+C+F;
+  $('tot').textContent=tot;$('tot').parentElement.className='total '+(tot>=75?'pass':tot>=55?'mid':'low');
+  $('pD').textContent=D;$('pC').textContent=C;$('pF').textContent=F;
+  $('mD').style.width=D/30*100+'%';$('mC').style.width=C/30*100+'%';$('mF').style.width=F/40*100+'%';
+  $('why').innerHTML=why.map(([r,txt,pts],i)=>{const isMod=i>2;const s=isMod?(pts<0?'−'+(-pts):'0'):String(pts);
+    return `<li><span class="r" title="${RULES[r]}">${r}</span><span>${txt}</span><span class="p ${isMod&&pts<0?'neg':''}">${isMod?s:'+'+s}</span></li>`}).join('');
+}
+setType('recon',true);mark('pickEff','jam');run();
+
+/* active nav */
+const links=[...document.querySelectorAll('.nav a')];
+const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id))}})},{rootMargin:'-45% 0px -50% 0px'});
+document.querySelectorAll('main section[id]').forEach(s=>io.observe(s));
+})();
+</script>
+</body></html>
