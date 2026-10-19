@@ -15,7 +15,7 @@ export interface DrillConfig {
 export type ActionKind = 'track' | 'id' | 'eng';
 /** A trainee (or expert) decision, stamped with the tick it applies on. */
 export interface Action { tick: number; k: ActionKind; cid: number; cls?: string; conf?: number; eff?: string; }
-export interface Engagement { tick: number; eff: string; effective: boolean; range: number; tti: number; priorityMiss?: boolean; }
+export interface Engagement { tick: number; eff: string; effective: boolean; range: number; tti: number; priorityMiss?: boolean; /** The effector could work but this shot missed (pk < 1). */ miss?: boolean; }
 export type ContactState = 'live' | 'neutralised' | 'leaked';
 export interface Contact {
   id: number; type: string; x: number; y: number; alt: number; v: number; hdg: number; wob: number;

@@ -29,7 +29,7 @@ function renderTemplatesCard() {
   card.querySelectorAll('[data-tpl]').forEach((b: any) => (b.onclick = () => startTemplate(templates[+b.dataset.tpl])));
 }
 function weaponsForm() {
-  return `<table><tr><th>Weapon</th><th>Reach (m)</th><th>Min (m)</th><th>Delay (s)</th><th>Stock</th></tr>${EFF_ORDER.map((k) => { const e = draft.effectors.effectors[k]; return `<tr><td>${e.label}</td><td>${num(`effectors.effectors.${k}.range`, e.range, 50)}</td><td>${num(`effectors.effectors.${k}.min`, e.min, 50)}</td><td>${num(`effectors.effectors.${k}.delay`, e.delay, 0.5, 0.5)}</td><td>${e.stock != null ? num(`effectors.effectors.${k}.stock`, e.stock) : '∞'}</td></tr>`; }).join('')}</table>`;
+  return `<table><tr><th>Weapon</th><th>Reach (m)</th><th>Min (m)</th><th>Delay (s)</th><th>Stock</th><th>Hit chance (0–1)</th></tr>${EFF_ORDER.map((k) => { const e = draft.effectors.effectors[k]; return `<tr><td>${e.label}</td><td>${num(`effectors.effectors.${k}.range`, e.range, 50)}</td><td>${num(`effectors.effectors.${k}.min`, e.min, 50)}</td><td>${num(`effectors.effectors.${k}.delay`, e.delay, 0.5, 0.5)}</td><td>${e.stock != null ? num(`effectors.effectors.${k}.stock`, e.stock) : '∞'}</td><td>${num(`effectors.effectors.${k}.pk`, e.pk ?? 1, 0.05, 0)}</td></tr>`; }).join('')}</table>`;
 }
 function doctrineForm() {
   const cls = ['rfLinked', 'gnssOnly', 'autonomous'] as const, names = { rfLinked: 'Radio-controlled', gnssOnly: 'GNSS-guided, no radio', autonomous: 'Neither' };

@@ -78,6 +78,12 @@
           },
           "collateralUrban": {
             "type": "boolean"
+          },
+          "pk": {
+            "description": "Training value: chance one engagement works on a drone it can affect (0-1). Missing = 1 (always works).",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
           }
         }
       }

@@ -10,6 +10,9 @@ export interface ContactScore {
 const RULE_FOR = { rfLinked: 'R3', gnssOnly: 'R4', autonomous: 'R4' } as const;
 const REASON = { rfLinked: 'Radio link present', gnssOnly: 'No radio link, GNSS-guided', autonomous: 'No radio link and no GNSS' } as const;
 
+/** After the first engagement missed, was a real (non-hold) engagement tried again? */
+const reengaged = (c: Contact) => c.engs.slice(1).some((e) => e.eff !== 'hold');
+
 /** Score every contact against doctrine. Every point is traceable to a rule id in doctrine.json. */
 export function scoreRun(E: Engine): ContactScore[] {
   const out: ContactScore[] = [];
@@ -60,6 +63,7 @@ export function scoreRun(E: Engine): ContactScore[] {
       if (!e0 || e0.eff === 'hold') { F = F0.clutterHold; why.push('Bird: no effector wasted'); } else { F = F0.clutterEngaged; why.push('Effector wasted on a bird'); }
     } else if (c.state === 'leaked') {
       F = 0; rules.push('R8'); why.push('Reached the protected asset');
+      if (e0?.miss && !reengaged(src)) { rules.push('R10'); why.push(`${EF[e0.eff].label} missed and it was not engaged again`); }
     } else if (!e0 || e0.eff === 'hold') {
       F = c.state === 'neutralised' ? F0.hostileHeldButNeutralised : 0; rules.push('R8');
       why.push(!e0 ? (c.hover ? 'Left to watch the asset unchallenged' : 'Never engaged') : 'Held fire on a hostile');
@@ -76,6 +80,7 @@ export function scoreRun(E: Engine): ContactScore[] {
       if (EF[e0.eff]?.collateralUrban && E.cfg.terrain === 'urban') { F = Math.max(0, F + M.urbanGun); rules.push('R6'); why.push(`Gun in an urban area ${M.urbanGun}`); }
       if (isFinite(e0.tti) && e0.tti < M.lateEngagementSec) { F = Math.max(0, F + M.late); rules.push('R7'); why.push(`Under ${M.lateEngagementSec} s to impact ${M.late}`); }
       if (e0.priorityMiss) { F = Math.max(0, F + M.priority); rules.push('R5'); why.push(`A more urgent threat was waiting ${M.priority}`); }
+      if (e0.miss && c.state !== 'neutralised' && !reengaged(src)) { const m = M.missNotReengaged ?? -10; F = Math.max(0, F + m); rules.push('R10'); why.push(`${EF[e0.eff].label} missed and it was not engaged again ${m}`); }
     }
     out.push({ c, src, D, C: Cs, F, Fbase, e0, total: D + Cs + F, missed: false, rules, why, det });
   }

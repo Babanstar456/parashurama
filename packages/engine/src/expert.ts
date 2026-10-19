@@ -1,4 +1,4 @@
-import { decisionClass, ticks } from './config';
+import { decisionClass, isEffective, ticks } from './config';
 import { inReach, visibleBlip } from './engine';
 import type { Action, Engine } from './types';
 
@@ -16,11 +16,17 @@ export function expertPolicy(E: Engine): Action[] {
       if (t >= c.trackTick + ticks(E.C, X.identifyDelaySec)) acts.push({ k: 'id', cid: c.id, cls: c.type, conf: E.C.doctrine.confidence[E.C.doctrine.confidence.length - 1].p, tick: t });
       continue;
     }
-    if (c.engs.length) continue;
     const Ty = E.C.threats.threats[c.type];
+    const last = c.engs[c.engs.length - 1];
+    // Engage once; engage again only after a miss (pk < 1), with the effector of highest expected value (points × pk) in reach.
+    if (last && !(Ty.hostile && last.miss)) continue;
     if (!Ty.hostile) { acts.push({ k: 'eng', cid: c.id, eff: 'hold', tick: t }); continue; }
-    const want = E.C.doctrine.defeat.preferred[decisionClass(Ty)];
-    if (inReach(c, want, E.C)) acts.push({ k: 'eng', cid: c.id, eff: want, tick: t });
+    const cls = decisionClass(Ty), want = E.C.doctrine.defeat.preferred[cls];
+    if (!last) { if (inReach(c, want, E.C)) acts.push({ k: 'eng', cid: c.id, eff: want, tick: t }); continue; }
+    const EF = E.C.effectors.effectors, table = E.C.doctrine.defeat.tables[cls];
+    const next = E.C.effectors.order.filter((k) => isEffective(Ty, EF[k]) && inReach(c, k, E.C) && (EF[k].stock == null || (E.stock[k] ?? 0) > 0))
+      .sort((a, b) => (table[b] ?? 0) * (EF[b].pk ?? 1) - (table[a] ?? 0) * (EF[a].pk ?? 1))[0];
+    if (next) acts.push({ k: 'eng', cid: c.id, eff: next, tick: t });
   }
   return acts;
 }

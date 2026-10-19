@@ -7,6 +7,7 @@ import { $, $$, cap, cssv } from './dom';
 import { C, TYPES, ORDER, EFF, EFF_ORDER, CONF, RULES, SIM, DT, SWEEP, RMAX, BASE, MAXT, T, confLabel, CERT } from './cfg';
 import { drawPaper, symPath, kindOfCls, symSvg } from './paper';
 import { radarChart } from './charts';
+import { toast } from './toast';
 
 const fmt = fmtTime;
 // ---- extension points: feature modules subscribe here instead of editing this file ----
@@ -69,6 +70,9 @@ function sizeRadar(){const w=$('#radarWrap');const side=Math.max(320,Math.min(w.
 function act(a){a.tick=L.tick;live.queue.push(a);live.actions.push(a);}
 function doTrack(c){if((live.did[c.id]||{}).track)return;live.did[c.id]={...(live.did[c.id]||{}),track:true};if(!live.labels[c.id])live.labels[c.id]='T'+String(++live.nLab).padStart(2,'0');act({k:'track',cid:c.id});emit('act',{k:'track',c});}
 function doId(c,cls,conf){const d=live.did[c.id]||{};if(d.id)return;live.did[c.id]={...d,id:{cls,conf}};act({k:'id',cid:c.id,cls,conf});emit('act',{k:'id',c,cls,conf});}
+// A shot that could work but missed (effector pk < 1): tell the trainee once, so they engage again.
+const missSeen=new WeakSet();
+function noteMisses(){for(const c of L.contacts){const e=c.engs[c.engs.length-1];if(e&&e.miss&&!missSeen.has(e)){missSeen.add(e);toast(`MISS: ${EFF[e.eff].label} on ${live.labels[c.id]||'contact'}. Engage again.`);}}}
 function doEng(c,eff){act({k:'eng',cid:c.id,eff});const d=live.did[c.id]||{};live.did[c.id]={...d,engAt:L.tick,lastEff:eff};emit('act',{k:'eng',c,eff});}
 const R0=470,C0=500;const w2c=(x,y)=>[C0+x*R0/RMAX,C0+y*R0/RMAX];
 function contactKind(c){const d=live.did[c.id]||{};const cls=c.idCls||(d.id&&d.id.cls);return kindOfCls(cls);}
@@ -202,6 +206,7 @@ function renderDef(c,cls){
   if(c.state==='leaked'){$('#defBody').innerHTML='<div class="locked" style="border-color:var(--nh)">Reached the protected asset.</div>';return;}
   let note='';
   if(c.effectAt!=null)note=`<div class="locked" style="margin-bottom:8px">${EFF[c.effectBy].label} sent. Effect in ${Math.max(0,(c.effectAt-L.tick)*DT).toFixed(1)} s.</div>`;
+  else if(last&&last.miss)note=`<div class="locked" style="margin-bottom:8px;border-color:var(--nh)">${EFF[last.eff].label}: <b>MISS</b>. It is still coming. Engage again.</div>`;
   else if(last&&last.eff!=='hold'&&!last.effective)note=`<div class="locked" style="margin-bottom:8px;border-color:var(--nh)">${EFF[last.eff].label}: <b>no effect</b>. It is still coming. Choose again.</div>`;
   else if(last&&last.eff==='hold')note=`<div class="locked" style="margin-bottom:8px">Holding fire. Keep watching it.</div>`;
   $('#defBody').innerHTML=note+`<div class="effGrid">${EFF_ORDER.map((k,i)=>`<button class="nbtn" data-eff="${k}" ${av[i].ok?'':'disabled'}><span>${EFF[k].label}${EFF[k].stock!=null?` (${L.stock[k]})`:''}<small>${av[i].txt}</small></span><kbd>${EFF[k].key}</kbd></button>`).join('')}<button class="nbtn hold" data-eff="hold" ${c.effectAt!=null||c.engs.length?'disabled':''}><span>Hold / report<small>friendlies, birds, civil drones</small></span><kbd>H</kbd></button></div>`;
@@ -235,7 +240,7 @@ function frame(now){
 }
 function frameBody(dt){
   if(phase==='fight'&&L){
-    if(!live.paused&&!tourBlocking()&&!hooks.blockers.some(f=>f())){live.acc+=dt*live.speed*((window as any).__TIMEWARP||1);while(live.acc>=DT){live.acc-=DT;if(live.auto)botActs();step(L,live.queue.splice(0));accumulate();emit('tick');
+    if(!live.paused&&!tourBlocking()&&!hooks.blockers.some(f=>f())){live.acc+=dt*live.speed*((window as any).__TIMEWARP||1);while(live.acc>=DT){live.acc-=DT;if(live.auto)botActs();step(L,live.queue.splice(0));accumulate();noteMisses();emit('tick');
       const done=(live.doneFn?live.doneFn(L):isDone(L))||(live.maxSec&&L.tick>=T(live.maxSec));
       if(done){if(live.endAt==null)live.endAt=L.tick+T(1.5);if(L.tick>=live.endAt){finishDrill();break;}}}}
     if(phase==='fight'){drawRadar();drawEO();if(++live.frame%6===0)renderRail();emit('frame');}
@@ -316,7 +321,7 @@ function renderTape(){
     if(g){if(g.trackTick!=null)s+=dia(g.trackTick*DT,false);if(g.idTick!=null)s+=`<circle cx="${X(g.idTick*DT)}" cy="${y}" r="6" fill="none" stroke="#46554C" stroke-width="1.5" stroke-dasharray="2 2"/>`;if(g.engs[0])s+=tri(g.engs[0].tick*DT,false,'');}
     if(src===c&&c.trackTick!=null)s+=dia(c.trackTick*DT,true);
     if(src===c&&c.idTick!=null){const ok=c.idCls===c.type;s+=`<circle cx="${X(c.idTick*DT)}" cy="${y}" r="${3+c.idConf*4.5}" fill="${ok?'#2B7746':'#B3122A'}"/>`;}
-    if(src===c)c.engs.forEach((e,j)=>{s+=tri(e.tick*DT,true,e.eff==='hold'?'H':EFF[e.eff].key);});
+    if(src===c)c.engs.forEach((e,j)=>{s+=tri(e.tick*DT,!e.miss,e.eff==='hold'?'H':EFF[e.eff].key+(e.miss?'✕':''));});
     const out=sl.missed?'Missed':c.state==='neutralised'?'Stopped':c.state==='leaked'?'Leaked':Ty.hostile?'Live':'Held';
     let delta='';if(g&&g.engs[0]&&src.engs[0]&&src===c){const dd=(src.engs[0].tick-g.engs[0].tick)*DT;delta=`${dd>=0?'+':''}${dd.toFixed(1)} s`;}
     s+=`<text x="${x1+12}" y="${y-1}" font-family="Barlow Condensed, DejaVu Sans Condensed, sans-serif" font-size="13" font-weight="600" fill="${out==='Leaked'||out==='Missed'?'#B3122A':'#18231D'}">${out}</text>${delta?`<text x="${x1+12}" y="${y+13}" font-family="Barlow Condensed, DejaVu Sans Condensed, sans-serif" font-size="11.5" fill="${parseFloat(delta)>3?'#B3122A':'#78867D'}">${delta} vs ghost</text>`:''}`;});

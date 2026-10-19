@@ -109,8 +109,11 @@ function applyAction(E: Engine, a: Action): void {
   const ok = isEffective(Ty, ef);
   const ratio = E.C.doctrine.defeat.modifiers.priorityRatio;
   const pm = Ty.hostile && E.contacts.some((o) => o !== c && o.state === 'live' && o.trackTick != null && E.C.threats.threats[o.type].hostile && o.effectAt == null && tti(o, E.C) < tt * ratio);
-  c.engs.push({ tick: E.tick, eff: a.eff, effective: ok, range: rng, tti: tt, priorityMiss: pm });
-  if (ok) {
+  // Probability of kill: seeded, so replays and the server re-run see the same misses. pk = 1 (default) never draws.
+  const pk = ef.pk ?? 1;
+  const hit = pk >= 1 || hash2(c.id * 131 + E.cfg.seed, E.tick) < pk;
+  c.engs.push({ tick: E.tick, eff: a.eff, effective: ok, range: rng, tti: tt, priorityMiss: pm, ...(ok && !hit ? { miss: true } : {}) });
+  if (ok && hit) {
     c.effectAt = E.tick + ticks(E.C, ef.delay); c.effectBy = a.eff;
     if (ef.areaRadiusM && Ty.motion === 'swarm') {
       for (const o of E.contacts) {
