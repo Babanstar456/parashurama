@@ -23,6 +23,7 @@ export function validateConfig(c: Config): ValidationResult {
     if (!(t.echo in c.threats.echoRcs)) errors.push(`threats.json threat "${id}" uses unknown echo size "${t.echo}"`);
     if (t.alt[0] > t.alt[1]) errors.push(`threats.json threat "${id}" has alt min > max`);
     if (t.friendly && t.hostile) errors.push(`threats.json threat "${id}" cannot be both friendly and hostile`);
+    if (t.civil && (t.hostile || t.friendly)) errors.push(`threats.json threat "${id}": a civil drone cannot be hostile or friendly`);
     if (t.motion === 'orbit' && t.hostile) errors.push(`threats.json threat "${id}": orbit motion is only for non-hostile contacts (use surveil for hostile drones that circle)`);
     if (t.motion === 'surveil' && !t.hostile) errors.push(`threats.json threat "${id}": surveil motion is only for hostile contacts`);
     const or = t.orbitRadiusM;
@@ -50,6 +51,9 @@ export function validateConfig(c: Config): ValidationResult {
   if (d.detection.fullWithinSec >= d.detection.zeroAtSec) errors.push('doctrine.json detection.fullWithinSec must be below zeroAtSec');
   for (const id of [...S.hostilePool, S.swarmType, S.friendlyType, S.clutterType, S.focusType]) if (!T[id]) errors.push(`training.json scenario names unknown threat "${id}"`);
   for (const id of S.hostilePool) if (T[id] && !T[id].hostile) errors.push(`training.json hostilePool contains non-hostile "${id}"`);
+  if (S.civilType && !T[S.civilType]) errors.push(`training.json scenario names unknown civilType "${S.civilType}"`);
+  if (S.civilType && T[S.civilType] && !T[S.civilType].civil) errors.push(`training.json civilType "${S.civilType}" must be a civil threat`);
+  if (Object.values(T).some((t) => t.civil) && !c.doctrine.rules.R9) errors.push('doctrine.json needs rule R9 when the library has a civil drone');
   if (T[S.swarmType] && T[S.swarmType].motion !== 'swarm') errors.push('training.json swarmType must use swarm motion');
   if (c.training.certification.developingMastery >= c.training.certification.certifiedMastery) errors.push('training.json developingMastery must be below certifiedMastery');
   return { ok: errors.length === 0, errors };

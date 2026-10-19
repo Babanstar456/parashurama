@@ -28,5 +28,7 @@ export function buildScenario(cfg: DrillConfig, C: Config = getConfig()): Spawn[
     const b = pickBrg(), ts = 20 + r() * 14, k = 3 + Math.min(4, d);
     for (let i = 0; i < k; i++) add(S.swarmType, ts + i * 0.35, b + (r() - 0.5) * 12);
   }
+  // Drawn last, and only when configured, so drills from configs without civilType are unchanged.
+  if (S.civilType && cfg.terrain === 'urban') add(S.civilType, r() * 40, r() * 360);
   return out.sort((a, b) => a.t - b.t);
 }

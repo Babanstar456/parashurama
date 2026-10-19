@@ -1,6 +1,6 @@
 {
-  "version": "1.1.0",
-  "order": ["recon", "fpv", "loiter", "swarm", "friendly", "bird", "fibre", "aiStrike", "jetOwa", "dropper", "vtol", "tacIsr", "male"],
+  "version": "1.2.0",
+  "order": ["recon", "fpv", "loiter", "swarm", "friendly", "bird", "fibre", "aiStrike", "jetOwa", "dropper", "vtol", "tacIsr", "male", "civil"],
   "echoRcs": { "Very small": 0.008, "Small": 0.02, "Medium": 0.08, "Large": 0.5 },
   "threats": {
     "recon": {
@@ -84,6 +84,12 @@
       "shape": "wing", "motion": "surveil", "orbitRadiusM": [1500, 1950],
       "behaviour": "Large echo, flying in high", "behaviourHover": "Circling high at standoff range, watching the asset",
       "deciding": "a large radar echo, high up, on a datalink, circling at standoff range: a medium-altitude long-endurance (MALE) military UAV"
+    },
+    "civil": {
+      "label": "Civil drone (registered)", "short": "Civil drone", "speed": 9, "alt": [30, 120], "echo": "Small",
+      "rf": "Control link · 2.4 GHz (registered)", "rfOn": true, "gnss": true, "friendly": false, "hostile": false, "civil": true,
+      "shape": "quad", "motion": "wander", "behaviour": "Drifting about, not heading for the asset",
+      "deciding": "a registered 2.4 GHz link and an aimless path that never closes on the asset: a civil drone; report it and keep watching, never engage"
     }
   }
 }

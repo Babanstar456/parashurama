@@ -27,7 +27,7 @@
     "certification": { "type": "object", "additionalProperties": false, "required": ["passMark", "certifiedMastery", "developingMastery"],
       "properties": { "passMark": { "type": "number", "minimum": 0, "maximum": 100 }, "certifiedMastery": { "type": "number", "minimum": 0, "maximum": 1 }, "developingMastery": { "type": "number", "minimum": 0, "maximum": 1 } } },
     "scenario": { "type": "object", "additionalProperties": false, "required": ["hostilePool", "swarmType", "friendlyType", "clutterType", "focusType"],
-      "properties": { "hostilePool": { "type": "array", "items": { "type": "string" }, "minItems": 1 }, "swarmType": { "type": "string" }, "friendlyType": { "type": "string" }, "clutterType": { "type": "string" }, "focusType": { "type": "string" } } },
+      "properties": { "hostilePool": { "type": "array", "items": { "type": "string" }, "minItems": 1 }, "swarmType": { "type": "string" }, "friendlyType": { "type": "string" }, "clutterType": { "type": "string" }, "focusType": { "type": "string" }, "civilType": { "type": "string" } } },
     "weather": { "type": "object", "description": "Training values: how each weather degrades sensors. radar = detection factor, camera = identification-range factor, noise = image noise.",
       "additionalProperties": { "type": "object", "additionalProperties": false, "required": ["label", "radar", "camera", "noise"],
         "properties": { "label": { "type": "string", "minLength": 1 }, "radar": { "type": "number", "minimum": 0.1, "maximum": 1 }, "camera": { "type": "number", "minimum": 0.1, "maximum": 1 }, "noise": { "type": "number", "minimum": 0, "maximum": 1 } } } }

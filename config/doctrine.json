@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "rules": {
     "D1": "Detection: full marks within 3 s of the first radar paint, zero at 20 s.",
     "C1": "Identification: correct = 18 + 12 × confidence; wrong = 10 × (1 − confidence), +5 if friend/foe was right.",
@@ -10,7 +10,8 @@
     "R5": "Engage the most urgent threat first.",
     "R6": "Gun in an urban area → collateral risk.",
     "R7": "Engage with at least 8 s to impact.",
-    "R8": "A hostile must not reach the asset or observe unchallenged."
+    "R8": "A hostile must not reach the asset or observe unchallenged.",
+    "R9": "Unknown civil drone: report and monitor; do not engage."
   },
   "confidence": [
     { "k": "likely",    "label": "Likely",    "p": 0.6,  "key": "Q" },
@@ -30,6 +31,7 @@
     "friendlyHold": 40, "friendlyEngaged": 0,
     "clutterHold": 40, "clutterEngaged": 10,
     "hostileHeldButNeutralised": 20,
+    "civilHold": 40, "civilEngaged": 0,
     "modifiers": { "urbanGun": -15, "lateEngagementSec": 8, "late": -8, "priority": -5, "priorityRatio": 0.6 }
   }
 }

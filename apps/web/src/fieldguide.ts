@@ -6,6 +6,7 @@ import { app, on } from './app';
 const CAMERA: Record<string, string> = { quad: '4 rotors', wing: 'Fixed wing', bird: 'Flapping wings' };
 export function actionFor(type: string): string {
   const t = TYPES[type];
+  if (t.civil) return 'Hold / report (H)';
   if (t.friendly || !t.hostile) return 'Hold (H)';
   const e = EFF[C.doctrine.defeat.preferred[decisionClass(t)]];
   return `${e.label} (${e.key})`;

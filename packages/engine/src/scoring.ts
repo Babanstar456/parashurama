@@ -51,6 +51,10 @@ export function scoreRun(E: Engine): ContactScore[] {
     if (Ty.friendly) {
       rules.push('R1');
       if (!e0 || e0.eff === 'hold') { F = F0.friendlyHold; why.push('Friendly: held fire'); } else { F = F0.friendlyEngaged; why.push('Engaged a friendly UAV: fratricide'); }
+    } else if (Ty.civil) {
+      rules.push('R9');
+      if (!e0 || e0.eff === 'hold') { F = F0.civilHold ?? 40; why.push('Civil drone: reported and monitored'); }
+      else { F = F0.civilEngaged ?? 0; why.push('Engaged a civil drone: unlawful in peacetime airspace'); }
     } else if (!Ty.hostile) {
       rules.push('R2');
       if (!e0 || e0.eff === 'hold') { F = F0.clutterHold; why.push('Bird: no effector wasted'); } else { F = F0.clutterEngaged; why.push('Effector wasted on a bird'); }

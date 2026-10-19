@@ -32,6 +32,7 @@
         "friendlyHold": { "type": "number" }, "friendlyEngaged": { "type": "number" },
         "clutterHold": { "type": "number" }, "clutterEngaged": { "type": "number" },
         "hostileHeldButNeutralised": { "type": "number" },
+        "civilHold": { "type": "number" }, "civilEngaged": { "type": "number" },
         "modifiers": { "type": "object", "required": ["urbanGun", "lateEngagementSec", "late", "priority", "priorityRatio"], "additionalProperties": false,
           "properties": { "urbanGun": { "type": "number", "maximum": 0 }, "lateEngagementSec": { "type": "number", "minimum": 0 }, "late": { "type": "number", "maximum": 0 }, "priority": { "type": "number", "maximum": 0 }, "priorityRatio": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 } } }
       }
