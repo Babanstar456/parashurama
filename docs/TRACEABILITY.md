@@ -24,7 +24,7 @@ Every figure below is printed by the test suite as an `EVIDENCE …` line (`npm 
 | Supply-chain hygiene | `docs/sbom.cdx.json`, `THIRD_PARTY_NOTICES.md`, `npm run audit:prod` in CI, `docs/RELEASE.txt` (SHA-256 of the offline file) | CI workflow `.github/workflows/ci.yml` |
 | Tamper-evident records | Server re-runs each drill (`apps/server/src/verify.ts`); SHA-256 chained log (`integrity.ts`) | `integrity.test.ts`, `server.test.ts` |
 
-## Measured evidence (19 Oct 2026, 13-type library)
+## Measured evidence (19 Oct 2026, 14-type library, rules up to R12)
 
 | Measure | Result |
 |---|---|
@@ -40,9 +40,9 @@ Every figure below is printed by the test suite as an `EVIDENCE …` line (`npm 
 | Weakest condition targeted by the planner | 4 of 4 |
 | One bad drill after three good ones | difficulty 4 → 3 |
 | Sustained averages 90 / 70 / 40 | levels 4 / 3 / 2 |
-| Headless engine speed | several thousand × real time (varies by machine; 5,250–5,900× on the dev laptop) |
+| Headless engine speed | thousands × real time (varies with machine load: 2,700–5,900× on the dev laptop) |
 | Sessions surviving a server restart | 3 of 3 |
-| Single-file app size | 1.17 MB (490 KB gzipped) |
+| Single-file app size | 1.20 MB (496 KB gzipped) |
 
 Before the 13-type library, the same suite measured 14 distinct threat mixes (the original 3-type hostile pool).
 
