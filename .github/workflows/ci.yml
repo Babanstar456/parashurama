@@ -15,6 +15,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Audit production dependencies (high and critical)
+        run: npm run audit:prod
+      - name: Software bill of materials (CycloneDX)
+        run: npm run sbom && npm run notices
       - name: Type-check engine and web app
         run: npm run typecheck
       - name: Check pre-compiled config validators are current
@@ -32,11 +36,14 @@ jobs:
         run: npm run e2e
         env:
           CI: true
-      - name: Upload offline build
+      - name: Upload offline build and SBOM
         uses: actions/upload-artifact@v4
         with:
           name: parashurama-offline
-          path: apps/web/dist-single/index.html
+          path: |
+            apps/web/dist-single/index.html
+            docs/sbom.cdx.json
+            THIRD_PARTY_NOTICES.md
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4

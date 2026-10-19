@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- **Supply chain**:
+  - `npm run sbom` writes a CycloneDX SBOM to `docs/sbom.cdx.json`. `npm run notices` turns it into `THIRD_PARTY_NOTICES.md` (66 production packages).
+  - `npm run audit:prod` runs in CI.
+  - Upgraded `@fastify/static` 8 → 10.1.6 to fix high-severity advisories (path traversal and route-guard bypass, GHSA-pr96-94w5-mx2h and others). Static serving was re-tested.
+  - `npm run release:docs` publishes `docs/index.html` and writes its SHA-256 to `docs/RELEASE.txt`.
+  - A LICENSE is still to be agreed by the team.
 - **Control group for measuring training transfer**:
   - `planNext(H, C, { adaptive: false })` gives fixed level 3, conditions drawn at random from the seed, and no targeting. Adaptive mode is unchanged.
   - Users have a study `cohort` (`adaptive` or `control`), added by database migration 2. Existing users become `adaptive`.

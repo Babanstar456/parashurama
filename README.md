@@ -32,6 +32,9 @@ npm run e2e                 # browser end-to-end tests
 | Command | What it does |
 |---|---|
 | `npm run build:single` | One self-contained offline file: `apps/web/dist-single/index.html` |
+| `npm run release:docs` | Build the offline file, publish it to `docs/index.html` and write its SHA-256 to `docs/RELEASE.txt` |
+| `npm run sbom && npm run notices` | CycloneDX SBOM (`docs/sbom.cdx.json`, needs npm 9.5+) and `THIRD_PARTY_NOTICES.md` |
+| `npm run audit:prod` | Fail on high or critical advisories in production dependencies |
 | `npm run validate:config` | Check the doctrine/config files; run after every edit |
 | `npm run gen:validators` | Re-generate the pre-compiled config validators after editing `config/schema/` |
 | `npm run make-cert -- <name> <ip>` | Local CA + HTTPS certificate for the unit network |
