@@ -1,5 +1,6 @@
 # Unit network deployment. Sign-in is by name only (no passwords); sign in as "admin" for the admin tools.
 # HTTPS: run `bash deploy/make-cert.sh parashurama.local <server-ip>` first; certificates are mounted read-only.
+# Encryption at rest: create the data key once:  mkdir -p deploy/secrets && openssl rand -base64 32 > deploy/secrets/data.key
 services:
   server:
     build: .
@@ -12,6 +13,8 @@ services:
       TLS_CERT: /certs/server.crt
       TLS_KEY: /certs/server.key
       UNIT_NAME: "AD Troop 2"
+      PARASHURAMA_DATA_KEY_FILE: /run/secrets/data_key
+    secrets: [data_key]
     volumes:
       - data:/data
       - ./deploy/certs:/certs:ro
@@ -27,3 +30,6 @@ services:
     entrypoint: ["/bin/sh", "-c", "while true; do node --disable-warning=ExperimentalWarning server/cli.mjs backup; sleep 86400; done"]
 volumes:
   data:
+secrets:
+  data_key:
+    file: ./deploy/secrets/data.key

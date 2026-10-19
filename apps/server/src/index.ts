@@ -2,11 +2,18 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:https';
 import { buildApp } from './app';
 import { createUser } from './auth';
+import { loadDataKey } from './crypto';
 
 process.removeAllListeners('warning');
 const env = process.env;
 const tls = env.TLS_CERT && env.TLS_KEY ? { cert: readFileSync(env.TLS_CERT), key: readFileSync(env.TLS_KEY) } : null;
-const { app, db } = await buildApp({ dataDir: env.DATA_DIR ?? './data', webDir: env.WEB_DIR ?? '../web/dist', secureCookies: !!tls || env.COOKIE_SECURE === '1', logger: env.LOG !== '0' });
+const dataDir = env.DATA_DIR ?? './data';
+const dataKey = loadDataKey(env, dataDir);
+if (!dataKey) {
+  if (env.NODE_ENV === 'production') { console.error('Refusing to start: set PARASHURAMA_DATA_KEY or PARASHURAMA_DATA_KEY_FILE (32 bytes, base64; e.g. openssl rand -base64 32). See docs/ADMIN_GUIDE.md.'); process.exit(1); }
+  console.warn('  Warning: no data key set, so drill records are stored unencrypted. Set PARASHURAMA_DATA_KEY for production.');
+}
+const { app, db } = await buildApp({ dataKey, dataDir, webDir: env.WEB_DIR ?? '../web/dist', secureCookies: !!tls || env.COOKIE_SECURE === '1', logger: env.LOG !== '0' });
 // First start: create the admin account.
 if ((db.prepare('SELECT COUNT(*) AS n FROM users').get() as any).n === 0) {
   createUser(db, { username: env.ADMIN_USERNAME ?? 'admin', name: 'Administrator', role: 'admin', unit: env.UNIT_NAME ?? 'Unit' });

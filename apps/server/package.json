@@ -9,7 +9,8 @@
     "build": "node build.mjs",
     "start": "node --disable-warning=ExperimentalWarning dist/server.mjs",
     "user:add": "tsx src/cli.ts user:add",
-    "backup": "tsx src/cli.ts backup"
+    "backup": "tsx src/cli.ts backup",
+    "migrate:encrypt": "tsx src/cli.ts migrate-encrypt"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.1",

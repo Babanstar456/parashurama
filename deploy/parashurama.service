@@ -9,6 +9,9 @@ User=parashurama
 WorkingDirectory=/opt/parashurama/apps/server
 Environment=NODE_ENV=production DATA_DIR=/var/lib/parashurama WEB_DIR=/opt/parashurama/apps/web/dist PORT=8443
 Environment=TLS_CERT=/opt/parashurama/deploy/certs/server.crt TLS_KEY=/opt/parashurama/deploy/certs/server.key
+# Encryption at rest (required in production): sudo mkdir -p /etc/parashurama && openssl rand -base64 32 | sudo tee /etc/parashurama/data.key
+#   && sudo chown parashurama /etc/parashurama/data.key && sudo chmod 600 /etc/parashurama/data.key
+Environment=PARASHURAMA_DATA_KEY_FILE=/etc/parashurama/data.key
 ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning dist/server.mjs
 Restart=on-failure
 NoNewPrivileges=true

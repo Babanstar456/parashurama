@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- **Encryption at rest**:
+  - Drill records and decision logs are sealed with AES-256-GCM (`apps/server/src/crypto.ts`, format `v1:<iv>:<tag>:<ct>`).
+  - The key comes from `PARASHURAMA_DATA_KEY` or `PARASHURAMA_DATA_KEY_FILE`, which must be outside the data directory.
+  - With `NODE_ENV=production` the server refuses to start without a key. Docker Compose (as a secret) and the systemd unit now supply one.
+  - `npm run migrate:encrypt -w @parashurama/server` encrypts existing rows, and old plaintext rows stay readable.
+  - The admin guide documents BitLocker/LUKS as a second layer.
 - **Signed threat packs** (`*.cuaspack.json`):
   - Packs are signed with ECDSA P-256 / SHA-256 over canonical JSON. The verifier in `packages/engine/src/pack.ts` uses WebCrypto, so it runs in both the browser and Node.
   - Trusted public keys live in `config/trust/keys.json`, which ships empty. `npm run pack:keygen` refuses to write the private key inside the repo, and `npm run pack:sign` signs a pack.
