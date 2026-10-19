@@ -7,8 +7,10 @@ import { applyPack, defaultConfig, drillsToCsv, mastery, TRUST_KEYS, validateCon
 import { audit, openDb, type DB } from './db';
 import { createSession, createUser, dropSession, Limiter, userForToken, usernameFor, type Cohort, type Role, type User } from './auth';
 import { BadRequest, cleanCfg, cleanSpawns, verifyDrill } from './verify';
+import { isSealed, open as unseal, seal } from './crypto';
 
-export interface Options { dataDir: string; webDir?: string; secureCookies?: boolean; logger?: boolean; /** Trusted threat-pack keys (default: config/trust/keys.json). */ trustKeys?: TrustKey[]; }
+export interface Options { dataDir: string; webDir?: string; secureCookies?: boolean; logger?: boolean; /** Trusted threat-pack keys (default: config/trust/keys.json). */ trustKeys?: TrustKey[];
+  /** AES-256 key for drill records and decision logs at rest (null = plaintext). */ dataKey?: Buffer | null; }
 declare module 'fastify' { interface FastifyRequest { user: User | null } }
 const COOKIE = 'psid';
 const ROLES: Role[] = ['trainee', 'instructor', 'commander', 'admin'];
@@ -17,6 +19,7 @@ const VERSION = '0.6.0';
 
 export async function buildApp(o: Options) {
   const db: DB = openDb(o.dataDir);
+  const key = o.dataKey ?? null;
   const app = Fastify({ logger: o.logger ?? false, bodyLimit: 2 * 1024 * 1024, trustProxy: false });
   await app.register(cookie);
   // Accept an empty JSON body as {} (e.g. logout/backup calls); reject malformed JSON with 400.
@@ -116,12 +119,12 @@ export async function buildApp(o: Options) {
     const n = (db.prepare('SELECT COUNT(*) AS n FROM drills WHERE user_id=?').get(req.user!.id) as any).n + 1;
     const record = { ...v.record, n };
     const id = Number(db.prepare(`INSERT INTO drills(user_id,created_at,mode,template,cfg,spawns,actions,end_tick,total,client_total,verified,chain,flags,record,config_version)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(req.user!.id, Date.now(), v.mode, record.template, JSON.stringify(v.cfg), v.spawns ? JSON.stringify(v.spawns) : null, JSON.stringify(v.actions),
-      v.endTick, v.total, (req.body as any)?.clientTotal ?? null, v.verified ? 1 : 0, v.chain, JSON.stringify(v.flags), JSON.stringify(record), a.id).lastInsertRowid);
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(req.user!.id, Date.now(), v.mode, record.template, JSON.stringify(v.cfg), v.spawns ? JSON.stringify(v.spawns) : null, seal(JSON.stringify(v.actions), key),
+      v.endTick, v.total, (req.body as any)?.clientTotal ?? null, v.verified ? 1 : 0, v.chain, JSON.stringify(v.flags), seal(JSON.stringify(record), key), a.id).lastInsertRowid);
     if (v.flags.length) audit(db, req.user!.id, 'drill-flagged', `#${id} ${v.flags.join(',')}`);
     return { id, total: v.total, verified: v.verified, flags: v.flags, chain: v.chain };
   });
-  const history = (userId: number) => (db.prepare('SELECT record FROM drills WHERE user_id=? ORDER BY created_at, id').all(userId) as any[]).map((r) => JSON.parse(r.record));
+  const history = (userId: number) => (db.prepare('SELECT record FROM drills WHERE user_id=? ORDER BY created_at, id').all(userId) as any[]).map((r) => JSON.parse(unseal(r.record, key)));
   app.get('/api/drills/mine', { preHandler: need() }, async (req) => ({ drills: history(req.user!.id) }));
 
   app.get('/api/readiness', { preHandler: need() }, async (req) => {
@@ -139,7 +142,7 @@ export async function buildApp(o: Options) {
       .all(...(own ? [req.user!.id] : [])) as any[];
     audit(db, req.user!.id, 'export-csv', `${rows.length} drills${own ? ' (own)' : ''}`);
     return reply.header('content-type', 'text/csv; charset=utf-8').header('content-disposition', 'attachment; filename="parashurama-drills.csv"')
-      .send(drillsToCsv(rows.map((r) => ({ operator: r.name, unit: r.unit, verified: !!r.verified, cohort: r.cohort, record: JSON.parse(r.record) })), activeConfig().config.training.certification.passMark));
+      .send(drillsToCsv(rows.map((r) => ({ operator: r.name, unit: r.unit, verified: !!r.verified, cohort: r.cohort, record: JSON.parse(unseal(r.record, key)) })), activeConfig().config.training.certification.passMark));
   });
 
   app.get('/api/templates', { preHandler: need() }, async () => ({ templates: (db.prepare('SELECT id,name,cfg,spawns FROM templates ORDER BY id').all() as any[]).map((t) => ({ id: t.id, name: t.name, cfg: JSON.parse(t.cfg), spawns: JSON.parse(t.spawns) })) }));
@@ -179,6 +182,19 @@ export async function buildApp(o: Options) {
     app.setNotFoundHandler((req, reply) => (req.method === 'GET' && !req.url.startsWith('/api/') ? reply.sendFile('index.html') : reply.code(404).send({ error: 'Not found' })));
   }
   return { app, db };
+}
+
+/** Encrypt drill records and decision logs written before encryption was switched on. Safe to run twice. */
+export function encryptExisting(db: DB, key: Buffer): number {
+  const rows = db.prepare('SELECT id, record, actions FROM drills').all() as { id: number; record: string; actions: string }[];
+  const up = db.prepare('UPDATE drills SET record=?, actions=? WHERE id=?');
+  let n = 0;
+  db.exec('BEGIN');
+  try {
+    for (const r of rows) if (!isSealed(r.record) || !isSealed(r.actions)) { up.run(isSealed(r.record) ? r.record : seal(r.record, key), isSealed(r.actions) ? r.actions : seal(r.actions, key), r.id); n++; }
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  return n;
 }
 
 /** Consistent online backup (SQLite VACUUM INTO). Keeps the newest 14. */

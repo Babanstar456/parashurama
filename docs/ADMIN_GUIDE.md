@@ -15,6 +15,7 @@ Requires Docker with Compose on a small PC on the unit network.
 
 ```bash
 bash deploy/make-cert.sh parashurama.local 192.168.1.10   # name and IP of the server
+mkdir -p deploy/secrets && openssl rand -base64 32 > deploy/secrets/data.key   # data key (see Encryption at rest)
 docker compose up -d --build
 ```
 Trainees open `https://parashurama.local` (or `https://192.168.1.10`). Install `deploy/certs/unit-ca.crt` as a trusted root certificate on each laptop once, so browsers trust the server. The app can also be installed from the browser (*Install app*) and keeps working if the network drops; drills made offline sync when the server is reachable again.
@@ -31,6 +32,8 @@ Requires Node.js 22.5 or newer.
 sudo useradd -r parashurama && sudo mkdir -p /var/lib/parashurama && sudo chown parashurama /var/lib/parashurama
 sudo git clone <repo> /opt/parashurama && cd /opt/parashurama && sudo npm ci && sudo npm run build
 sudo bash deploy/make-cert.sh parashurama.local 192.168.1.10
+sudo mkdir -p /etc/parashurama && openssl rand -base64 32 | sudo tee /etc/parashurama/data.key >/dev/null
+sudo chown parashurama /etc/parashurama/data.key && sudo chmod 600 /etc/parashurama/data.key
 sudo cp deploy/parashurama.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now parashurama
 ```
 
@@ -47,6 +50,7 @@ There is no login screen. The web app signs in to the built-in `admin` account a
 | `ADMIN_USERNAME` | `admin` | First admin account (created only if no users exist) |
 | `UNIT_NAME` | `Unit` | Unit name for the first admin |
 | `LOG` | on | `0` to silence request logs |
+| `PARASHURAMA_DATA_KEY` / `PARASHURAMA_DATA_KEY_FILE` | – | Data key for encryption at rest (required when `NODE_ENV=production`) |
 
 ## Accounts and roles
 
@@ -78,6 +82,27 @@ npm run pack:sign -- pack.json /secure/offline/dssc-2026.pem          # writes p
 ```
 `pack.json` contains `{ "meta": { "id", "version", "issuer", "date" }, "config": { "threats" | "effectors" | "doctrine" | "training" } }`.
 
+## Encryption at rest
+
+Drill records and decision logs, which are the personnel training data, are encrypted in the database with AES-256-GCM.
+
+**The data key:**
+- **Format:** 32 random bytes, base64.
+- **Where it comes from:** `PARASHURAMA_DATA_KEY`, or a file named by `PARASHURAMA_DATA_KEY_FILE`.
+- **Where the file must be:** outside the data directory, so a copied database or backup is useless without the key.
+- **In production** (`NODE_ENV=production`, as in Docker and systemd), the server refuses to start without a key.
+- **In development**, it warns and stores plaintext.
+
+**Keep a copy of the key somewhere safe and offline.** Without it, encrypted records and backups cannot be read.
+
+**To encrypt an existing database:** set the key, then run `npm run migrate:encrypt -w @parashurama/server`. It takes a backup first and is safe to run twice. Old plaintext rows stay readable during the transition.
+
+**Second layer:** also encrypt the server's disk with the operating system:
+- **Windows:** BitLocker.
+- **Linux:** LUKS, set up when the OS is installed.
+
+That also protects user names, the audit log and backups.
+
 ## Backups and restore
 
 - Manual: instructor panel → *Back up database now*, or `npm run backup -w @parashurama/server`.
@@ -86,6 +111,7 @@ npm run pack:sign -- pack.json /secure/offline/dssc-2026.pem          # writes p
 ## Security notes
 
 - **Sign-in is by name only, with no passwords.** Anyone who can reach the server can use any account by typing its name, including `admin`. Run the server only on a trusted unit network.
+- Drill records and decision logs are encrypted at rest (AES-256-GCM); see *Encryption at rest*.
 - Sessions are random tokens (only their SHA-256 is stored), 12-hour lifetime, `HttpOnly; SameSite=Strict` cookies (`Secure` under HTTPS).
 - Sign-ins are rate-limited per address.
 - Cross-origin state changes are refused; strict Content-Security-Policy with no `eval` (config validators are pre-compiled).
