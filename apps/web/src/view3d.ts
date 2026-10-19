@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { cameraRange, mulberry, visibleBlip, weatherFx, type Contact } from '@parashurama/engine';
 import { app, on } from './app';
+import { isLite, onLite } from './lite';
 import { C, EFF, SIM, TYPES } from './cfg';
 import { $ } from './dom';
 import { kindOfCls } from './paper';
@@ -139,7 +140,7 @@ function buildWorld() {
   sweep.rotation.x = -Math.PI / 2; sweep.position.y = 0.3; world.add(sweep);
 
   // weather particles
-  if (wx !== 'clear') {
+  if (wx !== 'clear' && !isLite()) {
     const n = wx === 'rain' ? 4000 : wx === 'dust' ? 2600 : 1200, p = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) { p[i * 3] = (r() - 0.5) * 700; p[i * 3 + 1] = r() * 160; p[i * 3 + 2] = (r() - 0.5) * 700; }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
@@ -361,7 +362,7 @@ export function init3D() {
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   } catch { renderer = null; }
   if (!renderer || !renderer.getContext()) { renderer = null; return; } // no WebGL: the 2D radar still does everything
-  renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.xr.enabled = true;
+  renderer.setPixelRatio(isLite() ? 1 : Math.min(2, devicePixelRatio)); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.xr.enabled = true;
   host.prepend(renderer.domElement); wrap.appendChild(host);
   scene = new THREE.Scene(); camera = new THREE.PerspectiveCamera(50, 1.5, 0.5, 3000);
   fx = new THREE.Group(); scene.add(fx); world = new THREE.Group();
@@ -389,7 +390,11 @@ export function init3D() {
     buildWorld(); setMode('orbit'); setBig(false); orbit = { th: 0.6, ph: 0.95, r: 380 };
     // Academy: keep the screen simple for beginners. Otherwise use the trainee's last choice.
     let saved = false; try { saved = localStorage.getItem(MIN_KEY) === '1'; } catch { /* ignore */ }
-    setMin(app.live.mode === 'academy' || saved, false);
+    setMin(app.live.mode === 'academy' || saved || isLite(), false);
+  });
+  onLite((lite) => {
+    renderer?.setPixelRatio(lite ? 1 : Math.min(2, devicePixelRatio));
+    if (lite) { setMin(true, false); if (weather) { scene.remove(weather); weather = null; } }
   });
   void setupVR();
 }

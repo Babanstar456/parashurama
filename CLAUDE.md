@@ -30,7 +30,7 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
 - **Updating `docs/index.html`** (served by Vercel, root `docs/`): run `npm run release:docs`. It builds the single file, drops the manifest and icon links, and writes the SHA-256 to `docs/RELEASE.txt`.
 - **Supply chain:** run `npm run audit:prod` (CI fails on high or critical) and `npm run sbom && npm run notices`. There is no LICENSE yet; the team must choose one first.
 - `apps/web/index.html` is the Vite **source** entry page (it loads `/src/main.ts`). Never overwrite it with a built bundle.
-- **App URL flags:** `?demo`, `?reset`, `?nohome`, `?instructor` (offline editor), `?fps` (frame-rate meter).
+- **App URL flags:** `?demo`, `?reset`, `?nohome`, `?instructor` (offline editor), `?fps` (frame-rate meter), `?lite` (force Lite mode).
 
 ## Engine rules to preserve
 - **Determinism.** A drill is fully defined by its seed and its time-stamped decision log. Never use `Math.random()` in the engine; use `mulberry` and `hash2` from `util.ts`. The server re-runs every drill, and the log is SHA-256 chained.
