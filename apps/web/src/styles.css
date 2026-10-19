@@ -348,6 +348,28 @@ body[data-mode=academy] .coachCol{display:flex;flex-direction:column;gap:12px;pa
 .sheet{width:min(1180px,100%);max-height:calc(100vh - 40px);overflow:auto;background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:18px 22px}
 .sheetHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .sheetHead h2{margin:0;font-family:var(--stencil);font-weight:400;letter-spacing:.06em}
+/* lecture library */
+.lecSheet{width:min(980px,100%)}
+.lecSheet .sheetHead{gap:12px}.lecCount{margin-left:auto;font-family:var(--cond);color:var(--ink3);font-size:14px}
+.lecPlayer:empty{display:none}
+.lecPlayer{margin:4px 0 14px}.lecPlayer video{display:block;width:100%;max-height:60vh;background:#000;border-radius:6px}
+.lecNow{display:flex;flex-direction:column;gap:2px;padding:8px 2px 0}.lecNow b{font-family:var(--cond);font-size:19px}.lecNow span{color:var(--ink2);font-size:14px}
+.lecTopics{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px}
+.lecChip{flex:0 0 auto;font-family:var(--cond);font-weight:600;font-size:14px;padding:5px 12px;border:1px solid var(--rule);border-radius:999px;background:var(--card);color:var(--ink);cursor:pointer}
+.lecChip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.lecList{display:grid;gap:8px;margin-bottom:14px}
+.lecItem{display:flex;align-items:center;gap:8px;border:1px solid var(--rule);border-radius:6px;background:var(--card);padding:4px 10px 4px 4px}
+.lecItem.on{border-color:var(--ink)}
+.lecPlay{all:unset;box-sizing:border-box;flex:1;min-width:0;display:flex;gap:12px;align-items:center;padding:8px;cursor:pointer;border-radius:4px}
+.lecPlay:focus-visible{outline:2px solid var(--ink)}
+.lecPlay i{flex:0 0 38px;height:38px;border-radius:50%;display:grid;place-items:center;font-style:normal;background:var(--ink);color:var(--paper);font-size:15px}
+.lecPlay span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.lecPlay b{font-family:var(--cond);font-size:17px;font-weight:600}
+.lecPlay small{color:var(--ink3);font-family:var(--cond);font-size:13.5px}
+.lecPlay em{font-style:normal;color:var(--ink2);font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lecEmpty{display:flex;flex-direction:column;gap:4px;padding:22px;border:1px dashed var(--rule);border-radius:6px;text-align:center;color:var(--ink2)}
+.lecAdd progress{width:160px}
+@media (max-width:700px){.overlay{padding:8px}.sheet{padding:14px}.lecPlay em{white-space:normal}.lecSheet .sheetHead{flex-wrap:wrap}}
 .edGrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .edForm{padding:4px 16px 14px}
 .edForm table{width:100%;border-collapse:collapse;font-size:13.5px}

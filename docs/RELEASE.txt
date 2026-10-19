@@ -1,6 +1,6 @@
 PARASHURAMA 0.6.0
 file: index.html
-bytes: 1198996
-sha256: 9526c356c6c921c44a9b9962a1f6145d0dbc44c44633c8a304d74adb58cc7fb0
+bytes: 1209538
+sha256: 56c2298809328f802eb127592a0b49a2b75f781531ea2dee0a5448300ffbb56f
 
 Check a copy:  sha256sum index.html   (Windows: certutil -hashfile index.html SHA256)

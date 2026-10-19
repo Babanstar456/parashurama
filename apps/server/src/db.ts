@@ -20,6 +20,9 @@ const MIGRATIONS: string[] = [
    CREATE TABLE audit(id INTEGER PRIMARY KEY, at INTEGER NOT NULL, user_id INTEGER, action TEXT NOT NULL, detail TEXT);`,
   // 2: study cohort for measuring training transfer (adaptive vs fixed-difficulty control group).
   `ALTER TABLE users ADD COLUMN cohort TEXT NOT NULL DEFAULT 'adaptive' CHECK(cohort IN ('adaptive','control'));`,
+  // 3: lecture library (video files live in <dataDir>/lectures/<file>).
+  `CREATE TABLE lectures(id INTEGER PRIMARY KEY, title TEXT NOT NULL, topic TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', file TEXT NOT NULL, mime TEXT NOT NULL,
+     size INTEGER NOT NULL, duration REAL, sha256 TEXT NOT NULL, author INTEGER REFERENCES users(id), created_at INTEGER NOT NULL);`,
 ];
 /** Open (or create) the database and apply any pending migrations. */
 export function openDb(dataDir: string): DB {

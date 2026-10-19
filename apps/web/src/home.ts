@@ -56,6 +56,11 @@ function html(): string {
         <span>Who in the troop is ready for tonight: night, swarm, faulty sensors or bad weather. You: ${certified} of ${Object.keys(m).length} skills certified.</span>
         <em>Open the board →</em>
       </button>
+      <button class="hc" id="hcLectures">
+        <small>Self-study</small><b>Lecture library</b>
+        <span>Training videos from your instructors: watch them between drills.</span>
+        <em>Open the library →</em>
+      </button>
     </div>
   </div>
   <div class="homeFoot"><span>Team Dhwanik_TH06</span><span>Vendor-neutral · indigenous · runs on hardware every unit already has</span><span>Training values only, not equipment specifications</span></div>`;
@@ -101,6 +106,7 @@ export function showHome() {
   $('#hcDrill').onclick = () => { closeHome(); app.renderBrief(); app.setPhase('brief'); if (!app.DB.tourDone) app.startTour(0); };
   $$('[data-hm]').forEach((b: any) => (b.onclick = () => { closeHome(); markTourSeen(); startScenario(SCENARIOS[+b.dataset.hm]); }));
   $('#hcDemo').onclick = () => { closeHome(); hooks.showcase?.(); };
+  $('#hcLectures').onclick = () => { closeHome(); markTourSeen(); hooks.openLectures?.(); };
   $('#hcUnit').onclick = () => { closeHome(); markTourSeen(); app.renderUnit(); app.setPhase('learn'); ($('.learnTabs [data-t=unit]') as HTMLElement).click(); };
   fx();
   ($('#hcAcademy') as HTMLElement).focus({ preventScroll: true }); el.scrollTop = 0;
