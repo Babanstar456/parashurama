@@ -50,6 +50,7 @@ There is no login screen. The web app signs in to the built-in `admin` account a
 | `ADMIN_USERNAME` | `admin` | First admin account (created only if no users exist) |
 | `UNIT_NAME` | `Unit` | Unit name for the first admin |
 | `LOG` | on | `0` to silence request logs |
+| `LECTURE_MAX_MB` | 1024 | Largest lecture video accepted |
 | `PARASHURAMA_DATA_KEY` / `PARASHURAMA_DATA_KEY_FILE` | – | Data key for encryption at rest (required when `NODE_ENV=production`) |
 
 ## Accounts and roles
@@ -102,6 +103,17 @@ Drill records and decision logs, which are the personnel training data, are encr
 - **Linux:** LUKS, set up when the OS is installed.
 
 That also protects user names, the audit log and backups.
+
+## Lecture library
+
+Instructors add training videos in the app: hub → *Lecture library* → *Add a lecture*.
+- **Formats:** MP4 (H.264), WebM or Ogg.
+- **Size limit:** 1 GB per file by default; set `LECTURE_MAX_MB` to change it.
+- **Storage:** files go in `DATA_DIR/lectures/`. Each file's SHA-256 is recorded in the audit log.
+
+**Backups:** the daily database backup does **not** include the video files. Copy `DATA_DIR/lectures/` with your usual file backup, or keep the original videos.
+
+**In the offline single-file app**, lectures are stored in that browser only. Clearing the browser's site data removes them.
 
 ## Backups and restore
 

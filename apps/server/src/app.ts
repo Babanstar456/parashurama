@@ -8,9 +8,11 @@ import { audit, openDb, type DB } from './db';
 import { createSession, createUser, dropSession, Limiter, userForToken, usernameFor, type Cohort, type Role, type User } from './auth';
 import { BadRequest, cleanCfg, cleanSpawns, verifyDrill } from './verify';
 import { isSealed, open as unseal, seal } from './crypto';
+import { registerLectures } from './lectures';
 
 export interface Options { dataDir: string; webDir?: string; secureCookies?: boolean; logger?: boolean; /** Trusted threat-pack keys (default: config/trust/keys.json). */ trustKeys?: TrustKey[];
-  /** AES-256 key for drill records and decision logs at rest (null = plaintext). */ dataKey?: Buffer | null; }
+  /** AES-256 key for drill records and decision logs at rest (null = plaintext). */ dataKey?: Buffer | null;
+  /** Largest lecture video accepted, in bytes (default 1 GB). */ lectureMaxBytes?: number; }
 declare module 'fastify' { interface FastifyRequest { user: User | null } }
 const COOKIE = 'psid';
 const ROLES: Role[] = ['trainee', 'instructor', 'commander', 'admin'];
@@ -50,9 +52,9 @@ export async function buildApp(o: Options) {
   app.addHook('onSend', async (req, reply, payload) => {
     reply.header('X-Content-Type-Options', 'nosniff').header('Referrer-Policy', 'no-referrer').header('X-Frame-Options', 'DENY')
       .header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-      .header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+      .header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
     if (o.secureCookies) reply.header('Strict-Transport-Security', 'max-age=31536000');
-    if (req.url.startsWith('/api/')) reply.header('Cache-Control', 'no-store');
+    if (req.url.startsWith('/api/') && !/^\/api\/lectures\/\d+\/video/.test(req.url)) reply.header('Cache-Control', 'no-store');
     return payload;
   });
   app.setErrorHandler((err: any, _req, reply) => {
@@ -174,6 +176,7 @@ export async function buildApp(o: Options) {
     if (!r.changes) return reply.code(404).send({ error: 'No such user' });
     audit(db, req.user!.id, 'cohort-set', `#${req.params.id} ${c}`); return { ok: true };
   });
+  registerLectures(app, db, o.dataDir, need as any, o.lectureMaxBytes ?? 1024 * 1048576);
   app.post('/api/admin/backup', { preHandler: need('admin') }, async (req) => { const file = backup(db, o.dataDir); audit(db, req.user!.id, 'backup', file); return { file }; });
   app.get('/api/admin/audit', { preHandler: need('admin') }, async () => ({ events: db.prepare('SELECT a.at,a.action,a.detail,u.username FROM audit a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT 200').all() }));
 

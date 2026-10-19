@@ -55,6 +55,7 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
   - Signed threat packs: `pack.ts`, `config/trust/keys.json`, `POST /api/packs`.
   - Encryption at rest of drill records: `apps/server/src/crypto.ts`. The key comes from `PARASHURAMA_DATA_KEY` or `PARASHURAMA_DATA_KEY_FILE`, and is required when `NODE_ENV=production`.
   - Lite mode: `apps/web/src/lite.ts`.
+  - Lecture library: `apps/web/src/lectures.ts` (server API online, IndexedDB offline) and `apps/server/src/lectures.ts` (`/api/lectures`, files in `DATA_DIR/lectures/`, range streaming).
 - **Threat library** (`config/threats.json`). Training values only, not equipment specifications.
   - The original six: recon, fpv, loiter, swarm, friendly, bird.
   - Military types added since: fibre-optic FPV, AI-guided attack, jet one-way attack, payload dropper, hybrid VTOL ISR, tactical ISR fixed-wing, large MALE UAV.

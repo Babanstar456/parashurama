@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- **Lecture library**: training videos (MP4, WebM or Ogg) for self-study, opened from the hub's *Lecture library* card or with `?lectures`.
+  - **On the unit server:** instructors and admins upload once and every trainee can watch.
+    - Files are stored in `DATA_DIR/lectures/` with their size and SHA-256.
+    - Uploads stream to disk with a size limit (`LECTURE_MAX_MB`, default 1024).
+    - Playback supports range requests, so seeking works.
+    - Uploads and deletes are audited (database migration 3).
+  - **Offline** (single file or Vercel): lectures are stored in that browser's IndexedDB on that device.
+  - Topic filter, length and size shown, ✓ once watched (saved with the trainee's settings), and an upload progress bar.
+  - New tests: `apps/server/test/lectures.test.ts` and e2e `lectures.spec.ts`, which uses a 2-second test clip.
 - **Phones**:
   - Drill controls (Sound, Lite, Pause, End drill) sit above the radar instead of covering it.
   - Identify buttons are in two columns with larger tap targets, and so are the effector and clearance buttons.
