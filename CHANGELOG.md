@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- **Lite mode for low-spec laptops**:
+  - On the first scored drill, the app measures the average frame rate over 5 s. Below 25 fps it switches to Lite mode: the 3D view is not auto-opened, the 3D pixel ratio is 1×, and there are no 3D weather particles.
+  - The trainee is told, and can toggle it with the drill's **Lite** button or **L**. `?lite` forces it.
+  - The setting is saved with the trainee's settings.
 - **Encryption at rest**:
   - Drill records and decision logs are sealed with AES-256-GCM (`apps/server/src/crypto.ts`, format `v1:<iv>:<tag>:<ct>`).
   - The key comes from `PARASHURAMA_DATA_KEY` or `PARASHURAMA_DATA_KEY_FILE`, which must be outside the data directory.

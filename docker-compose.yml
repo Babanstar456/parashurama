@@ -1,4 +1,4 @@
-# Unit network deployment. Sign-in is by name only (no passwords); sign in as "admin" for the admin tools.
+# Unit network deployment. There is no login screen: the web app signs in to the built-in admin account automatically.
 # HTTPS: run `bash deploy/make-cert.sh parashurama.local <server-ip>` first; certificates are mounted read-only.
 # Encryption at rest: create the data key once:  mkdir -p deploy/secrets && openssl rand -base64 32 > deploy/secrets/data.key
 services:

@@ -50,4 +50,14 @@ test.describe('Mission Hub and 3D view', () => {
     await page.click('#v3min');
     await expect(page.locator('#view3d')).toHaveClass(/min/);
   });
+
+  test('lite mode: with ?lite the 3D view stays closed on drill start', async ({ page }) => {
+    await page.goto('/?reset&nohome&lite');
+    await page.click('#tourEnd');
+    await page.click('#beginBtn');
+    const has3d = await page.locator('#view3d canvas').count();
+    test.skip(!has3d, 'no WebGL in this browser: the 2D radar still works');
+    await expect(page.locator('#view3d')).toHaveClass(/min/);
+    await expect(page.locator('#liteBtn')).toContainText('Lite on');
+  });
 });
