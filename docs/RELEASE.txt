@@ -1,0 +1,6 @@
+PARASHURAMA 0.6.0
+file: index.html
+bytes: 1193597
+sha256: c4db9600aa229a2cb68b17c4a17a7388db93479f3cdd0e81de178ebf2c678efa
+
+Check a copy:  sha256sum index.html   (Windows: certutil -hashfile index.html SHA256)

@@ -27,7 +27,8 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
 - `npm run ci`: typecheck, check:generated, validate:config, tests, build, build:single.
 - `npm run e2e`: Playwright. Set `PW_CHROMIUM_PATH` if a local Chromium is needed.
 - `npm run dev` runs the web app only (offline). `npm run build && npm run server` runs it with the unit server on :8080.
-- **Updating `docs/index.html`** (served by Vercel, root `docs/`): run `npm run build:single`, then copy `apps/web/dist-single/index.html` to `docs/index.html` with these two lines removed: `<link rel="manifest" href="manifest.webmanifest">` and `<link rel="icon" href="icon-192.png">`.
+- **Updating `docs/index.html`** (served by Vercel, root `docs/`): run `npm run release:docs`. It builds the single file, drops the manifest and icon links, and writes the SHA-256 to `docs/RELEASE.txt`.
+- **Supply chain:** run `npm run audit:prod` (CI fails on high or critical) and `npm run sbom && npm run notices`. There is no LICENSE yet; the team must choose one first.
 - `apps/web/index.html` is the Vite **source** entry page (it loads `/src/main.ts`). Never overwrite it with a built bundle.
 - **App URL flags:** `?demo`, `?reset`, `?nohome`, `?instructor` (offline editor), `?fps` (frame-rate meter).
 
