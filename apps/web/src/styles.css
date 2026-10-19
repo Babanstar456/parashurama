@@ -162,6 +162,7 @@ kbd{font-family:var(--cond);font-size:12px;font-weight:600;padding:1px 6px;borde
 .commit:disabled{opacity:.35;cursor:not-allowed}
 .locked{font-family:var(--cond);font-size:15px;padding:8px 10px;border:1px dashed var(--nl);border-radius:4px}
 .locked b{font-weight:600}
+.fileBtn{cursor:pointer;display:inline-flex;align-items:center}
 .clrRow{margin-bottom:8px}.clrRow .nbtn{width:100%}
 .effGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
 .effGrid .nbtn{text-align:left;padding:7px 10px;display:grid;grid-template-columns:1fr auto;align-items:center}

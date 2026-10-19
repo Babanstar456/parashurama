@@ -1,6 +1,6 @@
 // Instructor panel: edit doctrine/weapons/pass marks with live validation, build scripted drills, manage users (admin).
 // Online: saves to the unit server (versioned). Offline: saves in this browser (add ?instructor to the URL).
-import { defaultConfig, getConfig, type Config } from '@parashurama/engine';
+import { applyPack, defaultConfig, getConfig, verifyPack, type Config } from '@parashurama/engine';
 import { app, on } from './app';
 import { EFF, EFF_ORDER, ORDER, TYPES } from './cfg';
 import { $ } from './dom';
@@ -74,7 +74,7 @@ async function open() {
       <div class="card"><div class="cardHead"><h3>Scripted drills</h3><span>exams and set scenarios</span></div><div class="edForm" id="tplForm">${templatesForm()}</div></div>
       ${canAdmin() ? `<div class="card" style="grid-column:1/-1"><div class="cardHead"><h3>Users</h3><span>admin only</span></div><div class="edForm" id="usersForm">${await usersForm()}</div></div>` : ''}
     </div>
-    <div class="edActions"><button class="solid" id="edSave">Validate and save settings</button><button id="edValidate">Validate only</button><button id="edReset">Reset to defaults</button><span class="edMsg" id="edMsg"></span></div></div>`;
+    <div class="edActions"><button class="solid" id="edSave">Validate and save settings</button><button id="edValidate">Validate only</button><button id="edReset">Reset to defaults</button><label class="smallBtn fileBtn">Import signed threat pack<input type="file" id="edPack" accept=".json,application/json" hidden></label><span class="edMsg" id="edMsg"></span></div></div>`;
   document.body.appendChild(o);
   o.addEventListener('input', (e: any) => { const p = e.target.dataset.path; if (p) set(draft, p, e.target.value === '' ? 0 : +e.target.value); });
   $('#edClose').onclick = () => o.remove();
@@ -87,6 +87,24 @@ async function open() {
   };
   $('#edSave').onclick = async () => { if (await validate()) await save(draft, 'edited in instructor panel').catch((e) => ($('#edMsg').textContent = 'Save failed: ' + e.message)); };
   $('#edReset').onclick = async () => { if (ctx.online) await save(defaultConfig, 'reset to defaults'); else { localStorage.removeItem(LOCAL_CFG); $('#edMsg').innerHTML = '<b class="good">Defaults restored</b> <button class="smallBtn" id="edReload">Reload</button>'; $('#edReload').onclick = () => location.reload(); } };
+  // Signed threat pack (*.cuaspack.json): signature checked against the bundled trusted keys, then the merged config is validated.
+  $('#edPack').onchange = async (e: any) => {
+    const f = e.target.files?.[0]; e.target.value = ''; if (!f) return;
+    let pack: any;
+    try { pack = JSON.parse(await f.text()); } catch { $('#edMsg').innerHTML = '<b class="bad">Not a valid JSON file.</b>'; return; }
+    try {
+      if (ctx.online) { const r = await api('/api/packs', { method: 'POST', body: JSON.stringify(pack) }); $('#edMsg').innerHTML = `<b class="good">Pack installed as config v${r.version} ✓</b> <button class="smallBtn" id="edReload">Reload to apply</button>`; }
+      else {
+        const v = await verifyPack(pack);
+        if ('error' in v) { $('#edMsg').innerHTML = `<b class="bad">Pack rejected:</b> ${v.error}`; return; }
+        const merged = applyPack(getConfig(), pack); const { validateConfig } = await import('./validator'); const r = validateConfig(merged);
+        if (!r.ok) { $('#edMsg').innerHTML = `<b class="bad">Signed, but the config is invalid:</b><ul>${r.errors.map((x) => `<li>${x}</li>`).join('')}</ul>`; return; }
+        localStorage.setItem(LOCAL_CFG, JSON.stringify(merged));
+        $('#edMsg').innerHTML = `<b class="good">Pack ${pack.meta.id} v${pack.meta.version} from ${pack.meta.issuer} verified and saved ✓</b> <button class="smallBtn" id="edReload">Reload to apply</button>`;
+      }
+      $('#edReload').onclick = () => location.reload();
+    } catch (err: any) { $('#edMsg').innerHTML = `<b class="bad">Pack rejected:</b> ${err.body?.error || err.message}`; }
+  };
   const tf = $('#tplForm');
   tf.addEventListener('click', async (e: any) => {
     if (e.target.dataset.del != null) { e.target.closest('tr').remove(); }

@@ -1,0 +1,4 @@
+{
+  "note": "Public keys (JWK, ECDSA P-256) of issuers trusted to sign threat packs. Add one with: npm run pack:keygen -- <issuer> <key-id> <private-key-path-outside-repo>. Private keys never go in this repository.",
+  "keys": []
+}

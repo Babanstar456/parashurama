@@ -11,3 +11,4 @@ export * from './enemy';
 export * from './integrity';
 export * from './scenarios';
 export * from './report';
+export * from './pack';

@@ -3,12 +3,12 @@ import cookie from '@fastify/cookie';
 import fstatic from '@fastify/static';
 import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { defaultConfig, drillsToCsv, mastery, validateConfig, type Config } from '@parashurama/engine';
+import { applyPack, defaultConfig, drillsToCsv, mastery, TRUST_KEYS, validateConfig, verifyPack, type Config, type ThreatPack, type TrustKey } from '@parashurama/engine';
 import { audit, openDb, type DB } from './db';
 import { createSession, createUser, dropSession, Limiter, userForToken, usernameFor, type Cohort, type Role, type User } from './auth';
 import { BadRequest, cleanCfg, cleanSpawns, verifyDrill } from './verify';
 
-export interface Options { dataDir: string; webDir?: string; secureCookies?: boolean; logger?: boolean; }
+export interface Options { dataDir: string; webDir?: string; secureCookies?: boolean; logger?: boolean; /** Trusted threat-pack keys (default: config/trust/keys.json). */ trustKeys?: TrustKey[]; }
 declare module 'fastify' { interface FastifyRequest { user: User | null } }
 const COOKIE = 'psid';
 const ROLES: Role[] = ['trainee', 'instructor', 'commander', 'admin'];
@@ -95,6 +95,17 @@ export async function buildApp(o: Options) {
     if (!r.ok) return reply.code(400).send({ error: 'Invalid config', errors: r.errors });
     const id = Number(db.prepare('INSERT INTO config_versions(config,author,note,created_at) VALUES(?,?,?,?)').run(JSON.stringify(b.config), req.user!.id, String(b.note ?? '').slice(0, 200), Date.now()).lastInsertRowid);
     cache = null; audit(db, req.user!.id, 'config-update', `v${id} ${b.note ?? ''}`); return { version: id };
+  });
+  // Signed threat pack: verify the signature, then validate the merged config, then store it as a new version.
+  app.post('/api/packs', { preHandler: need('instructor', 'admin') }, async (req, reply) => {
+    const pack = req.body as ThreatPack;
+    const v = await verifyPack(pack, o.trustKeys ?? TRUST_KEYS);
+    if (!v.ok) { audit(db, req.user!.id, 'pack-rejected', `${(pack as any)?.meta?.id ?? '?'}: ${v.error}`); return reply.code(400).send({ error: v.error }); }
+    const merged = applyPack(activeConfig().config, pack), r = validateConfig(merged);
+    if (!r.ok) { audit(db, req.user!.id, 'pack-rejected', `${pack.meta.id}: invalid config`); return reply.code(400).send({ error: 'Signed pack has an invalid config', errors: r.errors }); }
+    const note = `pack ${pack.meta.id} v${pack.meta.version} (${pack.meta.issuer}, key ${v.keyId})`.slice(0, 200);
+    const id = Number(db.prepare('INSERT INTO config_versions(config,author,note,created_at) VALUES(?,?,?,?)').run(JSON.stringify(merged), req.user!.id, note, Date.now()).lastInsertRowid);
+    cache = null; audit(db, req.user!.id, 'pack-installed', `v${id} ${note}`); return { version: id, keyId: v.keyId };
   });
   app.get('/api/config/history', { preHandler: need('instructor', 'admin') }, async () => ({
     versions: db.prepare('SELECT c.id, c.note, c.created_at AS at, u.name AS author FROM config_versions c LEFT JOIN users u ON u.id=c.author ORDER BY c.id DESC LIMIT 50').all() }));
