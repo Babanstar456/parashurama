@@ -5,6 +5,8 @@ import { avg, clamp } from './util';
 export interface ContactScore {
   c: Contact; src: Contact; D: number; C: number; F: number; Fbase: number; total: number;
   missed: boolean; rules: string[]; why: string[]; e0?: Engagement; det?: number;
+  /** A sensor fault removed a clue when this contact was identified (fairness flag; points unchanged). */
+  sensorDown?: boolean;
 }
 
 const RULE_FOR = { rfLinked: 'R3', gnssOnly: 'R4', autonomous: 'R4' } as const;
@@ -42,6 +44,13 @@ export function scoreRun(E: Engine): ContactScore[] {
       Cs = idSrc.idCls === c.type
         ? Math.round(I.correctBase + I.correctPerConfidence * p)
         : Math.round(I.wrongPerUnconfidence * (1 - p) + (E.C.threats.threats[idSrc.idCls].hostile === Ty.hostile ? I.friendFoeBonus : 0));
+    }
+    // Fairness note (no points): say which clue was down because of a sensor fault when it was identified.
+    const av = idSrc.idAvail, notes: string[] = [];
+    if (av && idSrc.idCls) {
+      if (!av.rf) notes.push('Identified while the RF detector was off; the radio clue was not available');
+      if (E.cfg.fault === 'eo' && !av.cam) notes.push('Identified with the camera degraded; no clear picture was available');
+      if (!av.radarOk) notes.push('Identified inside the radar fault sector; the radar picture was unreliable');
     }
     // Defeat (R1–R8)
     let e0: Engagement | undefined = src.engs[0];
@@ -84,7 +93,7 @@ export function scoreRun(E: Engine): ContactScore[] {
       if (e0.cleared === false) { const m = M.unauthorised ?? -40; F = Math.max(0, F + m); rules.push('R12'); why.push(`${EF[e0.eff].label} fired without clearance under ${E.cfg.roe} ROE ${m}`); }
       if (e0.miss && c.state !== 'neutralised' && !reengaged(src)) { const m = M.missNotReengaged ?? -10; F = Math.max(0, F + m); rules.push('R10'); why.push(`${EF[e0.eff].label} missed and it was not engaged again ${m}`); }
     }
-    out.push({ c, src, D, C: Cs, F, Fbase, e0, total: D + Cs + F, missed: false, rules, why, det });
+    out.push({ c, src, D, C: Cs, F, Fbase, e0, total: D + Cs + F, missed: false, rules, why: [...why, ...notes], det, ...(notes.length ? { sensorDown: true } : {}) });
   }
   return out;
 }

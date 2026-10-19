@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- **Sensor-down fairness flag**:
+  - Each identification records which clues were available: RF detector up, a clear camera picture in range, and healthy radar on that bearing.
+  - The debrief explains when a fault removed a clue, and the drill tape rings that identification in amber.
+  - Points never change, because doctrine expects inference from the remaining clues.
 - **EW collateral (R11)** (effectors 1.2.0, doctrine 1.4.0, scenarios 1.2.0):
   - New optional `ewRestricted` drill flag, and `ewCollateral` on the jammer and spoofer.
   - Jamming or spoofing in an EW-restricted area without clearance costs −10 (R11).

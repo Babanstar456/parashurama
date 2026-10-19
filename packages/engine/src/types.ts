@@ -33,6 +33,8 @@ export interface Contact {
   orbit: boolean; oc: number; orad: number; hoverR: number; areaCredit?: boolean;
   /** Clearance requested at / granted at (ticks); set only when a clearance request is made. */
   clrReq?: number | null; clrAt?: number | null;
+  /** Which clues were available when it was identified (fairness flag; never changes points). */
+  idAvail?: { rf: boolean; cam: boolean; radarOk: boolean };
 }
 /** A threat entering the drill: type, time (s), bearing (deg) and optional start distance (m, scripted drills). */
 export interface Spawn { type: string; t: number; brg: number; dist?: number; }

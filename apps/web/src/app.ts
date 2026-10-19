@@ -331,12 +331,13 @@ function renderTape(){
     if(g){if(g.trackTick!=null)s+=dia(g.trackTick*DT,false);if(g.idTick!=null)s+=`<circle cx="${X(g.idTick*DT)}" cy="${y}" r="6" fill="none" stroke="#46554C" stroke-width="1.5" stroke-dasharray="2 2"/>`;if(g.engs[0])s+=tri(g.engs[0].tick*DT,false,'');}
     if(src===c&&c.trackTick!=null)s+=dia(c.trackTick*DT,true);
     if(src===c&&c.idTick!=null){const ok=c.idCls===c.type;s+=`<circle cx="${X(c.idTick*DT)}" cy="${y}" r="${3+c.idConf*4.5}" fill="${ok?'#2B7746':'#B3122A'}"/>`;}
+    if(src===c&&c.idTick!=null&&sl.sensorDown)s+=`<circle cx="${X(c.idTick*DT)}" cy="${y}" r="11" fill="none" stroke="#E0A800" stroke-width="2.5"><title>Sensor down: a fault removed a clue when this was identified (points unchanged)</title></circle>`;
     if(src===c)c.engs.forEach((e,j)=>{s+=tri(e.tick*DT,!e.miss,e.eff==='hold'?'H':EFF[e.eff].key+(e.miss?'✕':''));});
     const out=sl.missed?'Missed':c.state==='neutralised'?'Stopped':c.state==='leaked'?'Leaked':Ty.hostile?'Live':'Held';
     let delta='';if(g&&g.engs[0]&&src.engs[0]&&src===c){const dd=(src.engs[0].tick-g.engs[0].tick)*DT;delta=`${dd>=0?'+':''}${dd.toFixed(1)} s`;}
     s+=`<text x="${x1+12}" y="${y-1}" font-family="Barlow Condensed, DejaVu Sans Condensed, sans-serif" font-size="13" font-weight="600" fill="${out==='Leaked'||out==='Missed'?'#B3122A':'#18231D'}">${out}</text>${delta?`<text x="${x1+12}" y="${y+13}" font-family="Barlow Condensed, DejaVu Sans Condensed, sans-serif" font-size="11.5" fill="${parseFloat(delta)>3?'#B3122A':'#78867D'}">${delta} vs ghost</text>`:''}`;});
   s+=`<line id="playhead" x1="${X(replay.tick*DT)}" y1="16" x2="${X(replay.tick*DT)}" y2="${H-22}" stroke="#18231D" stroke-width="1.5" stroke-dasharray="3 3"/></svg>`;
-  $('#tape').innerHTML=s;$('#tapeSub').textContent=`${lanes.length} contacts · ${fmt(endS)} · outlines show the expert ghost on the same seed`;
+  $('#tape').innerHTML=s;$('#tapeSub').textContent=`${lanes.length} contacts · ${fmt(endS)} · outlines show the expert ghost on the same seed${lanes.some(l=>l.sensorDown)?' · amber ring: a sensor was down when you identified it':''}`;
   R.tapeX=X;
 }
 function drawReplay(){
