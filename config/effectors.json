@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "order": [
     "jam",
     "spoof",
@@ -14,7 +14,8 @@
       "min": 0,
       "delay": 2.5,
       "color": "--jam",
-      "affects": "rf"
+      "affects": "rf",
+      "pk": 1
     },
     "spoof": {
       "label": "GNSS spoof",
@@ -24,7 +25,8 @@
       "delay": 3,
       "color": "--spoof",
       "affects": "gnss",
-      "areaRadiusM": 450
+      "areaRadiusM": 450,
+      "pk": 1
     },
     "intc": {
       "label": "Interceptor",
@@ -34,7 +36,8 @@
       "delay": 4,
       "color": "--intc",
       "affects": "all",
-      "stock": 4
+      "stock": 4,
+      "pk": 1
     },
     "gun": {
       "label": "Gun",
@@ -44,7 +47,8 @@
       "delay": 1.5,
       "color": "--gun",
       "affects": "all",
-      "collateralUrban": true
+      "collateralUrban": true,
+      "pk": 1
     }
   }
 }

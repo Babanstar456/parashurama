@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildScenario, createEngine, scoreRun, type Spawn } from '../src';
+import { buildScenario, createEngine, expertPolicy, scoreRun, type Spawn } from '../src';
 import { C, baseCfg, controller, drive, single } from './helpers';
 
 const only = (E: ReturnType<typeof single>) => { const s = scoreRun(E); expect(s).toHaveLength(1); return s[0]; };
@@ -209,5 +209,62 @@ describe('golden scoring: civil drones (item 3, R9)', () => {
       expect(after.filter((s) => s.type !== 'civil')).toEqual(before);
       expect(buildScenario(baseCfg({ seed, terrain: 'rural' }), C)).toEqual(buildScenario(baseCfg({ seed, terrain: 'rural' }), noCivil));
     }
+  });
+});
+
+describe('golden scoring: probability of kill and re-engagement (item 4, R10)', () => {
+  const withPk = (pk: Record<string, number>) => ({ ...C, effectors: { ...C.effectors, effectors: Object.fromEntries(Object.entries(C.effectors.effectors).map(([k, e]) => [k, { ...e, pk: pk[k] ?? e.pk }])) } });
+  const one = (cfg: typeof C, type: string) => createEngine(baseCfg(), cfg, [{ type, t: 0, brg: 90 }]);
+
+  it('pk 0: the jam is recorded as a miss and the drone stays live', () => {
+    const E = one(withPk({ jam: 0 }), 'recon');
+    drive(E, controller({ eff: () => 'jam' }), 150, false);
+    expect(E.contacts[0].engs[0]).toMatchObject({ eff: 'jam', effective: true, miss: true });
+    expect(E.contacts[0].effectAt).toBeNull();
+  });
+
+  it('R10: a miss followed by a leak with no re-engagement is called out', () => {
+    const E = one(withPk({ jam: 0 }), 'fpv');
+    drive(E, controller({ eff: () => 'jam' }));
+    const s = scoreRun(E)[0];
+    expect(E.contacts[0].state).toBe('leaked');
+    expect(s.F).toBe(0);
+    expect(s.rules).toEqual(expect.arrayContaining(['R8', 'R10']));
+  });
+
+  it('R10: a miss on a drone still live at the end costs −10', () => {
+    const E = one(withPk({ jam: 0 }), 'recon');
+    drive(E, controller({ eff: () => 'jam' }), 150, false);
+    const s = scoreRun(E)[0];
+    expect(E.contacts[0].state).toBe('live');
+    expect(s.Fbase).toBe(40);
+    expect(s.F).toBe(30);
+    expect(s.rules).toContain('R10');
+  });
+
+  it('a miss then a successful re-engagement keeps full credit for the first choice', () => {
+    const E = one(withPk({ jam: 0 }), 'recon');
+    drive(E, (Eng) => { const c = Eng.contacts[0]; const a = controller({ eff: () => 'jam' })(Eng); if (c?.engs[0]?.miss && c.engs.length === 1) a.push({ k: 'eng', cid: c.id, eff: 'intc', tick: Eng.tick }); return a; });
+    const s = scoreRun(E)[0];
+    expect(E.contacts[0].state).toBe('neutralised');
+    expect(s.F).toBe(40);
+    expect(s.rules).not.toContain('R10');
+  });
+
+  it('misses are deterministic: the same seed gives the same misses', () => {
+    const cfg = withPk({ jam: 0.5, spoof: 0.5, intc: 0.5, gun: 0.5 });
+    const run = () => { const E = createEngine(baseCfg({ seed: 4321, difficulty: 5 }), cfg); drive(E, expertPolicy); return E.contacts.flatMap((c) => c.engs.map((e) => `${c.id}:${e.tick}:${e.eff}:${!!e.miss}`)); };
+    const a = run();
+    expect(a.some((x) => x.endsWith(':true'))).toBe(true);
+    expect(run()).toEqual(a);
+  });
+
+  it('the expert ghost re-engages after a miss', () => {
+    const E = one(withPk({ jam: 0 }), 'recon');
+    drive(E, expertPolicy);
+    const c = E.contacts[0];
+    expect(c.engs[0]).toMatchObject({ eff: 'jam', miss: true });
+    expect(c.engs.length).toBeGreaterThan(1);
+    expect(c.state).toBe('neutralised');
   });
 });

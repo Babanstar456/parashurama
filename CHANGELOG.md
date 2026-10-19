@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- **Probability of kill and re-engagement (R10)** (effectors 1.1.0, doctrine 1.2.0):
+  - Effectors have an optional `pk` (hit chance). It is set to 1 for every effector, so behaviour is unchanged until instructors set training values in the Instructor panel's new "Hit chance" column.
+  - Misses are seeded, so replays and the server re-run match.
+  - The first choice is still what gets scored.
+  - R10: a miss that is not followed by another engagement costs −10. If the drone then leaks, R10 is named alongside R8.
+  - On a miss the trainee sees a MISS toast and note, and the drill tape shows a ✕ marker.
+  - After a miss, the expert ghost re-engages with the effector of highest expected value (points × pk).
 - **Civil drones (R9)** (threats 1.2.0, doctrine 1.1.0, training 1.3.0):
   - New `civil` threat flag and a registered civil drone type.
   - Rule R9: report and monitor, never engage. Held scores 40; engaged scores 0.
