@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "note": "Training scenarios inspired by public reporting. All numbers are training values, not equipment specifications or real incident data.",
   "scenarios": [
     {
@@ -39,8 +39,8 @@
       "name": "Airport in heavy rain",
       "agency": "CISF",
       "context": "For airport and critical-site security teams: busy airspace, many birds, and a city all around.",
-      "lesson": "Rain hides blips, so track early. Many contacts are birds: hold on them. In a city the gun is a bad choice (collateral damage); jam the radio-controlled drones instead.",
-      "cfg": { "time": "day", "terrain": "urban", "fault": "none", "pattern": "mixed", "weather": "rain" },
+      "lesson": "Rain hides blips, so track early. Many contacts are birds: hold on them. In a city the gun is a bad choice (collateral damage); jam the radio-controlled drones instead. Peacetime rules apply: request clearance (C) as soon as you identify a hostile, and fire only once cleared.",
+      "cfg": { "time": "day", "terrain": "urban", "fault": "none", "pattern": "mixed", "weather": "rain", "roe": "peacetime" },
       "spawns": [
         { "type": "bird", "t": 0, "brg": 30 },
         { "type": "bird", "t": 2, "brg": 150 },

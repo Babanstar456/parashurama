@@ -4,7 +4,7 @@ import type { DrillConfig, Spawn } from './types';
 /** A ready-made, real-world-inspired drill: fixed conditions and a scripted raid. */
 export interface Scenario {
   id: string; name: string; agency: string; context: string; lesson: string;
-  cfg: Pick<DrillConfig, 'time' | 'terrain' | 'fault' | 'pattern' | 'weather'>; spawns: Spawn[];
+  cfg: Pick<DrillConfig, 'time' | 'terrain' | 'fault' | 'pattern' | 'weather' | 'roe'>; spawns: Spawn[];
 }
 export const SCENARIOS: Scenario[] = (scenariosJson as unknown as { scenarios: Scenario[] }).scenarios;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildScenario, createEngine, expertPolicy, scoreRun, type Spawn } from '../src';
+import { buildScenario, createEngine, expertPolicy, isCleared, needsClearance, observe, runTotal, scoreRun, type Engine, type Spawn } from '../src';
 import { C, baseCfg, controller, drive, single } from './helpers';
 
 const only = (E: ReturnType<typeof single>) => { const s = scoreRun(E); expect(s).toHaveLength(1); return s[0]; };
@@ -266,5 +266,67 @@ describe('golden scoring: probability of kill and re-engagement (item 4, R10)', 
     expect(c.engs[0]).toMatchObject({ eff: 'jam', miss: true });
     expect(c.engs.length).toBeGreaterThan(1);
     expect(c.state).toBe('neutralised');
+  });
+});
+
+describe('golden scoring: rules of engagement and clearance (item 6, R12)', () => {
+  const peace = (o = {}) => baseCfg({ roe: 'peacetime', ...o });
+  const reqThen = (eff: string) => (Eng: Engine) => {
+    const a = controller({ eff: () => eff, engageIf: (c, E) => isCleared(E, c, eff) })(Eng);
+    for (const c of Eng.contacts) if (c.idTick != null && c.clrReq == null) a.push({ k: 'req', cid: c.id, tick: Eng.tick });
+    return a;
+  };
+
+  it('R12: under peacetime ROE an RF jam without clearance costs −40', () => {
+    const E = createEngine(peace(), C, [{ type: 'recon', t: 0, brg: 90 }]);
+    drive(E, controller({ eff: () => 'jam' }));
+    const s = scoreRun(E)[0];
+    expect(E.contacts[0].engs[0].cleared).toBe(false);
+    expect(E.contacts[0].state).toBe('neutralised'); // the effect still happens; the penalty is in scoring
+    expect(s.Fbase).toBe(40);
+    expect(s.F).toBe(0);
+    expect(s.rules).toContain('R12');
+  });
+
+  it('requesting clearance, waiting, then engaging earns full points', () => {
+    const E = createEngine(peace(), C, [{ type: 'recon', t: 0, brg: 90 }]);
+    drive(E, reqThen('jam'));
+    const c = E.contacts[0], s = scoreRun(E)[0];
+    expect(c.clrReq).not.toBeNull();
+    expect(c.engs[0].tick).toBeGreaterThanOrEqual(c.clrAt!);
+    expect(c.engs[0].cleared).toBe(true);
+    expect(s.F).toBe(40);
+    expect(s.rules).not.toContain('R12');
+  });
+
+  it('tight ROE: jamming needs no clearance, the gun does', () => {
+    const E = createEngine(baseCfg({ roe: 'tight' }), C, [{ type: 'recon', t: 0, brg: 90 }]);
+    expect(needsClearance(E, 'jam')).toBe(false);
+    expect(needsClearance(E, 'gun')).toBe(true);
+  });
+
+  it('drills without roe record no clearance data (old drills unchanged)', () => {
+    const E = single('recon');
+    drive(E, controller({ eff: () => 'jam' }));
+    expect('cleared' in E.contacts[0].engs[0]).toBe(false);
+    expect(E.contacts[0].clrReq).toBeUndefined();
+  });
+
+  it('the expert ghost requests clearance and wins a peacetime drill', () => {
+    const E = createEngine(peace({ seed: 2024, difficulty: 4 }), C);
+    const log = drive(E, expertPolicy);
+    expect(log.some((a) => a.k === 'req')).toBe(true);
+    const sc = scoreRun(E);
+    expect(sc.every((s) => !s.rules.includes('R12'))).toBe(true);
+    expect(runTotal(sc)).toBeGreaterThanOrEqual(C.training.certification.passMark);
+  });
+
+  it('the roe skill is observed only under a restrictive ROE', () => {
+    const E = createEngine(peace(), C, [{ type: 'recon', t: 0, brg: 90 }]);
+    drive(E, controller({ eff: () => 'jam' }));
+    expect(observe(E, scoreRun(E)).roe).toEqual([false]);
+    const F = single('recon');
+    drive(F, controller({ eff: () => 'jam' }));
+    expect(observe(F, scoreRun(F)).roe).toEqual([]);
   });
 });

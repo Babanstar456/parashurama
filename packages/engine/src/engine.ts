@@ -85,6 +85,17 @@ function paintProb(E: Engine, c: Contact, b: number): number {
   return p * weatherFx(E.C, E.cfg.weather).radar;
 }
 
+/** Does this effector need clearance under the drill's ROE? 'free' (or no profile) never does. */
+export function needsClearance(E: Engine, eff: string): boolean {
+  const roe = E.cfg.roe ?? 'free';
+  if (roe === 'free') return false;
+  return E.C.doctrine.roe?.[roe]?.needsClearance.includes(eff) ?? false;
+}
+/** Is the contact cleared for this effector right now? */
+export function isCleared(E: Engine, c: Contact, eff: string): boolean {
+  return !needsClearance(E, eff) || (c.clrAt != null && E.tick >= c.clrAt);
+}
+
 export function inReach(c: Contact, eff: string, C: Config = getConfig()): boolean {
   const e = C.effectors.effectors[eff];
   const d = Math.hypot(c.x, c.y);
@@ -97,6 +108,14 @@ function applyAction(E: Engine, a: Action): void {
   if (a.k === 'track') { if (c.trackTick == null && c.state === 'live') c.trackTick = E.tick; return; }
   if (a.k === 'id') {
     if (c.trackTick != null && c.idTick == null && a.cls && E.C.threats.threats[a.cls] && a.conf != null) { c.idTick = E.tick; c.idCls = a.cls; c.idConf = a.conf; }
+    return;
+  }
+  if (a.k === 'req') {
+    // Request clearance to engage (ROE). Only after identification, once per contact.
+    if (c.idTick != null && c.clrReq == null && c.state === 'live') {
+      const roe = E.cfg.roe ?? 'free', prof = roe === 'free' ? undefined : E.C.doctrine.roe?.[roe];
+      c.clrReq = E.tick; c.clrAt = E.tick + ticks(E.C, prof?.clearanceSec ?? 0);
+    }
     return;
   }
   if (a.k !== 'eng' || c.idTick == null || c.state !== 'live' || !a.eff) return;
@@ -112,7 +131,9 @@ function applyAction(E: Engine, a: Action): void {
   // Probability of kill: seeded, so replays and the server re-run see the same misses. pk = 1 (default) never draws.
   const pk = ef.pk ?? 1;
   const hit = pk >= 1 || hash2(c.id * 131 + E.cfg.seed, E.tick) < pk;
-  c.engs.push({ tick: E.tick, eff: a.eff, effective: ok, range: rng, tti: tt, priorityMiss: pm, ...(ok && !hit ? { miss: true } : {}) });
+  // Under a restrictive ROE, record whether this shot was cleared. The effect still happens; the penalty is in scoring (R12).
+  const roeOn = (E.cfg.roe ?? 'free') !== 'free';
+  c.engs.push({ tick: E.tick, eff: a.eff, effective: ok, range: rng, tti: tt, priorityMiss: pm, ...(ok && !hit ? { miss: true } : {}), ...(roeOn ? { cleared: isCleared(E, c, a.eff) } : {}) });
   if (ok && hit) {
     c.effectAt = E.tick + ticks(E.C, ef.delay); c.effectBy = a.eff;
     if (ef.areaRadiusM && Ty.motion === 'swarm') {

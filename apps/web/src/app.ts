@@ -1,6 +1,6 @@
 import {
   avg, brgOf, buildScenario, calStats, chainHash, clamp, classificationStats, drillsToCsv, createEngine, decisionClass, demoHistory, expertPolicy, FAULT_LABEL,
-  fmtTime, inReach, isDone, mastery, mulberry, observe, planNext, runSim, runTotal, scoreRun, sectorOf, SKILLS, step, sumCal,
+  fmtTime, inReach, isCleared, isDone, needsClearance, mastery, mulberry, observe, planNext, runSim, runTotal, scoreRun, sectorOf, SKILLS, step, sumCal,
   tti, visibleBlip, windOf, cameraRange, weatherFx, WEATHER_LABEL,
 } from '@parashurama/engine';
 import { $, $$, cap, cssv } from './dom';
@@ -38,7 +38,7 @@ function renderBrief(){
   $('#drillNo').textContent='DRILL '+String(c.drill).padStart(2,'0');
   $('#drillWhen').innerHTML=`Built for ${TRAINEE.name}<br>Seed ${c.seed}`;
   const tested=plan.tests.join(' ');
-  const cards=[['Time',c.time==='night'?'Night':'Day',c.time==='night'],['Terrain',cap(c.terrain),false],['Sensors',c.fault==='radar'?`Radar fault ${ABBR[windOf(c.faultSector)]}`:FAULT_LABEL[c.fault],c.fault!=='none'],['Weather',WEATHER_LABEL[c.weather||'clear'],(c.weather||'clear')!=='clear'],['Attack',c.pattern==='swarm'?'Swarm raid':'Mixed raid',c.pattern==='swarm']];
+  const cards=[['Time',c.time==='night'?'Night':'Day',c.time==='night'],['Terrain',cap(c.terrain),false],['Sensors',c.fault==='radar'?`Radar fault ${ABBR[windOf(c.faultSector)]}`:FAULT_LABEL[c.fault],c.fault!=='none'],['Weather',WEATHER_LABEL[c.weather||'clear'],(c.weather||'clear')!=='clear'],['Attack',c.pattern==='swarm'?'Swarm raid':'Mixed raid',c.pattern==='swarm'],...((c.roe||'free')!=='free'?[['ROE',c.roe==='peacetime'?'Peacetime: clear every shot':'Tight: clear kinetic shots',true]]:[])];
   $('#conds').innerHTML=cards.map(([k,v,h])=>`<div class="cond ${h?'hot':''}"><small>${k}</small><b>${v}</b></div>`).join('');
   const sp=buildScenario(c);const nh=sp.filter(x=>TYPES[x.type].hostile).length;
   $('#expect').innerHTML=`<span>Expected hostiles <b>${Math.max(1,nh-1)}–${nh+2}</b></span><span>Difficulty <b>${c.difficulty} / 6</b></span><span>About <b>2½ min</b></span>`;
@@ -73,6 +73,7 @@ function doId(c,cls,conf){const d=live.did[c.id]||{};if(d.id)return;live.did[c.i
 // A shot that could work but missed (effector pk < 1): tell the trainee once, so they engage again.
 const missSeen=new WeakSet();
 function noteMisses(){for(const c of L.contacts){const e=c.engs[c.engs.length-1];if(e&&e.miss&&!missSeen.has(e)){missSeen.add(e);toast(`MISS: ${EFF[e.eff].label} on ${live.labels[c.id]||'contact'}. Engage again.`);}}}
+function doReq(c){act({k:'req',cid:c.id});const d=live.did[c.id]||{};live.did[c.id]={...d,req:true};emit('act',{k:'req',c});}
 function doEng(c,eff){act({k:'eng',cid:c.id,eff});const d=live.did[c.id]||{};live.did[c.id]={...d,engAt:L.tick,lastEff:eff};emit('act',{k:'eng',c,eff});}
 const R0=470,C0=500;const w2c=(x,y)=>[C0+x*R0/RMAX,C0+y*R0/RMAX];
 function contactKind(c){const d=live.did[c.id]||{};const cls=c.idCls||(d.id&&d.id.cls);return kindOfCls(cls);}
@@ -199,7 +200,8 @@ function renderDef(c,cls){
   const d=live.did[c.id]||{};
   const last=c.engs[c.engs.length-1];
   const av=EFF_ORDER.map(k=>availability(c,k));
-  const dsig=[c.id,cls,c.state,c.effectAt,c.engs.length,av.map(a=>a.txt).join(','),JSON.stringify(L.stock)].join('|');
+  const clrLeft=c.clrAt!=null?Math.ceil(Math.max(0,(c.clrAt-L.tick)*DT)):'';
+  const dsig=[c.id,cls,c.state,c.effectAt,c.engs.length,av.map(a=>a.txt).join(','),JSON.stringify(L.stock),c.clrReq,d.req,clrLeft].join('|');
   if(dsig===live.defSig)return;live.defSig=dsig;
   if(!cls){$('#defBody').innerHTML='<div class="empty" style="padding:2px 0 8px">Identify first.</div>';return;}
   if(c.state==='neutralised'){$('#defBody').innerHTML=`<div class="locked" style="border-color:var(--nn)">Neutralised by <b>${EFF[c.effectBy].label}</b>.</div>`;return;}
@@ -209,7 +211,14 @@ function renderDef(c,cls){
   else if(last&&last.miss)note=`<div class="locked" style="margin-bottom:8px;border-color:var(--nh)">${EFF[last.eff].label}: <b>MISS</b>. It is still coming. Engage again.</div>`;
   else if(last&&last.eff!=='hold'&&!last.effective)note=`<div class="locked" style="margin-bottom:8px;border-color:var(--nh)">${EFF[last.eff].label}: <b>no effect</b>. It is still coming. Choose again.</div>`;
   else if(last&&last.eff==='hold')note=`<div class="locked" style="margin-bottom:8px">Holding fire. Keep watching it.</div>`;
-  $('#defBody').innerHTML=note+`<div class="effGrid">${EFF_ORDER.map((k,i)=>`<button class="nbtn" data-eff="${k}" ${av[i].ok?'':'disabled'}><span>${EFF[k].label}${EFF[k].stock!=null?` (${L.stock[k]})`:''}<small>${av[i].txt}</small></span><kbd>${EFF[k].key}</kbd></button>`).join('')}<button class="nbtn hold" data-eff="hold" ${c.effectAt!=null||c.engs.length?'disabled':''}><span>Hold / report<small>friendlies, birds, civil drones</small></span><kbd>H</kbd></button></div>`;
+  // Rules of engagement: some effectors need clearance first (key C). Firing without it still works but costs R12.
+  const need=TYPES[cls]?.hostile?EFF_ORDER.filter(k=>needsClearance(L,k)):[];
+  if(need.length&&c.effectAt==null){
+    if(c.clrReq==null&&!d.req)note+=`<div class="clrRow"><button class="nbtn" data-act="req"><span>Request clearance<small>${L.cfg.roe} ROE: ${need.map(k=>EFF[k].label).join(', ')} need clearance</small></span><kbd>C</kbd></button></div>`;
+    else if(c.clrAt==null||L.tick<c.clrAt)note+=`<div class="locked" style="margin-bottom:8px">Clearance requested. Cleared in ${clrLeft===''?'…':clrLeft+' s'}.</div>`;
+    else note+=`<div class="locked" style="margin-bottom:8px;border-color:var(--nn)">Cleared to engage.</div>`;
+  }
+  $('#defBody').innerHTML=note+`<div class="effGrid">${EFF_ORDER.map((k,i)=>`<button class="nbtn" data-eff="${k}" ${av[i].ok?'':'disabled'}><span>${needsClearance(L,k)&&!isCleared(L,c,k)?'🔒 ':''}${EFF[k].label}${EFF[k].stock!=null?` (${L.stock[k]})`:''}<small>${av[i].txt}</small></span><kbd>${EFF[k].key}</kbd></button>`).join('')}<button class="nbtn hold" data-eff="hold" ${c.effectAt!=null||c.engs.length?'disabled':''}><span>Hold / report<small>friendlies, birds, civil drones</small></span><kbd>H</kbd></button></div>`;
 }
 function drawEO(){
   const cv=$('#eo');const c=selC();if(!cv||!c)return;const ctx=cv.getContext('2d',{willReadFrequently:true});const W=cv.width,H=cv.height;const night=live.cfg.time==='night';
@@ -229,7 +238,8 @@ function drawEO(){
 }
 $('#contacts').addEventListener('click',e=>{const el=e.target.closest('.ccard');if(el)select(+el.dataset.id);});
 $('#idBody').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.disabled)return;if(b.dataset.cls){live.pick.cls=b.dataset.cls;live.sig='';renderRail();}else if(b.dataset.conf){live.pick.conf=+b.dataset.conf;live.sig='';renderRail();}else if(b.id==='commitBtn')commitId();});
-$('#defBody').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.disabled)return;engageSel(b.dataset.eff);});
+$('#defBody').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.disabled)return;if(b.dataset.act==='req'){reqSel();return;}engageSel(b.dataset.eff);});
+function reqSel(){const c=selC();if(!c)return;const d=live.did[c.id]||{};const cls=c.idCls||(d.id&&d.id.cls);if(!cls||d.req||c.clrReq!=null||!TYPES[cls].hostile)return;doReq(c);live.defSig='';setTimeout(()=>renderRail(true),120);}
 function commitId(){const c=selC();if(!c||!live.pick.cls||!live.pick.conf||c.trackTick==null)return;doId(c,live.pick.cls,live.pick.conf);live.sig='';renderRail(true);}
 function engageSel(eff){const c=selC();if(!c)return;const d=live.did[c.id]||{};if(!(c.idCls||d.id))return;if(eff!=='hold'&&!availability(c,eff).ok)return;if(eff==='hold'&&(c.engs.length||c.effectAt!=null))return;doEng(c,eff);live.defSig='';setTimeout(()=>renderRail(true),120);}
 function accumulate(){if(live.pointer!=null)live.attn[live.pointer]+=DT;else{const c=selC();if(c&&c.state==='live')live.attn[sectorOf(brgOf(c.x,c.y))]+=DT*0.5;}}
@@ -380,8 +390,8 @@ $('#nextBtn').onclick=()=>goNext();
 function goNext(){if(hooks.next&&hooks.next())return;renderBrief();setPhase('brief');}
 
 // ===================== unit readiness board =====================
-const OPS=[{n:'Sep Vikram Singh',v:{detect:.91,identify:.88,defeat:.86,night:.87,swarm:.72,degraded:.81,weather:0.79}},{n:'Sep Imran Khan',v:{detect:.86,identify:.9,defeat:.92,night:.9,swarm:.88,degraded:.86,weather:0.83}},{n:'L/Nk Deepak Thapa',v:{detect:.86,identify:.74,defeat:.7,night:.61,swarm:.55,degraded:.66,weather:0.57}},{n:'Sep Rahul Yadav',v:{detect:.93,identify:.89,defeat:.9,night:.86,swarm:.9,degraded:.58,weather:0.84}},{n:'Sep Kiran Patil',v:{detect:.71,identify:.66,defeat:.62,night:.48,swarm:.4,degraded:.52,weather:0.45}},{n:'Nk Suresh Nair',v:{detect:.89,identify:.92,defeat:.87,night:.91,swarm:.86,degraded:.88,weather:0.82}}];
-const BCOLS=[['detect','Detection'],['identify','Identification'],['defeat','Defeat'],['night','Night'],['swarm','Swarm'],['degraded','Faulty sensors'],['weather','Bad weather']];
+const OPS=[{n:'Sep Vikram Singh',v:{detect:.91,identify:.88,defeat:.86,night:.87,swarm:.72,degraded:.81,weather:0.79,roe:0.84}},{n:'Sep Imran Khan',v:{detect:.86,identify:.9,defeat:.92,night:.9,swarm:.88,degraded:.86,weather:0.83,roe:0.9}},{n:'L/Nk Deepak Thapa',v:{detect:.86,identify:.74,defeat:.7,night:.61,swarm:.55,degraded:.66,weather:0.57,roe:0.62}},{n:'Sep Rahul Yadav',v:{detect:.93,identify:.89,defeat:.9,night:.86,swarm:.9,degraded:.58,weather:0.84,roe:0.88}},{n:'Sep Kiran Patil',v:{detect:.71,identify:.66,defeat:.62,night:.48,swarm:.4,degraded:.52,weather:0.45,roe:0.47}},{n:'Nk Suresh Nair',v:{detect:.89,identify:.92,defeat:.87,night:.91,swarm:.86,degraded:.88,weather:0.82,roe:0.86}}];
+const BCOLS=[['detect','Detection'],['identify','Identification'],['defeat','Defeat'],['night','Night'],['swarm','Swarm'],['degraded','Faulty sensors'],['weather','Bad weather'],['roe','ROE']];
 const roster=new Set(['night','swarm']);
 function renderUnit(){
   const me={n:TRAINEE.name+' (you)',v:mastery(DB.H),me:true};const all: any[]=hooks.operators?hooks.operators():[me,...OPS];
@@ -463,7 +473,7 @@ addEventListener('keydown',e=>{
   if(e.key==='Tab'){e.preventDefault();const lst=L.contacts.filter(c=>c.state==='live'&&(c.trackTick!=null||(live.did[c.id]||{}).track)).sort((a,b)=>tti(a)-tti(b));if(lst.length){const i=lst.findIndex(c=>c.id===live.sel);select(lst[(i+1)%lst.length].id);}return;}
   const c=selC();if(!c)return;const identified=c.idCls||(live.did[c.id]||{}).id;
   if(!identified){if(k>='0'&&k<='9'&&ORDER[(+k+9)%10]){live.pick.cls=ORDER[(+k+9)%10];live.sig='';renderRail();return;}const cf=CONF.find(x=>x.key.toLowerCase()===k);if(cf){live.pick.conf=cf.p;live.sig='';renderRail();return;}if(e.key==='Enter'){commitId();return;}}
-  else{const ef=EFF_ORDER.find(x=>EFF[x].key.toLowerCase()===k);if(ef){engageSel(ef);return;}if(k==='h')engageSel('hold');}
+  else{const ef=EFF_ORDER.find(x=>EFF[x].key.toLowerCase()===k);if(ef){engageSel(ef);return;}if(k==='c'){reqSel();return;}if(k==='h')engageSel('hold');}
 });
 $('#beginBtn').onclick=()=>{if(tour.on&&TOUR[tour.i].p==='brief'){tour.i=TOUR.findIndex(x=>x.p==='fight');if(hooks.tourBegin)hooks.tourBegin();else startDrill(true);}else startDrill(false);};
 
@@ -478,8 +488,9 @@ function botActs(skipRecentSec=0){
     const Tb=TYPES[c.idCls];const last=c.engs[c.engs.length-1];
     if(!Tb.hostile){if(!c.engs.length)doEng(c,'hold');continue;}
     if(last&&L.tick<last.tick+T(4))continue;if(L.tick<c.idTick+T(2+(c.id%4)))continue;
+    if(c.clrReq==null&&EFF_ORDER.some(k=>needsClearance(L,k))){if(!d.req)doReq(c);continue;}
     let want=Tb.rfOn?'jam':'spoof';if(last&&!last.effective)want=TYPES[c.type].gnss?'spoof':'intc';if(c.id%5===0&&inReach(c,'gun'))want='gun';
-    if(availability(c,want).ok)doEng(c,want);
+    if(availability(c,want).ok&&isCleared(L,c,want))doEng(c,want);
   }
 }
 (window as any).PARA={
