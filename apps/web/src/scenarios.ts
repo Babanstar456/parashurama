@@ -15,6 +15,7 @@ function chips(s: Scenario): string {
   const list = [c.time === 'night' ? 'Night' : 'Day', c.terrain === 'urban' ? 'Urban' : 'Rural', WEATHER_LABEL[w]];
   if (c.fault !== 'none') list.push(FAULT_LABEL[c.fault]);
   if (c.pattern === 'swarm') list.push('Swarm');
+  if (c.ewRestricted) list.push('EW-restricted');
   if (c.roe && c.roe !== 'free') list.push(c.roe === 'peacetime' ? 'Peacetime ROE' : 'Tight ROE');
   list.push(`${hostiles} hostile${hostiles === 1 ? '' : 's'}`);
   return list.map((x) => `<span class="scChip">${x}</span>`).join('');

@@ -330,3 +330,34 @@ describe('golden scoring: rules of engagement and clearance (item 6, R12)', () =
     expect(observe(F, scoreRun(F)).roe).toEqual([]);
   });
 });
+
+describe('golden scoring: EW collateral (item 5, R11)', () => {
+  it('R11: jamming in an EW-restricted area without clearance costs −10', () => {
+    const E = createEngine(baseCfg({ ewRestricted: true }), C, [{ type: 'recon', t: 0, brg: 90 }]);
+    drive(E, controller({ eff: () => 'jam' }));
+    const s = scoreRun(E)[0];
+    expect(s.F).toBe(30);
+    expect(s.rules).toContain('R11');
+  });
+
+  it('R11 does not apply to an interceptor, or to a jam that was cleared under ROE', () => {
+    const intc = createEngine(baseCfg({ ewRestricted: true }), C, [{ type: 'recon', t: 0, brg: 90 }]);
+    drive(intc, controller({ eff: () => 'intc' }));
+    expect(scoreRun(intc)[0].rules).not.toContain('R11');
+    const cleared = createEngine(baseCfg({ ewRestricted: true, roe: 'peacetime' }), C, [{ type: 'recon', t: 0, brg: 90 }]);
+    drive(cleared, (Eng) => {
+      const a = controller({ eff: () => 'jam', engageIf: (c, E) => isCleared(E, c, 'jam') })(Eng);
+      for (const c of Eng.contacts) if (c.idTick != null && c.clrReq == null) a.push({ k: 'req', cid: c.id, tick: Eng.tick });
+      return a;
+    });
+    const s = scoreRun(cleared)[0];
+    expect(s.rules).not.toContain('R11');
+    expect(s.F).toBe(40);
+  });
+
+  it('drills without the flag are unchanged', () => {
+    const E = single('recon');
+    drive(E, controller({ eff: () => 'jam' }));
+    expect(scoreRun(E)[0].F).toBe(40);
+  });
+});

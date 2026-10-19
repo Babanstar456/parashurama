@@ -38,7 +38,7 @@ function renderBrief(){
   $('#drillNo').textContent='DRILL '+String(c.drill).padStart(2,'0');
   $('#drillWhen').innerHTML=`Built for ${TRAINEE.name}<br>Seed ${c.seed}`;
   const tested=plan.tests.join(' ');
-  const cards=[['Time',c.time==='night'?'Night':'Day',c.time==='night'],['Terrain',cap(c.terrain),false],['Sensors',c.fault==='radar'?`Radar fault ${ABBR[windOf(c.faultSector)]}`:FAULT_LABEL[c.fault],c.fault!=='none'],['Weather',WEATHER_LABEL[c.weather||'clear'],(c.weather||'clear')!=='clear'],['Attack',c.pattern==='swarm'?'Swarm raid':'Mixed raid',c.pattern==='swarm'],...((c.roe||'free')!=='free'?[['ROE',c.roe==='peacetime'?'Peacetime: clear every shot':'Tight: clear kinetic shots',true]]:[])];
+  const cards=[['Time',c.time==='night'?'Night':'Day',c.time==='night'],['Terrain',cap(c.terrain),false],['Sensors',c.fault==='radar'?`Radar fault ${ABBR[windOf(c.faultSector)]}`:FAULT_LABEL[c.fault],c.fault!=='none'],['Weather',WEATHER_LABEL[c.weather||'clear'],(c.weather||'clear')!=='clear'],['Attack',c.pattern==='swarm'?'Swarm raid':'Mixed raid',c.pattern==='swarm'],...(c.ewRestricted?[['Spectrum','EW-restricted area',true]]:[]),...((c.roe||'free')!=='free'?[['ROE',c.roe==='peacetime'?'Peacetime: clear every shot':'Tight: clear kinetic shots',true]]:[])];
   $('#conds').innerHTML=cards.map(([k,v,h])=>`<div class="cond ${h?'hot':''}"><small>${k}</small><b>${v}</b></div>`).join('');
   const sp=buildScenario(c);const nh=sp.filter(x=>TYPES[x.type].hostile).length;
   $('#expect').innerHTML=`<span>Expected hostiles <b>${Math.max(1,nh-1)}–${nh+2}</b></span><span>Difficulty <b>${c.difficulty} / 6</b></span><span>About <b>2½ min</b></span>`;
@@ -500,7 +500,8 @@ function botActs(skipRecentSec=0){
   select(id){select(id);},
   scrubTo(sec){replay.tick=Math.min(R.endTick,T(sec));$('#scrub').value=replay.tick;drawReplay();},
 };
-export function boot(){document.fonts.ready.then(()=>{renderBrief();setPhase('brief');if(!DB.tourDone&&!hooks.holdTour)startTour(0);requestAnimationFrame(frame);emit('boot');});}
+// If a lesson or drill already started from the hub before fonts loaded, don't send it back to the brief.
+export function boot(){document.fonts.ready.then(()=>{if(!L){renderBrief();setPhase('brief');if(!DB.tourDone&&!hooks.holdTour)startTour(0);}requestAnimationFrame(frame);emit('boot');});}
 /** Public surface for feature modules (academy, coach, audio, what-if, online, editor). */
 export const app: any = {
   get L(){return L;}, get R(){return R;}, get plan(){return plan;}, set plan(p){plan=p;}, get phase(){return phase;},

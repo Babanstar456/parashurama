@@ -15,6 +15,8 @@ export interface DrillConfig {
   pattern: Pattern; weather?: Weather; difficulty: number; focus: { sector: number | null; loiter: boolean; decoy: boolean };
   /** Optional; missing = 'free'. */
   roe?: Roe;
+  /** Optional: jamming/spoofing here disrupts own and civil systems (R11). Missing = false. */
+  ewRestricted?: boolean;
 }
 export type ActionKind = 'track' | 'id' | 'eng' | 'req';
 /** A trainee (or expert) decision, stamped with the tick it applies on. */

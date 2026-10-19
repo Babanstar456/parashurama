@@ -80,6 +80,7 @@ export function scoreRun(E: Engine): ContactScore[] {
       if (EF[e0.eff]?.collateralUrban && E.cfg.terrain === 'urban') { F = Math.max(0, F + M.urbanGun); rules.push('R6'); why.push(`Gun in an urban area ${M.urbanGun}`); }
       if (isFinite(e0.tti) && e0.tti < M.lateEngagementSec) { F = Math.max(0, F + M.late); rules.push('R7'); why.push(`Under ${M.lateEngagementSec} s to impact ${M.late}`); }
       if (e0.priorityMiss) { F = Math.max(0, F + M.priority); rules.push('R5'); why.push(`A more urgent threat was waiting ${M.priority}`); }
+      if (E.cfg.ewRestricted && EF[e0.eff]?.ewCollateral && !e0.cleared) { const m = M.ewRestricted ?? -10; F = Math.max(0, F + m); rules.push('R11'); why.push(`${EF[e0.eff].label} in an EW-restricted area without clearance ${m}`); }
       if (e0.cleared === false) { const m = M.unauthorised ?? -40; F = Math.max(0, F + m); rules.push('R12'); why.push(`${EF[e0.eff].label} fired without clearance under ${E.cfg.roe} ROE ${m}`); }
       if (e0.miss && c.state !== 'neutralised' && !reengaged(src)) { const m = M.missNotReengaged ?? -10; F = Math.max(0, F + m); rules.push('R10'); why.push(`${EF[e0.eff].label} missed and it was not engaged again ${m}`); }
     }

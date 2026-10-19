@@ -44,6 +44,7 @@ export function validateConfig(c: Config): ValidationResult {
   }
   for (const [name, prof] of Object.entries(c.doctrine.roe ?? {})) for (const eff of prof?.needsClearance ?? []) if (!E[eff]) errors.push(`doctrine.json roe.${name} names unknown effector "${eff}"`);
   if (c.doctrine.roe && Object.keys(c.doctrine.roe).length && !c.doctrine.rules.R12) errors.push('doctrine.json needs rule R12 when ROE profiles are defined');
+  if (Object.values(E).some((e) => e.ewCollateral) && !c.doctrine.rules.R11) errors.push('doctrine.json needs rule R11 when an effector has ewCollateral');
   const ps = c.doctrine.confidence.map((x) => x.p);
   if (ps.some((p, i) => i > 0 && p <= ps[i - 1])) errors.push('doctrine.json confidence levels must increase');
   const ck = c.doctrine.confidence.map((x) => x.key);
