@@ -59,4 +59,19 @@ describe('evidence: persistence and export', () => {
     expect(events.length).toBe(2);
     await app.close(); db.close();
   });
+
+  it('records a study cohort per user and exports it in the CSV', async () => {
+    const { app, db } = await buildApp({ dataDir: dir });
+    const inst = await signIn(app, 'inst');
+    const me = (await app.inject({ method: 'GET', url: '/api/me', headers: { cookie: await signIn(app, 'sep.b') } })).json().user;
+    expect(me.cohort).toBe('adaptive');
+    expect((await app.inject({ method: 'PUT', url: `/api/users/${me.id}/cohort`, headers: { cookie: inst }, payload: { cohort: 'control' } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'PUT', url: `/api/users/${me.id}/cohort`, headers: { cookie: inst }, payload: { cohort: 'placebo' } })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'PUT', url: `/api/users/${me.id}/cohort`, headers: { cookie: await signIn(app, 'sep.a') }, payload: { cohort: 'control' } })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'GET', url: '/api/me', headers: { cookie: await signIn(app, 'sep.b') } })).json().user.cohort).toBe('control');
+    const csv = (await app.inject({ method: 'GET', url: '/api/export/drills.csv', headers: { cookie: inst } })).body.trim().split('\r\n');
+    expect(csv[0].endsWith(',cohort')).toBe(true);
+    expect(csv.find((r) => r.startsWith('Sep Demo B,'))!.endsWith(',control')).toBe(true);
+    await app.close(); db.close();
+  });
 });

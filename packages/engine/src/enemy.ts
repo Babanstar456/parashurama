@@ -9,8 +9,22 @@ export const WEATHER_LABEL: Record<Weather, string> = { clear: 'Clear', rain: 'H
 export interface IntelLine { b: string; t: string; }
 export interface Plan { cfg: DrillConfig; lines: IntelLine[]; tests: string[]; m: Mastery; }
 
+/** Control group: same seeding, but conditions are drawn at random and nothing targets the trainee's weaknesses. */
+function controlPlan(seed: number, drill: number, m: Mastery): Plan {
+  const r = mulberry(seed ^ 0xc0de);
+  const cfg: DrillConfig = { seed, drill, time: 'day', terrain: r() < 0.5 ? 'urban' : 'rural', fault: 'none', faultSector: Math.floor(r() * 12) * 30 + 15, pattern: 'mixed', weather: 'clear', difficulty: 3, focus: { sector: null, loiter: false, decoy: false } };
+  const k = (['night', 'swarm', 'degraded', 'weather'] as const)[Math.floor(r() * 4)];
+  if (k === 'night') cfg.time = 'night';
+  if (k === 'swarm') cfg.pattern = 'swarm';
+  if (k === 'degraded') cfg.fault = (['radar', 'eo', 'rf'] as Fault[])[Math.floor(r() * 3)];
+  if (k === 'weather') cfg.weather = (['rain', 'fog', 'dust'] as Weather[])[Math.floor(r() * 3)];
+  return { cfg, lines: [{ b: 'Control group.', t: ' Fixed difficulty (level 3) and random conditions, so your progress can be compared with adaptive training.' }], tests: [COND_LABEL[k]], m };
+}
+
 /** The enemy AI: builds the next drill around the trainee's measured weaknesses. Rule-based and explainable. */
-export function planNext(H: SessionRecord[], C: Config = getConfig()): Plan {
+/** Options: `adaptive: false` = control group (fixed level 3, random conditions, no targeting) for measuring training transfer. */
+export interface PlanOpts { adaptive?: boolean; }
+export function planNext(H: SessionRecord[], C: Config = getConfig(), opts: PlanOpts = {}): Plan {
   if (!H.length) {
     // First drill ever: nothing to exploit yet, so a gentle, balanced daytime drill.
     const cfg: DrillConfig = { seed: 20261, drill: 1, time: 'day', terrain: 'rural', fault: 'none', faultSector: 0, pattern: 'mixed', weather: 'clear', difficulty: 2, focus: { sector: null, loiter: false, decoy: false } };
@@ -22,6 +36,7 @@ export function planNext(H: SessionRecord[], C: Config = getConfig()): Plan {
   const seed = (drill * 7919 + (H.length ? H[H.length - 1].total * 131 : 0) + 20260) >>> 0;
   const r = mulberry(seed);
   const conds = ([['night', m.night], ['swarm', m.swarm], ['degraded', m.degraded], ['weather', m.weather]] as [string, number][]).sort((a, b) => a[1] - b[1]);
+  if (opts.adaptive === false) return controlPlan(seed, drill, m);
   const cfg: DrillConfig = { seed, drill, time: 'day', terrain: r() < 0.5 ? 'urban' : 'rural', fault: 'none', faultSector: 0, pattern: 'mixed', weather: 'clear', difficulty: 3, focus: { sector: null, loiter: false, decoy: false } };
   const applyC = (k: string) => {
     if (k === 'night') cfg.time = 'night';

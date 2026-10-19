@@ -5,13 +5,14 @@ import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { defaultConfig, drillsToCsv, mastery, validateConfig, type Config } from '@parashurama/engine';
 import { audit, openDb, type DB } from './db';
-import { createSession, createUser, dropSession, Limiter, userForToken, usernameFor, type Role, type User } from './auth';
+import { createSession, createUser, dropSession, Limiter, userForToken, usernameFor, type Cohort, type Role, type User } from './auth';
 import { BadRequest, cleanCfg, cleanSpawns, verifyDrill } from './verify';
 
 export interface Options { dataDir: string; webDir?: string; secureCookies?: boolean; logger?: boolean; }
 declare module 'fastify' { interface FastifyRequest { user: User | null } }
 const COOKIE = 'psid';
 const ROLES: Role[] = ['trainee', 'instructor', 'commander', 'admin'];
+const COHORTS: Cohort[] = ['adaptive', 'control'];
 const VERSION = '0.6.0';
 
 export async function buildApp(o: Options) {
@@ -79,7 +80,7 @@ export async function buildApp(o: Options) {
     }
     reply.setCookie(COOKIE, createSession(db, u.id), { httpOnly: true, sameSite: 'strict', secure: !!o.secureCookies, path: '/', maxAge: 12 * 3600 });
     audit(db, u.id, 'login');
-    return { user: { id: u.id, username: u.username, name: u.name, role: u.role, unit: u.unit, settings: JSON.parse(u.settings) } };
+    return { user: { id: u.id, username: u.username, name: u.name, role: u.role, unit: u.unit, settings: JSON.parse(u.settings), cohort: u.cohort } };
   });
   app.post('/api/auth/logout', async (req, reply) => { dropSession(db, req.cookies[COOKIE]); reply.clearCookie(COOKIE, { path: '/' }); return { ok: true }; });
   app.get('/api/me', { preHandler: need() }, async (req) => ({ user: req.user }));
@@ -123,11 +124,11 @@ export async function buildApp(o: Options) {
   // Drill history as CSV for after-action review: trainees get their own drills, other roles the whole unit.
   app.get('/api/export/drills.csv', { preHandler: need() }, async (req, reply) => {
     const own = req.user!.role === 'trainee';
-    const rows = db.prepare(`SELECT d.record, d.verified, u.name, u.unit FROM drills d JOIN users u ON u.id=d.user_id ${own ? 'WHERE d.user_id=?' : ''} ORDER BY d.created_at, d.id`)
+    const rows = db.prepare(`SELECT d.record, d.verified, u.name, u.unit, u.cohort FROM drills d JOIN users u ON u.id=d.user_id ${own ? 'WHERE d.user_id=?' : ''} ORDER BY d.created_at, d.id`)
       .all(...(own ? [req.user!.id] : [])) as any[];
     audit(db, req.user!.id, 'export-csv', `${rows.length} drills${own ? ' (own)' : ''}`);
     return reply.header('content-type', 'text/csv; charset=utf-8').header('content-disposition', 'attachment; filename="parashurama-drills.csv"')
-      .send(drillsToCsv(rows.map((r) => ({ operator: r.name, unit: r.unit, verified: !!r.verified, record: JSON.parse(r.record) })), activeConfig().config.training.certification.passMark));
+      .send(drillsToCsv(rows.map((r) => ({ operator: r.name, unit: r.unit, verified: !!r.verified, cohort: r.cohort, record: JSON.parse(r.record) })), activeConfig().config.training.certification.passMark));
   });
 
   app.get('/api/templates', { preHandler: need() }, async () => ({ templates: (db.prepare('SELECT id,name,cfg,spawns FROM templates ORDER BY id').all() as any[]).map((t) => ({ id: t.id, name: t.name, cfg: JSON.parse(t.cfg), spawns: JSON.parse(t.spawns) })) }));
@@ -141,14 +142,23 @@ export async function buildApp(o: Options) {
   });
   app.delete('/api/templates/:id', { preHandler: need('instructor', 'admin') }, async (req: any) => { db.prepare('DELETE FROM templates WHERE id=?').run(+req.params.id); audit(db, req.user!.id, 'template-delete', String(req.params.id)); return { ok: true }; });
 
-  app.get('/api/users', { preHandler: need('admin') }, async () => ({ users: db.prepare('SELECT id,username,name,role,unit,disabled FROM users ORDER BY id').all() }));
+  app.get('/api/users', { preHandler: need('admin') }, async () => ({ users: db.prepare('SELECT id,username,name,role,unit,disabled,cohort FROM users ORDER BY id').all() }));
   app.post('/api/users', { preHandler: need('admin') }, async (req, reply) => {
     const b: any = req.body ?? {};
     const username = str(b.username, 'username', 40).toLowerCase();
     if (!/^[a-z0-9._-]{3,40}$/.test(username)) throw new BadRequest('username: 3–40 letters, digits, dot, dash or underscore');
     if (!ROLES.includes(b.role)) throw new BadRequest(`role must be one of: ${ROLES.join(', ')}`);
-    try { const id = createUser(db, { username, name: str(b.name, 'name'), role: b.role, unit: b.unit ? str(b.unit, 'unit') : req.user!.unit }); audit(db, req.user!.id, 'user-create', `${username} (${b.role})`); return { id }; }
+    if (b.cohort != null && !COHORTS.includes(b.cohort)) throw new BadRequest(`cohort must be one of: ${COHORTS.join(', ')}`);
+    try { const id = createUser(db, { username, name: str(b.name, 'name'), role: b.role, unit: b.unit ? str(b.unit, 'unit') : req.user!.unit, cohort: b.cohort }); audit(db, req.user!.id, 'user-create', `${username} (${b.role})`); return { id }; }
     catch (e: any) { if (String(e.message).includes('UNIQUE')) return reply.code(409).send({ error: 'That username already exists' }); throw e; }
+  });
+  // Study design: put a user in the adaptive group or the fixed-difficulty control group.
+  app.put('/api/users/:id/cohort', { preHandler: need('admin', 'instructor') }, async (req: any, reply) => {
+    const c = (req.body as any)?.cohort;
+    if (!COHORTS.includes(c)) throw new BadRequest(`cohort must be one of: ${COHORTS.join(', ')}`);
+    const r = db.prepare('UPDATE users SET cohort=? WHERE id=?').run(c, +req.params.id);
+    if (!r.changes) return reply.code(404).send({ error: 'No such user' });
+    audit(db, req.user!.id, 'cohort-set', `#${req.params.id} ${c}`); return { ok: true };
   });
   app.post('/api/admin/backup', { preHandler: need('admin') }, async (req) => { const file = backup(db, o.dataDir); audit(db, req.user!.id, 'backup', file); return { file }; });
   app.get('/api/admin/audit', { preHandler: need('admin') }, async () => ({ events: db.prepare('SELECT a.at,a.action,a.detail,u.username FROM audit a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT 200').all() }));

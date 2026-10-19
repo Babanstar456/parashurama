@@ -41,7 +41,7 @@ function fpsMeter() {
   else { try { const raw = localStorage.getItem('parashurama.config'); if (raw) await applyConfig(JSON.parse(raw), 'Saved'); } catch { /* ignore */ } }
   const { app, hooks, on, boot } = await import('./app');
   const { planNext } = await import('@parashurama/engine');
-  if (session) { app.DB.H = session.history; app.plan = planNext(app.DB.H); initOnline(app, hooks, on, session); }
+  if (session) { app.DB.H = session.history; hooks.planOpts = { adaptive: session.user.cohort !== 'control' }; app.plan = planNext(app.DB.H, undefined, hooks.planOpts); initOnline(app, hooks, on, session); }
   const [fg, ac, au, wi, ed, sc, v3, hm, shw] = await Promise.all([import('./fieldguide'), import('./academy'), import('./audio'), import('./whatif'), import('./editor'), import('./scenarios'), import('./view3d'), import('./home'), import('./showcase')]);
   fg.initFieldGuide(); ac.initAcademy(); au.initAudio(); wi.initWhatIf(); ed.initEditor({ online, user: session?.user ?? null, templates: session?.templates ?? null }); sc.initScenarios(); v3.init3D(); hm.initHome(); shw.initShowcase();
   boot();

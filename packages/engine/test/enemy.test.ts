@@ -34,3 +34,25 @@ describe('enemy AI plans the next drill around weaknesses', () => {
     expect(p.lines[0].b).toBe('No drills yet.');
   });
 });
+
+describe('control mode for measuring training transfer (item 8)', () => {
+  const H = demoHistory();
+  it('ignores weaknesses: fixed level 3, no targeting, conditions from the seeded RNG', () => {
+    const p = planNext(H, undefined, { adaptive: false });
+    expect(p.cfg.difficulty).toBe(3);
+    expect(p.cfg.focus).toEqual({ sector: null, loiter: false, decoy: false });
+    expect(p.lines[0].b).toBe('Control group.');
+    expect(planNext(H, undefined, { adaptive: false })).toEqual(p);
+    const strong = H.map((s) => ({ ...s, total: 99 }));
+    expect(planNext(strong, undefined, { adaptive: false }).cfg.difficulty).toBe(3);
+  });
+  it('adaptive mode is unchanged by the option', () => {
+    expect(planNext(H, undefined, { adaptive: true })).toEqual(planNext(H));
+    expect(planNext(H, undefined, {})).toEqual(planNext(H));
+  });
+  it('control drills still vary across histories', () => {
+    const conds = new Set<string>();
+    for (let i = 0; i < 20; i++) { const c = planNext(H.map((s, j) => ({ ...s, total: 30 + i + j })), undefined, { adaptive: false }).cfg; conds.add(`${c.time}/${c.pattern}/${c.fault}/${c.weather}`); }
+    expect(conds.size).toBeGreaterThan(1);
+  });
+});

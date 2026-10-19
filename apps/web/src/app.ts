@@ -28,7 +28,7 @@ function loadDB(){
 }
 function saveDB(){try{localStorage.setItem(STORE,JSON.stringify({H:DB.H.map(s=>({...s,actions:undefined})),tourDone:DB.tourDone,academy:DB.academy,settings:DB.settings}));}catch(e){}}
 const DB=loadDB();DB.academy=DB.academy||{done:[]};DB.settings=DB.settings||{sound:'sound'};
-let plan=planNext(DB.H);
+let plan=planNext(DB.H,undefined,hooks.planOpts);
 let phase='brief';
 const ABBR={north:'N','north-east':'NE',east:'E','south-east':'SE',south:'S','south-west':'SW',west:'W','north-west':'NW'};
 
@@ -277,7 +277,7 @@ function finishDrill(){
   const rec:any={n:DB.H.length+1,demo:false,date:Date.now(),cfg,total,obs,attn,thr,cal,cls:classificationStats(sc,C),jamNoRF,endTick,mode:live.mode,template:live.template};
   if(!practice){DB.H.push(rec);saveDB();}
   R={cfg,spawns,acts,E,X,sc,scX,total,totalX,verified:total===totalLive,before,after:practice?before:mastery(DB.H),thr,attn,cal,endTick,prevTotal:prev?prev.total:null,labels:{...live.labels},mode:live.mode,lesson:live.lesson,template:live.template,rec,server:null};
-  if(!practice){plan=planNext(DB.H);if(hooks.syncDrill)hooks.syncDrill(rec,R);}
+  if(!practice){plan=planNext(DB.H,undefined,hooks.planOpts);if(hooks.syncDrill)hooks.syncDrill(rec,R);}
   setPhase('learn');renderLearn();emit('finish',R);
 }
 function bestCall(type){const Ty=TYPES[type];if(Ty.friendly)return 'hold fire';if(!Ty.hostile)return 'hold, no effector';const cls=decisionClass(Ty);return EFF[C.doctrine.defeat.preferred[cls]].label+(cls==='gnssOnly'?' (or interceptor)':'');}
