@@ -29,10 +29,10 @@ export function classificationStats(sc: ContactScore[], C: Config): Classificati
 }
 
 /** One drill as exported. `record` is the stored history record (server-verified on the unit server). */
-export interface CsvDrill { operator: string; unit?: string; verified?: boolean | null; record: any; }
+export interface CsvDrill { operator: string; unit?: string; verified?: boolean | null; record: any; /** Study cohort ('adaptive' or 'control'). */ cohort?: string; }
 
 const COLUMNS = ['operator', 'unit', 'drill', 'date', 'mode', 'template', 'time', 'terrain', 'weather', 'fault', 'pattern', 'difficulty', 'seed',
-  'total', 'passed', 'verified', 'contacts', 'hostiles', 'correct_ids', 'id_rate_pct', 'false_positives', 'missed_hostiles', 'leaked'] as const;
+  'total', 'passed', 'verified', 'contacts', 'hostiles', 'correct_ids', 'id_rate_pct', 'false_positives', 'missed_hostiles', 'leaked', 'cohort'] as const;
 const cell = (v: unknown) => {
   const s = v == null ? '' : String(v);
   // Quote when needed, and neutralise spreadsheet formula injection.
@@ -42,12 +42,12 @@ const cell = (v: unknown) => {
 
 /** Drill history as CSV (one row per drill) for spreadsheets and after-action review. */
 export function drillsToCsv(drills: CsvDrill[], passMark: number): string {
-  const rows = drills.map(({ operator, unit, verified, record: r }, i) => {
+  const rows = drills.map(({ operator, unit, verified, record: r, cohort }, i) => {
     const c = r.cfg ?? {}, k = r.cls as ClassificationStats | undefined;
     return [operator, unit ?? '', r.n ?? i + 1, r.date != null ? new Date(r.date).toISOString() : '', r.mode ?? 'scored', r.template ?? '',
       c.time, c.terrain, c.weather ?? 'clear', c.fault, c.pattern, c.difficulty, c.seed,
       r.total, r.total >= passMark ? 'yes' : 'no', verified == null ? '' : verified ? 'yes' : 'no',
-      k?.contacts, k?.hostiles, k?.correct, k ? Math.round(k.idRate * 100) : '', k?.falsePositives, k?.missedHostiles, k?.leaked];
+      k?.contacts, k?.hostiles, k?.correct, k ? Math.round(k.idRate * 100) : '', k?.falsePositives, k?.missedHostiles, k?.leaked, cohort ?? ''];
   });
   return [COLUMNS as readonly unknown[], ...rows].map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';
 }

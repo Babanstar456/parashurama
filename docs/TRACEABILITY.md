@@ -17,6 +17,7 @@ Every figure below is printed by the test suite as an `EVIDENCE …` line (`npm 
 | False positives and missed threats | `packages/engine/src/report.ts` `classificationStats()` | `evidence.test.ts` |
 | AAR: individual and unit performance across sessions | Debrief and readiness board (`apps/web/src/app.ts`); `/api/readiness`; CSV export `/api/export/drills.csv` and `drillsToCsv()` | `server.test.ts`, `apps/server/test/evidence.test.ts` |
 | Adaptive difficulty and randomisation | `enemy.ts` `planNext()`; learning model `learning.ts` (Bayesian knowledge tracing) | `enemy.test.ts`, `learning.test.ts`, `evidence.test.ts` |
+| Proof that training transfers (study design) | `planNext(..., { adaptive: false })` control mode; `users.cohort`; `cohort` column in the CSV export | `enemy.test.ts` (control ignores weaknesses, adaptive unchanged), `apps/server/test/evidence.test.ts` (cohort set and exported) |
 | Ordinary computers, unit level | Single offline file `docs/index.html`; unit server on SQLite | `evidence.test.ts` (headless speed); `?fps` meter |
 | Tamper-evident records | Server re-runs each drill (`apps/server/src/verify.ts`); SHA-256 chained log (`integrity.ts`) | `integrity.test.ts`, `server.test.ts` |
 

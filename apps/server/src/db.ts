@@ -18,6 +18,8 @@ const MIGRATIONS: string[] = [
    CREATE INDEX drills_user ON drills(user_id, created_at);
    CREATE TABLE templates(id INTEGER PRIMARY KEY, name TEXT NOT NULL, cfg TEXT NOT NULL, spawns TEXT NOT NULL, author INTEGER REFERENCES users(id), created_at INTEGER NOT NULL);
    CREATE TABLE audit(id INTEGER PRIMARY KEY, at INTEGER NOT NULL, user_id INTEGER, action TEXT NOT NULL, detail TEXT);`,
+  // 2: study cohort for measuring training transfer (adaptive vs fixed-difficulty control group).
+  `ALTER TABLE users ADD COLUMN cohort TEXT NOT NULL DEFAULT 'adaptive' CHECK(cohort IN ('adaptive','control'));`,
 ];
 /** Open (or create) the database and apply any pending migrations. */
 export function openDb(dataDir: string): DB {

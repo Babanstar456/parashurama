@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- **Control group for measuring training transfer**:
+  - `planNext(H, C, { adaptive: false })` gives fixed level 3, conditions drawn at random from the seed, and no targeting. Adaptive mode is unchanged.
+  - Users have a study `cohort` (`adaptive` or `control`), added by database migration 2. Existing users become `adaptive`.
+  - An instructor or admin sets the cohort in the Users panel or with `PUT /api/users/:id/cohort`.
+  - The web app plans control-group drills accordingly.
+  - The CSV export has a `cohort` column.
 - **Sensor-down fairness flag**:
   - Each identification records which clues were available: RF detector up, a clear camera picture in range, and healthy radar on that bearing.
   - The debrief explains when a fault removed a clue, and the drill tape rings that identification in amber.
