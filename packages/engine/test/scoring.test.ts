@@ -151,3 +151,34 @@ describe('golden scoring: every doctrine rule gives the expected points', () => 
     for (const s of sc) expect(s.F).toBe(40);
   });
 });
+
+describe('golden scoring: military threat library (items 1–2)', () => {
+  it('R4 autonomous: jamming a fibre-optic FPV → defeat 0; interceptor → 40', () => {
+    const jam = single('fibre');
+    drive(jam, controller({ eff: () => 'jam' }), 60);
+    const sj = only(jam);
+    expect(jam.contacts[0].engs[0]).toMatchObject({ eff: 'jam', effective: false });
+    expect(sj.F).toBe(0);
+    expect(sj.rules).toContain('R4');
+    const intc = single('fibre');
+    drive(intc, controller({ eff: () => 'intc' }));
+    const si = only(intc);
+    expect(intc.contacts[0].state).toBe('neutralised');
+    expect(si.F).toBe(40);
+  });
+
+  it('R3: a large military UAV is jammed on its datalink → 40; left circling unchallenged → 0', () => {
+    const jam = single('male');
+    drive(jam, controller({ eff: () => 'jam' }));
+    const s = only(jam);
+    expect(jam.contacts[0].state).toBe('neutralised');
+    expect(s.F).toBe(40);
+    expect(s.rules).toContain('R3');
+    const left = single('male');
+    drive(left, controller({ eff: () => null }), 150);
+    const sl = only(left);
+    expect(left.contacts[0].hover).toBe(true);
+    expect(sl.F).toBe(0);
+    expect(sl.why.join(' ')).toMatch(/watch the asset unchallenged/);
+  });
+});
