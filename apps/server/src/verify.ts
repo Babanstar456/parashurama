@@ -12,7 +12,8 @@ export function cleanCfg(c: any): DrillConfig {
     terrain: oneOf(c.terrain, ['urban', 'rural'] as const, 'cfg.terrain'), fault: oneOf(c.fault, ['none', 'radar', 'eo', 'rf'] as const, 'cfg.fault'),
     faultSector: num(c.faultSector, 0, 360, 'cfg.faultSector'), pattern: oneOf(c.pattern, ['mixed', 'swarm'] as const, 'cfg.pattern'),
     ...(c.weather != null ? { weather: oneOf(c.weather, ['clear', 'rain', 'fog', 'dust'] as const, 'cfg.weather') } : {}), difficulty: int(c.difficulty, 1, 6, 'cfg.difficulty'),
-    focus: { sector: f.sector == null ? null : num(f.sector, 0, 360, 'cfg.focus.sector'), loiter: !!f.loiter, decoy: !!f.decoy } };
+    focus: { sector: f.sector == null ? null : num(f.sector, 0, 360, 'cfg.focus.sector'), loiter: !!f.loiter, decoy: !!f.decoy },
+    ...(c.roe != null ? { roe: oneOf(c.roe, ['free', 'tight', 'peacetime'] as const, 'cfg.roe') } : {}) };
 }
 export function cleanSpawns(s: any, C: Config): Spawn[] | undefined {
   if (s == null) return undefined;
@@ -25,7 +26,7 @@ function cleanActions(a: any, C: Config, maxTick: number): Action[] {
   const cls = Object.keys(C.threats.threats), effs = [...C.effectors.order, 'hold'], confs = C.doctrine.confidence.map((x) => x.p);
   let last = 0;
   return a.map((x: any, i: number) => {
-    const o: Action = { tick: int(x.tick, 0, maxTick, `actions[${i}].tick`), k: oneOf(x.k, ['track', 'id', 'eng'] as const, `actions[${i}].k`), cid: int(x.cid, 1, 10000, `actions[${i}].cid`) };
+    const o: Action = { tick: int(x.tick, 0, maxTick, `actions[${i}].tick`), k: oneOf(x.k, ['track', 'id', 'eng', 'req'] as const, `actions[${i}].k`), cid: int(x.cid, 1, 10000, `actions[${i}].cid`) };
     if (o.tick < last) throw new BadRequest('actions must be in time order'); last = o.tick;
     if (o.k === 'id') { o.cls = oneOf(x.cls, cls, `actions[${i}].cls`); if (!confs.some((p) => Math.abs(p - x.conf) < 1e-9)) throw new BadRequest(`actions[${i}].conf is not a known confidence level`); o.conf = x.conf; }
     if (o.k === 'eng') o.eff = oneOf(x.eff, effs, `actions[${i}].eff`);

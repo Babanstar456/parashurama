@@ -91,6 +91,17 @@ describe('unit server', () => {
     expect(mine[0].obs.detect.length).toBeGreaterThan(0);
   });
 
+  it('accepts and re-scores a drill with clearance requests under peacetime ROE', async () => {
+    const pc: DrillConfig = { ...cfg, seed: 777, roe: 'peacetime' };
+    const E = createEngine(pc); const actions: Action[] = [];
+    while (E.tick < ticks(defaultConfig, 150)) { const a = expertPolicy(E); actions.push(...a); step(E, a); if (isDone(E)) break; }
+    expect(actions.some((a) => a.k === 'req')).toBe(true);
+    const r = await call('POST', '/api/drills', 'inst', { cfg: pc, actions, endTick: E.tick, mode: 'scored', clientTotal: runTotal(scoreRun(E)) });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ verified: true, total: runTotal(scoreRun(E)) });
+    expect((await call('POST', '/api/drills', 'inst', { cfg: { ...pc, roe: 'wartime' }, actions: [], endTick: 10 })).statusCode).toBe(400);
+  });
+
   it('never trusts a claimed score', async () => {
     const d = expertDrill();
     const r = (await call('POST', '/api/drills', 'sep', { cfg, actions: d.actions.slice(0, 3), endTick: d.endTick, mode: 'scored', clientTotal: 100 })).json();

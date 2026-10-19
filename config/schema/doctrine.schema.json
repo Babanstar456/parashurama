@@ -5,7 +5,9 @@
   "required": ["version", "rules", "confidence", "detection", "identification", "defeat"],
   "additionalProperties": false,
   "definitions": {
-    "table": { "type": "object", "additionalProperties": { "type": "number", "minimum": 0 } }
+    "table": { "type": "object", "additionalProperties": { "type": "number", "minimum": 0 } },
+    "roeProfile": { "type": "object", "required": ["needsClearance", "clearanceSec"], "additionalProperties": false,
+      "properties": { "needsClearance": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }, "clearanceSec": { "type": "number", "minimum": 0 } } }
   },
   "properties": {
     "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
@@ -19,6 +21,8 @@
       "properties": { "points": { "type": "number", "minimum": 0 }, "fullWithinSec": { "type": "number", "minimum": 0 }, "zeroAtSec": { "type": "number", "exclusiveMinimum": 0 } } },
     "identification": { "type": "object", "required": ["points", "correctBase", "correctPerConfidence", "wrongPerUnconfidence", "friendFoeBonus"], "additionalProperties": false,
       "properties": { "points": { "type": "number" }, "correctBase": { "type": "number" }, "correctPerConfidence": { "type": "number" }, "wrongPerUnconfidence": { "type": "number" }, "friendFoeBonus": { "type": "number" } } },
+    "roe": { "type": "object", "additionalProperties": false,
+      "properties": { "tight": { "$ref": "#/definitions/roeProfile" }, "peacetime": { "$ref": "#/definitions/roeProfile" } } },
     "defeat": {
       "type": "object",
       "required": ["points", "preferred", "tables", "friendlyHold", "friendlyEngaged", "clutterHold", "clutterEngaged", "hostileHeldButNeutralised", "modifiers"],
@@ -34,7 +38,7 @@
         "hostileHeldButNeutralised": { "type": "number" },
         "civilHold": { "type": "number" }, "civilEngaged": { "type": "number" },
         "modifiers": { "type": "object", "required": ["urbanGun", "lateEngagementSec", "late", "priority", "priorityRatio"], "additionalProperties": false,
-          "properties": { "urbanGun": { "type": "number", "maximum": 0 }, "lateEngagementSec": { "type": "number", "minimum": 0 }, "late": { "type": "number", "maximum": 0 }, "priority": { "type": "number", "maximum": 0 }, "priorityRatio": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }, "missNotReengaged": { "type": "number", "maximum": 0 } } }
+          "properties": { "urbanGun": { "type": "number", "maximum": 0 }, "lateEngagementSec": { "type": "number", "minimum": 0 }, "late": { "type": "number", "maximum": 0 }, "priority": { "type": "number", "maximum": 0 }, "priorityRatio": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }, "missNotReengaged": { "type": "number", "maximum": 0 }, "unauthorised": { "type": "number", "maximum": 0 } } }
       }
     }
   }

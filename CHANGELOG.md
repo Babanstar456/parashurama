@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- **Rules of engagement and clearance (R12)** (doctrine 1.3.0, scenarios 1.1.0):
+  - Drills take an optional `roe`: `free` (default, unchanged), `tight` (gun and interceptor need clearance) or `peacetime` (every effector needs clearance, 6 s).
+  - New `req` action: Request clearance, key **C**, with a countdown. Effectors that still need clearance show a lock.
+  - Firing without clearance still takes effect, but costs −40 (R12).
+  - New `roe` skill on the skill fingerprint and readiness board.
+  - The expert ghost and the demo operator ask for clearance as soon as they identify a hostile.
+  - "Airport in heavy rain" now runs under peacetime ROE.
+  - The server accepts `req` actions and `cfg.roe`.
+  - Drills without `roe` record no clearance data, so they are unchanged.
 - **Probability of kill and re-engagement (R10)** (effectors 1.1.0, doctrine 1.2.0):
   - Effectors have an optional `pk` (hit chance). It is set to 1 for every effector, so behaviour is unchanged until instructors set training values in the Instructor panel's new "Hit chance" column.
   - Misses are seeded, so replays and the server re-run match.

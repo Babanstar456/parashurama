@@ -231,6 +231,7 @@ main section{scroll-margin-top:128px}
     <label class="tick"><input type="checkbox" id="urban"> Urban area</label>
     <label class="tick"><input type="checkbox" id="late"> Under 8 s to impact when engaged</label>
     <label class="tick"><input type="checkbox" id="prio"> A more urgent threat was waiting</label>
+    <label class="tick"><input type="checkbox" id="unclr"> Fired without clearance (tight or peacetime ROE)</label>
     <label class="tick"><input type="checkbox" id="leak"> The drone reached the asset</label>
   </fieldset>
 </form>
@@ -359,7 +360,7 @@ const EF={jam:{label:'RF jam',affects:'rf',min:0,max:2000,delay:2.5,color:'var(-
 const TABLE={rfLinked:{jam:40,intc:30,spoof:30,gun:28},gnssOnly:{spoof:40,intc:36,gun:26,jam:0},autonomous:{intc:40,gun:30,jam:0,spoof:0}};
 const PREF={rfLinked:'jam',gnssOnly:'spoof',autonomous:'intc'};
 const REASON={rfLinked:'Radio link present',gnssOnly:'No radio link, GNSS-guided',autonomous:'No radio link and no GNSS'};
-const RULES={D1:'Detection: full marks within 3 s of the first radar paint, zero at 20 s.',C1:'Identification: correct = 18 + 12 × confidence; wrong = 10 × (1 − confidence), +5 if friend/foe was right.',R1:'Friendly identified: hold fire.',R2:'Bird or clutter: hold; don\'t waste an effector.',R3:'Radio-controlled hostile: RF jam first.',R4:'No radio link, GNSS-guided: GNSS spoof or interceptor.',R5:'Engage the most urgent threat first.',R6:'Gun in an urban area: collateral risk.',R7:'Engage with at least 8 s to impact.',R8:'A hostile must not reach the asset or observe unchallenged.',R9:'Unknown civil drone: report and monitor; do not engage.',R10:'After a miss, engage again before impact.'};
+const RULES={D1:'Detection: full marks within 3 s of the first radar paint, zero at 20 s.',C1:'Identification: correct = 18 + 12 × confidence; wrong = 10 × (1 − confidence), +5 if friend/foe was right.',R1:'Friendly identified: hold fire.',R2:'Bird or clutter: hold; don\'t waste an effector.',R3:'Radio-controlled hostile: RF jam first.',R4:'No radio link, GNSS-guided: GNSS spoof or interceptor.',R5:'Engage the most urgent threat first.',R6:'Gun in an urban area: collateral risk.',R7:'Engage with at least 8 s to impact.',R8:'A hostile must not reach the asset or observe unchallenged.',R9:'Unknown civil drone: report and monitor; do not engage.',R10:'After a miss, engage again before impact.',R12:'Kinetic or EW engagement without clearance under this ROE.'};
 const WX=[['Clear',1,1,'Baseline.'],['Heavy rain',.7,.6,'Track early: blips drop out.'],['Dense fog',.95,.35,'Decide from the radio signal, not the picture.'],['Dust storm',.85,.5,'Expect noisy tracks and late camera confirmation.']];
 const $=id=>document.getElementById(id);
 const dot=s=>`<span class="dot bg-${T[s].side}"></span>`;
@@ -409,16 +410,16 @@ function mark(id,k){document.querySelectorAll('#'+id+' button').forEach(b=>b.set
 function setType(k,syncId){S.type=k;mark('pickType',k);if(syncId)$('idType').value=k;run()}
 $('pickType').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setType(b.dataset.k,true)});
 $('pickEff').addEventListener('click',e=>{const b=e.target.closest('button');if(b){S.eff=b.dataset.k;mark('pickEff',S.eff);run()}});
-['det','idType','conf','urban','late','prio','leak'].forEach(id=>$(id).addEventListener('input',run));
+['det','idType','conf','urban','late','prio','leak','unclr'].forEach(id=>$(id).addEventListener('input',run));
 $('bestBtn').addEventListener('click',()=>{const t=T[S.type];$('det').value=2;$('idType').value=S.type;$('conf').value='0.95';
- ['urban','late','prio','leak'].forEach(id=>$(id).checked=false);
+ ['urban','late','prio','leak','unclr'].forEach(id=>$(id).checked=false);
  S.eff=t.side!=='hostile'?'hold':PREF[cls(t)];mark('pickEff',S.eff);run()});
 
 function run(){
   const t=T[S.type],det=+$('det').value,idT=$('idType').value,p=+$('conf').value,eff=S.eff;
   const hostile=t.side==='hostile';
   $('sitBox').disabled=!hostile;
-  const urban=hostile&&$('urban').checked,late=hostile&&$('late').checked,prio=hostile&&$('prio').checked,leak=hostile&&$('leak').checked;
+  const urban=hostile&&$('urban').checked,late=hostile&&$('late').checked,prio=hostile&&$('prio').checked,leak=hostile&&$('leak').checked,unclr=hostile&&$('unclr').checked;
   $('detOut').textContent=det+' s';
   const why=[];
   const D=Math.round(30*clamp(1-(det-3)/17,0,1));
@@ -440,6 +441,7 @@ function run(){
     if(urban&&eff==='gun'){const n=Math.max(0,F-15);why.push(['R6','Gun in an urban area',n-F]);F=n}
     if(late){const n=Math.max(0,F-8);why.push(['R7','Under 8 s to impact',n-F]);F=n}
     if(prio){const n=Math.max(0,F-5);why.push(['R5','A more urgent threat was waiting',n-F]);F=n}
+    if(unclr){const n=Math.max(0,F-40);why.push(['R12','Fired without clearance under a restrictive ROE',n-F]);F=n}
   }
   const tot=D+C+F;
   $('tot').textContent=tot;$('tot').parentElement.className='total '+(tot>=75?'pass':tot>=55?'mid':'low');

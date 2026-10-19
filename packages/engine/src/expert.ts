@@ -1,5 +1,5 @@
 import { decisionClass, isEffective, ticks } from './config';
-import { inReach, visibleBlip } from './engine';
+import { inReach, isCleared, needsClearance, visibleBlip } from './engine';
 import type { Action, Engine } from './types';
 
 /** The expert ghost: doctrine-optimal choices with realistic human reaction times. */
@@ -22,9 +22,11 @@ export function expertPolicy(E: Engine): Action[] {
     if (last && !(Ty.hostile && last.miss)) continue;
     if (!Ty.hostile) { acts.push({ k: 'eng', cid: c.id, eff: 'hold', tick: t }); continue; }
     const cls = decisionClass(Ty), want = E.C.doctrine.defeat.preferred[cls];
-    if (!last) { if (inReach(c, want, E.C)) acts.push({ k: 'eng', cid: c.id, eff: want, tick: t }); continue; }
+    // ROE: ask for clearance as soon as a hostile is identified, and fire only once cleared.
+    if (c.clrReq == null && E.C.effectors.order.some((k) => needsClearance(E, k))) { acts.push({ k: 'req', cid: c.id, tick: t }); continue; }
+    if (!last) { if (inReach(c, want, E.C) && isCleared(E, c, want)) acts.push({ k: 'eng', cid: c.id, eff: want, tick: t }); continue; }
     const EF = E.C.effectors.effectors, table = E.C.doctrine.defeat.tables[cls];
-    const next = E.C.effectors.order.filter((k) => isEffective(Ty, EF[k]) && inReach(c, k, E.C) && (EF[k].stock == null || (E.stock[k] ?? 0) > 0))
+    const next = E.C.effectors.order.filter((k) => isEffective(Ty, EF[k]) && inReach(c, k, E.C) && isCleared(E, c, k) && (EF[k].stock == null || (E.stock[k] ?? 0) > 0))
       .sort((a, b) => (table[b] ?? 0) * (EF[b].pk ?? 1) - (table[a] ?? 0) * (EF[a].pk ?? 1))[0];
     if (next) acts.push({ k: 'eng', cid: c.id, eff: next, tick: t });
   }

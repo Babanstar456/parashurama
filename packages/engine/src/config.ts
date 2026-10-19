@@ -23,12 +23,14 @@ export interface DoctrineFile {
   version: string; rules: Record<string, string>; confidence: ConfidenceLevel[];
   detection: { points: number; fullWithinSec: number; zeroAtSec: number };
   identification: { points: number; correctBase: number; correctPerConfidence: number; wrongPerUnconfidence: number; friendFoeBonus: number };
+  /** Optional ROE profiles; a profile missing here means no clearance is needed. */
+  roe?: Partial<Record<'tight' | 'peacetime', { needsClearance: string[]; clearanceSec: number }>>;
   defeat: {
     points: number; preferred: Record<DecisionClass, string>; tables: Record<DecisionClass, Record<string, number>>;
     friendlyHold: number; friendlyEngaged: number; clutterHold: number; clutterEngaged: number; hostileHeldButNeutralised: number;
     /** Optional so older doctrine files stay valid; defaults 40 / 0. */
     civilHold?: number; civilEngaged?: number;
-    modifiers: { urbanGun: number; lateEngagementSec: number; late: number; priority: number; priorityRatio: number; /** R10; missing = -10. */ missNotReengaged?: number };
+    modifiers: { urbanGun: number; lateEngagementSec: number; late: number; priority: number; priorityRatio: number; /** R10; missing = -10. */ missNotReengaged?: number; /** R12; missing = -40. */ unauthorised?: number };
   };
 }
 export interface TrainingFile {
