@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+- **Military threat library** (threats 1.1.0, training 1.2.0): seven new types, so all three defeat classes are covered:
+  - Fibre-optic FPV and AI-guided attack drone (no radio and no GNSS, so only an interceptor or gun works).
+  - Jet one-way attack drone (GNSS-guided, very fast).
+  - Payload-drop drone.
+  - Hybrid VTOL ISR drone.
+  - Tactical ISR fixed-wing.
+  - Large military UAV (MALE), with a new `Large` echo size.
+  - New `surveil` motion: the drone flies in, then circles at standoff range.
+  - Every new hostile type is in the procedural pool.
+  - Identify keys now run 1–9 then 0.
+  - The field guide and the threat library page list all 13 types.
+  - `library.test.ts` checks that the expert ghost defeats every hostile type.
+- **Evidence update (19 Oct 2026)**:
+  - `classificationStats()` (false positives, missed hostiles) and `drillsToCsv()` in `packages/engine/src/report.ts`.
+  - Role-scoped, audited `GET /api/export/drills.csv`.
+  - "Download drill history (CSV)" button on the Unit readiness card.
+  - `?fps` frame-rate meter.
+  - Evidence tests: `packages/engine/test/evidence.test.ts` and `apps/server/test/evidence.test.ts`.
+  - `docs/TRACEABILITY.md`.
+- `CLAUDE.md` project context for contributors.
+- **No login screen**: the web app signs in to the built-in `admin` account automatically, and the logout button is hidden. The unit server's sign-in API takes a name only, with no password. A new name creates a trainee account and the same name returns to it. Admins can still pre-create instructor, commander and admin accounts (no password field). `ADMIN_PASSWORD` and the first-start password printout are gone; sign in as `admin`. The `user:add` CLI no longer takes a password.
+
 ## 0.6.0 – One-click narrated demo, phone-ready
 - **Watch the 90-second demo** (Mission Hub, or open the app with `?demo`): a self-running, narrated showcase. A scripted operator plays the *Airport in heavy rain* mission and makes realistic mistakes; captions freeze the action at each key moment (mission, detect, identify, defeat, the 3D chase view), then walk through the debrief, the expert ghost and the commander's readiness board, ending on "Try it yourself" / "Watch again". Demo runs are practice runs: never saved to history and never synced to the unit server. Esc exits at any point.
 - **Phones**: every screen fits a 390 px phone with no sideways scrolling (the briefing layout and skill fingerprint were wider than the screen and forced a zoom-out, which also covered the Begin button); the hub opens at the title; drill controls no longer overlap the clock; a tip explains that full drills are best on a laptop.

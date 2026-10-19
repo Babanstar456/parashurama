@@ -59,7 +59,7 @@ function templatesForm() {
 async function usersForm() {
   const u = await api('/api/users').catch(() => ({ users: [] }));
   return `<table><tr><th>Username</th><th>Name</th><th>Role</th><th>Unit</th></tr>${u.users.map((x: any) => `<tr><td>${x.username}</td><td>${x.name}</td><td>${x.role}</td><td>${x.unit}</td></tr>`).join('')}</table>
-   <div class="row"><label>Username<input id="uUser"></label><label>Name<input id="uName"></label><label>Role<select id="uRole"><option>trainee</option><option>instructor</option><option>commander</option><option>admin</option></select></label><label>Temporary password<input id="uPass" type="password"></label></div>
+   <div class="row"><label>Username<input id="uUser"></label><label>Name<input id="uName"></label><label>Role<select id="uRole"><option>trainee</option><option>instructor</option><option>commander</option><option>admin</option></select></label></div>
    <div class="edActions"><button class="solid" id="uAdd">Create user</button><button id="bkBtn">Back up database now</button></div>`;
 }
 async function open() {
@@ -110,7 +110,7 @@ async function open() {
   const uf = $('#usersForm');
   if (uf) uf.addEventListener('click', async (e: any) => {
     if (e.target.id === 'uAdd') {
-      try { await api('/api/users', { method: 'POST', body: JSON.stringify({ username: $('#uUser').value.trim(), name: $('#uName').value.trim(), role: $('#uRole').value, password: $('#uPass').value }) }); uf.innerHTML = await usersForm(); toast('User created'); }
+      try { await api('/api/users', { method: 'POST', body: JSON.stringify({ username: $('#uUser').value.trim(), name: $('#uName').value.trim(), role: $('#uRole').value }) }); uf.innerHTML = await usersForm(); toast('User created'); }
       catch (err: any) { toast(err.body?.error || 'Could not create user'); }
     }
     if (e.target.id === 'bkBtn') { const r = await api('/api/admin/backup', { method: 'POST' }).catch(() => null); toast(r ? `Backup saved: ${r.file}` : 'Backup failed'); }

@@ -1,4 +1,4 @@
-import { calStats, chainHash, observe, runSim, runTotal, scoreRun, sectorOf, ticks, type Action, type Config, type DrillConfig, type Spawn } from '@parashurama/engine';
+import { calStats, chainHash, classificationStats, observe, runSim, runTotal, scoreRun, sectorOf, ticks, type Action, type Config, type DrillConfig, type Spawn } from '@parashurama/engine';
 
 export class BadRequest extends Error { status = 400; }
 const int = (v: any, lo: number, hi: number, name: string) => { if (!Number.isInteger(v) || v < lo || v > hi) throw new BadRequest(`${name} must be an integer between ${lo} and ${hi}`); return v; };
@@ -48,7 +48,7 @@ export async function verifyDrill(C: Config, p: any) {
   const thr = new Array(12).fill(0); E.contacts.filter((c) => C.threats.threats[c.type].hostile).forEach((c) => thr[sectorOf(c.brg0)]++);
   const attnIn = Array.isArray(p.attn) && p.attn.length === 12 && p.attn.every((v: any) => typeof v === 'number' && v >= 0) ? p.attn : new Array(12).fill(1);
   const at = attnIn.reduce((a: number, b: number) => a + b, 0) || 1;
-  const record = { demo: false, date: Date.now(), cfg, total, obs: observe(E, sc), attn: attnIn.map((v: number) => v / at), thr, cal: calStats(sc, C),
+  const record = { demo: false, date: Date.now(), cfg, total, obs: observe(E, sc), attn: attnIn.map((v: number) => v / at), thr, cal: calStats(sc, C), cls: classificationStats(sc, C),
     jamNoRF: sc.filter((s) => s.src === s.c && s.e0?.eff === 'jam' && !C.threats.threats[s.c.type].rfOn).length, endTick, mode, template: typeof p.template === 'string' ? p.template.slice(0, 80) : null };
   return { cfg, spawns, actions, endTick, mode, total, verified: !flags.includes('client-score-mismatch'), flags, chain: await chainHash(actions), record };
 }

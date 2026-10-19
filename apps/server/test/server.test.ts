@@ -10,8 +10,8 @@ let dir: string, app: Awaited<ReturnType<typeof buildApp>>['app'], db: any;
 const cookies: Record<string, string> = {};
 const call = (method: string, url: string, who?: string, payload?: any, headers: any = {}) =>
   app.inject({ method: method as any, url, payload, headers: { ...(who ? { cookie: cookies[who] } : {}), ...headers } });
-async function login(who: string, password = 'correct-horse') {
-  const r = await call('POST', '/api/auth/login', undefined, { username: who, password });
+async function login(who: string) {
+  const r = await call('POST', '/api/auth/login', undefined, { name: who });
   expect(r.statusCode).toBe(200);
   cookies[who] = String(r.headers['set-cookie']).split(';')[0];
 }
@@ -25,9 +25,9 @@ function expertDrill() {
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'para-'));
   ({ app, db } = await buildApp({ dataDir: dir }));
-  createUser(db, { username: 'admin', name: 'Admin', role: 'admin', password: 'correct-horse' });
-  createUser(db, { username: 'inst', name: 'Instructor', role: 'instructor', password: 'correct-horse' });
-  createUser(db, { username: 'sep', name: 'Sep Test', role: 'trainee', password: 'correct-horse' });
+  createUser(db, { username: 'admin', name: 'Admin', role: 'admin' });
+  createUser(db, { username: 'inst', name: 'Instructor', role: 'instructor' });
+  createUser(db, { username: 'sep', name: 'Sep Test', role: 'trainee' });
   await login('admin'); await login('inst'); await login('sep');
 });
 afterAll(async () => { await app.close(); rmSync(dir, { recursive: true, force: true }); });
@@ -40,11 +40,15 @@ describe('unit server', () => {
     expect(r.headers['x-frame-options']).toBe('DENY');
   });
 
-  it('rejects wrong passwords and rate-limits guessing', async () => {
-    expect((await call('POST', '/api/auth/login', undefined, { username: 'nobody', password: 'x' })).statusCode).toBe(401);
-    let last = 0;
-    for (let i = 0; i < 11; i++) last = (await call('POST', '/api/auth/login', undefined, { username: 'sep', password: 'wrong-pass' })).statusCode;
-    expect(last).toBe(429);
+  it('signs in by name only: matches existing accounts and creates new trainees', async () => {
+    const byName = (await call('POST', '/api/auth/login', undefined, { name: '  sep   TEST ' })).json().user;
+    expect(byName).toMatchObject({ username: 'sep', role: 'trainee' });
+    const fresh = await call('POST', '/api/auth/login', undefined, { name: 'Hav Singh' });
+    expect(fresh.statusCode).toBe(200);
+    expect(fresh.json().user).toMatchObject({ username: 'hav.singh', name: 'Hav Singh', role: 'trainee' });
+    expect((await call('POST', '/api/auth/login', undefined, { name: 'hav singh' })).json().user.id).toBe(fresh.json().user.id);
+    expect((await call('POST', '/api/auth/login', undefined, { name: '' })).statusCode).toBe(400);
+    expect((await call('POST', '/api/auth/login', undefined, { name: '!!' })).statusCode).toBe(400);
   });
 
   it('requires a session and enforces roles', async () => {
@@ -123,17 +127,18 @@ describe('unit server', () => {
     expect((await call('DELETE', `/api/templates/${ok.json().id}`, 'inst')).statusCode).toBe(200);
   });
 
-  it('lets admins create users and refuses duplicates and weak passwords', async () => {
-    expect((await call('POST', '/api/users', 'admin', { username: 'nk.rao', name: 'Nk Rao', role: 'trainee', password: 'longenough' })).statusCode).toBe(200);
-    expect((await call('POST', '/api/users', 'admin', { username: 'nk.rao', name: 'Nk Rao', role: 'trainee', password: 'longenough' })).statusCode).toBe(409);
-    expect((await call('POST', '/api/users', 'admin', { username: 'short', name: 'S', role: 'trainee', password: '123' })).statusCode).toBe(400);
+  it('lets admins create users and refuses duplicates and bad input', async () => {
+    expect((await call('POST', '/api/users', 'admin', { username: 'nk.rao', name: 'Nk Rao', role: 'trainee' })).statusCode).toBe(200);
+    expect((await call('POST', '/api/users', 'admin', { username: 'nk.rao', name: 'Nk Rao', role: 'trainee' })).statusCode).toBe(409);
+    expect((await call('POST', '/api/users', 'admin', { username: 'x', name: 'S', role: 'trainee' })).statusCode).toBe(400);
+    expect((await call('POST', '/api/users', 'admin', { username: 'cmdr.lal', name: 'Cmdr Lal', role: 'general' })).statusCode).toBe(400);
   });
 
   it('takes consistent backups and keeps an audit trail', async () => {
     const file = (await call('POST', '/api/admin/backup', 'admin')).json().file;
     expect(existsSync(file)).toBe(true);
     const ev = (await call('GET', '/api/admin/audit', 'admin')).json().events.map((e: any) => e.action);
-    expect(ev).toEqual(expect.arrayContaining(['login', 'login-failed', 'config-update', 'drill-flagged', 'backup']));
+    expect(ev).toEqual(expect.arrayContaining(['login', 'user-create', 'config-update', 'drill-flagged', 'backup']));
   });
 
   it('returns 4xx (not 500) for an empty JSON body', async () => {

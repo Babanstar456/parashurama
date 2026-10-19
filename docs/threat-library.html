@@ -250,10 +250,10 @@ main section{scroll-margin-top:128px}
 
 <section id="threats">
 <h2>Threat library</h2>
-<p class="sub">Six contact types. The skill being trained is telling them apart from radar, the friendly check, the radio signal, behaviour and, when close enough, the camera. Pick one to see its clues.</p>
+<p class="sub">Thirteen contact types, from a recon quad to a large military UAV. The skill being trained is telling them apart from radar, the friendly check, the radio signal, behaviour and, when close enough, the camera. Pick one to see its clues.</p>
 <div class="tabs" role="tablist" aria-label="Contact types" id="threatTabs"></div>
 <div class="tcard" id="threatCard" role="tabpanel"></div>
-<details class="all"><summary>Compare all six side by side</summary>
+<details class="all"><summary>Compare all thirteen side by side</summary>
 <div class="scroll"><table>
 <thead><tr><th>Contact</th><th class="num">Speed</th><th>Altitude</th><th>Radar echo</th><th>Radio signal</th><th>Behaviour</th><th>Right response</th></tr></thead>
 <tbody id="threatRows"></tbody></table></div>
@@ -342,8 +342,15 @@ const T={
  swarm:{label:'Swarm drone',side:'hostile',speed:20,alt:'60–120 m',echo:'Very small',rf:'No emission',rfOn:false,gnss:true,cam:'Quadcopter',beh:'Moves in formation with others',resp:'GNSS spoof',rule:'R4, R5',why:'One spoof takes every swarm drone within 450 m. Deal with the closest threat first.'},
  friendly:{label:'Friendly UAV',side:'friendly',speed:16,alt:'150–300 m',echo:'Medium',rf:'Own-force link',rfOn:true,gnss:true,cam:'Fixed wing',beh:'Orbits a set route; friendly check matches a flight plan',resp:'Hold fire',rule:'R1',why:'The friendly check matched a flight plan. Engaging it is fratricide.'},
  bird:{label:'Bird / clutter',side:'neutral',speed:8,alt:'20–180 m',echo:'Very small',rf:'No emission',rfOn:false,gnss:false,cam:'Bird',beh:'Erratic, keeps changing direction',resp:'Hold',rule:'R2',why:'Tiny echo, no radio, erratic path. Don\'t waste an effector on it.'}
+ fibre:{label:'Fibre-optic FPV',side:'hostile',speed:28,alt:'10–50 m',echo:'Very small',rf:'No emission (fibre-optic cable)',rfOn:false,gnss:false,cam:'Quadcopter',beh:'Fast, low, weaving, yet silent on RF',resp:'Interceptor, or gun when close',rule:'R4',why:'It flies like an FPV, but it is steered down a cable: there is no link to jam and no GNSS to spoof. Only hard-kill works.'},
+ aiStrike:{label:'AI-guided attack drone',side:'hostile',speed:36,alt:'40–150 m',echo:'Small',rf:'No emission',rfOn:false,gnss:false,cam:'Fixed wing',beh:'Low and straight in, on its own',resp:'Interceptor',rule:'R4',why:'It guides itself by camera, with no radio and no GNSS. Jamming and spoofing both fail; intercept it.'},
+ jetOwa:{label:'Jet one-way attack drone',side:'hostile',speed:85,alt:'300–1200 m',echo:'Medium',rf:'No emission',rfOn:false,gnss:true,cam:'Fixed wing',beh:'Very fast, straight at the asset',resp:'GNSS spoof or interceptor, early',rule:'R4, R7',why:'Twice as fast as a propeller loitering munition, so it crosses the radar picture in about half a minute. It navigates by GNSS: spoof it early.'},
+ dropper:{label:'Payload-drop drone',side:'hostile',speed:12,alt:'40–120 m',echo:'Medium',rf:'Control link, 2.4 GHz',rfOn:true,gnss:true,cam:'Quadcopter',beh:'Slow and heavy, straight for the asset',resp:'RF jam',rule:'R3',why:'Looks like a recon quad on RF, but the echo is bigger and it never stops to watch. Jam it before it reaches the asset to drop its payload.'},
+ vtol:{label:'Hybrid VTOL ISR drone',side:'hostile',speed:24,alt:'100–400 m',echo:'Small',rf:'Control link, 1.4 GHz',rfOn:true,gnss:true,cam:'Fixed wing',beh:'Flies in like a plane, then hovers',resp:'RF jam',rule:'R3',why:'A wing that suddenly stops and hovers is a VTOL surveillance drone. Its control link is its weak point.'},
+ tacIsr:{label:'Tactical ISR fixed-wing',side:'hostile',speed:28,alt:'300–1000 m',echo:'Small',rf:'Control link, 868–900 MHz',rfOn:true,gnss:true,cam:'Fixed wing',beh:'Flies in, then circles at a distance',resp:'RF jam',rule:'R3',why:'It circles like our own patrol, but the friendly check fails: an enemy artillery spotter. Do not leave it watching.'},
+ male:{label:'Large military UAV (MALE)',side:'hostile',speed:50,alt:'1500–3000 m',echo:'Large',rf:'Satellite / line-of-sight datalink',rfOn:true,gnss:true,cam:'Fixed wing',beh:'Flies in high, then circles at standoff range',resp:'RF jam',rule:'R3',why:'A large echo circling high at standoff range. It depends on its datalink: jam it, or intercept it while in reach.'},
 };
-const ORDER=['recon','fpv','loiter','swarm','friendly','bird'];
+const ORDER=['recon','fpv','loiter','swarm','friendly','bird','fibre','aiStrike','jetOwa','dropper','vtol','tacIsr','male'];
 const EF={jam:{label:'RF jam',affects:'rf',min:0,max:2000,delay:2.5,color:'var(--jam)',note:'Drones with a radio link. No effect on GNSS-guided drones.'},
  spoof:{label:'GNSS spoof',affects:'gnss',min:0,max:2500,delay:3,color:'var(--spoof)',note:'GNSS-guided drones. Area effect: also takes swarm drones within 450 m.'},
  intc:{label:'Interceptor',affects:'all',min:300,max:2500,delay:4,color:'var(--intc)',note:'Any drone. Only 4 per drill, and not below 300 m.'},

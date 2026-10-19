@@ -1,0 +1,69 @@
+# PARASHURAMA (SIH26247): project context
+
+AI counter-drone decision trainer. Trains the **recognize → classify → respond** skill, not one specific radar. Smart India Hackathon 2026, PS **SIH26247** (MoD / DSSC), Team Dhwanik_TH06, Team ID 153230. Previously named ARJUNA.
+
+**When the repo contradicts a deck or brief, the repo wins.**
+
+## PS deliverables
+1. A desktop simulator (VR optional) with scripted and procedural scenarios.
+2. Decision-tree scoring of detection time, classification accuracy and the engagement decision.
+3. An AAR dashboard showing individual and unit performance across sessions.
+4. Adaptive difficulty and randomisation, so drills cannot be learned by rote.
+
+Conditions to cover: day/night, degraded sensors, urban/rural, single drones and swarms. Constraint: runs at unit level on ordinary computers.
+
+`docs/TRACEABILITY.md` maps each deliverable to code, tests and measured evidence.
+
+## Stack (never claim anything else)
+- **TypeScript monorepo, v0.6.0.**
+  - `packages/engine`: pure, deterministic simulation, scoring, learning and enemy AI.
+  - `apps/web`: Vite app. Canvas 2D radar, Three.js 3D view, WebXR entry.
+  - `apps/server`: Fastify and `node:sqlite` (WAL), cookie sessions, roles, audit log, backups, HTTPS.
+  - `config/*.json`: the doctrine as data, with JSON Schemas in `config/schema/`.
+- **Not used:** Python, React, FastAPI, PostgreSQL, "CART-tuned" scoring.
+- **Sign-in:** there is no login screen. The web app signs in to the built-in `admin` account automatically. The server's login API takes a name only, with no password.
+
+## Commands
+- `npm run ci`: typecheck, check:generated, validate:config, tests, build, build:single.
+- `npm run e2e`: Playwright. Set `PW_CHROMIUM_PATH` if a local Chromium is needed.
+- `npm run dev` runs the web app only (offline). `npm run build && npm run server` runs it with the unit server on :8080.
+- **Updating `docs/index.html`** (served by Vercel, root `docs/`): run `npm run build:single`, then copy `apps/web/dist-single/index.html` to `docs/index.html` with these two lines removed: `<link rel="manifest" href="manifest.webmanifest">` and `<link rel="icon" href="icon-192.png">`.
+- `apps/web/index.html` is the Vite **source** entry page (it loads `/src/main.ts`). Never overwrite it with a built bundle.
+- **App URL flags:** `?demo`, `?reset`, `?nohome`, `?instructor` (offline editor), `?fps` (frame-rate meter).
+
+## Engine rules to preserve
+- **Determinism.** A drill is fully defined by its seed and its time-stamped decision log. Never use `Math.random()` in the engine; use `mulberry` and `hash2` from `util.ts`. The server re-runs every drill, and the log is SHA-256 chained.
+- **Compatibility.** New config fields are optional, with defaults that reproduce today's behaviour (follow the `weather?` pattern). Golden tests in `scoring.test.ts` are never edited; add new ones instead.
+- **Config changes.** Edit the schema first, run `npm run gen:validators`, update `config.ts` types, add cross-file checks to `validate.ts`, and bump the file's `version`.
+- **Scoring changes.** Each one needs a rule id in `doctrine.json` `rules`, and each point change pushes that rule id and a plain sentence into `why` in `scoreRun()`. The expert ghost (`expert.ts`) must stay doctrine-optimal; `scenarios.test.ts` checks it wins every mission.
+- **Decision classes** (`decisionClass()`):
+  - radio link → `rfLinked` (jam)
+  - no radio, GNSS → `gnssOnly` (spoof)
+  - neither → `autonomous` (interceptor)
+- **Points.** Each contact is scored out of Detect 30 + Identify 30 + Defeat 40. Pass mark 75; certified mastery ≥ 80%, developing 55–80%.
+- **The doctrine tree is rule-based, not machine-learned.** This is deliberate: it is explainable and needs no dataset.
+- **Wording.** The code calls IFF the "Friendly check".
+- **Threat library** (`config/threats.json`). Training values only, not equipment specifications.
+  - The original six: recon, fpv, loiter, swarm, friendly, bird.
+  - Military types added since: fibre-optic FPV, AI-guided attack, jet one-way attack, payload dropper, hybrid VTOL ISR, tactical ISR fixed-wing, large MALE UAV.
+  - `surveil` motion: the drone flies in, then circles at standoff range.
+  - Identify keys are 1–9 then 0 (the first 10 types); the rest are click-only.
+
+## Honesty rules (anything judges see)
+- Use only measured numbers. Get them from the `EVIDENCE …` lines printed by `npm test`, never from memory. Never invent prices.
+- Mark vendor features as "not stated publicly", not "missing".
+- Simulated scores are training measures, not operational effectiveness.
+- Use DPDP-safe demo operators only, with no real names.
+- The research spreadsheet is internal: never link it from this repo.
+
+## Working preferences
+- Make minimum, declared edits. Preserve existing logic and config values unless the change is declared.
+- Work in short, iterative steps with plain-language summaries.
+- Deliverables for the jury are files (PDF/DOCX/HTML).
+
+## Open items
+- Record `?fps` results from the presentation laptop in `docs/TRACEABILITY.md`.
+- VR: the WebXR entry has never been tried on a headset. Say "WebXR-ready, headset trial next".
+- DSSC review of the doctrine values and the new threat values.
+- Multi-trainee LAN load test.
+- Acoustic sensing is not modelled.

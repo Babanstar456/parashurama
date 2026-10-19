@@ -58,7 +58,7 @@ export function scoreRun(E: Engine): ContactScore[] {
       F = 0; rules.push('R8'); why.push('Reached the protected asset');
     } else if (!e0 || e0.eff === 'hold') {
       F = c.state === 'neutralised' ? F0.hostileHeldButNeutralised : 0; rules.push('R8');
-      why.push(!e0 ? (c.hover ? 'Recon left to observe unchallenged' : 'Never engaged') : 'Held fire on a hostile');
+      why.push(!e0 ? (c.hover ? 'Left to watch the asset unchallenged' : 'Never engaged') : 'Held fire on a hostile');
     } else {
       const cls = decisionClass(Ty), ef = EF[e0.eff], pref = F0.preferred[cls];
       rules.push(RULE_FOR[cls]);

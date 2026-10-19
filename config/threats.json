@@ -1,7 +1,7 @@
 {
-  "version": "1.0.0",
-  "order": ["recon", "fpv", "loiter", "swarm", "friendly", "bird"],
-  "echoRcs": { "Very small": 0.008, "Small": 0.02, "Medium": 0.08 },
+  "version": "1.1.0",
+  "order": ["recon", "fpv", "loiter", "swarm", "friendly", "bird", "fibre", "aiStrike", "jetOwa", "dropper", "vtol", "tacIsr", "male"],
+  "echoRcs": { "Very small": 0.008, "Small": 0.02, "Medium": 0.08, "Large": 0.5 },
   "threats": {
     "recon": {
       "label": "Recon quadcopter", "short": "Recon quad", "speed": 12, "alt": [60, 150], "echo": "Small",
@@ -39,6 +39,51 @@
       "rf": "No emission", "rfOn": false, "gnss": false, "friendly": false, "hostile": false,
       "shape": "bird", "motion": "wander", "behaviour": "Erratic, keeps changing direction",
       "deciding": "erratic path, tiny echo, no radio emission"
+    },
+    "fibre": {
+      "label": "Fibre-optic FPV", "short": "Fibre-optic FPV", "speed": 28, "alt": [10, 50], "echo": "Very small",
+      "rf": "No emission · fibre-optic cable", "rfOn": false, "gnss": false, "friendly": false, "hostile": true,
+      "shape": "quad", "motion": "weave", "behaviour": "Fast, low, weaving, yet silent on RF",
+      "deciding": "it flies like an FPV (fast, low, weaving) but RF shows no emission: it is steered down a fibre-optic cable, so jamming and spoofing cannot touch it"
+    },
+    "aiStrike": {
+      "label": "AI-guided attack drone", "short": "AI-guided attack", "speed": 36, "alt": [40, 150], "echo": "Small",
+      "rf": "No emission", "rfOn": false, "gnss": false, "friendly": false, "hostile": true,
+      "shape": "wing", "motion": "straight", "behaviour": "Low and straight in, on its own",
+      "deciding": "no emission and a small fixed wing flying low and straight in: it guides itself by camera, with no radio and no GNSS, so only hard-kill works"
+    },
+    "jetOwa": {
+      "label": "Jet one-way attack drone", "short": "Jet attack drone", "speed": 85, "alt": [300, 1200], "echo": "Medium",
+      "rf": "No emission", "rfOn": false, "gnss": true, "friendly": false, "hostile": true,
+      "shape": "wing", "motion": "straight", "behaviour": "Very fast, straight at the asset",
+      "deciding": "no emission, a fixed wing, and about twice as fast as a propeller loitering munition: a jet one-way attack drone, GNSS-guided"
+    },
+    "dropper": {
+      "label": "Payload-drop drone", "short": "Payload dropper", "speed": 12, "alt": [40, 120], "echo": "Medium",
+      "rf": "Control link · 2.4 GHz", "rfOn": true, "gnss": true, "friendly": false, "hostile": true,
+      "shape": "quad", "motion": "straight", "behaviour": "Slow and heavy, heading straight for the asset",
+      "deciding": "a 2.4 GHz control link like a recon quad, but a bigger echo and it does not stop to watch: a heavy multirotor carrying a payload to drop on the asset"
+    },
+    "vtol": {
+      "label": "Hybrid VTOL ISR drone", "short": "VTOL ISR", "speed": 24, "alt": [100, 400], "echo": "Small",
+      "rf": "Control link · 1.4 GHz", "rfOn": true, "gnss": true, "friendly": false, "hostile": true,
+      "shape": "wing", "motion": "approachHover", "hoverRangeM": [900, 1300],
+      "behaviour": "Flies in like a plane", "behaviourHover": "Switched to rotors, hovering to watch",
+      "deciding": "a fixed wing on a 1.4 GHz control link that flew in, then stopped and hovered: a hybrid VTOL surveillance drone"
+    },
+    "tacIsr": {
+      "label": "Tactical ISR fixed-wing", "short": "Tactical ISR wing", "speed": 28, "alt": [300, 1000], "echo": "Small",
+      "rf": "Control link · 868–900 MHz", "rfOn": true, "gnss": true, "friendly": false, "hostile": true,
+      "shape": "wing", "motion": "surveil", "orbitRadiusM": [1300, 1800],
+      "behaviour": "Small wing flying in", "behaviourHover": "Circling at a distance, spotting for artillery",
+      "deciding": "a small fixed wing on an 868–900 MHz control link that circles at a distance with no flight plan (the friendly check fails): an enemy artillery spotter"
+    },
+    "male": {
+      "label": "Large military UAV (MALE)", "short": "Large mil. UAV", "speed": 50, "alt": [1500, 3000], "echo": "Large",
+      "rf": "Satellite / line-of-sight datalink", "rfOn": true, "gnss": true, "friendly": false, "hostile": true,
+      "shape": "wing", "motion": "surveil", "orbitRadiusM": [1500, 1950],
+      "behaviour": "Large echo, flying in high", "behaviourHover": "Circling high at standoff range, watching the asset",
+      "deciding": "a large radar echo, high up, on a datalink, circling at standoff range: a medium-altitude long-endurance (MALE) military UAV"
     }
   }
 }

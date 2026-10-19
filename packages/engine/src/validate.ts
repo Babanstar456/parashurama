@@ -23,7 +23,10 @@ export function validateConfig(c: Config): ValidationResult {
     if (!(t.echo in c.threats.echoRcs)) errors.push(`threats.json threat "${id}" uses unknown echo size "${t.echo}"`);
     if (t.alt[0] > t.alt[1]) errors.push(`threats.json threat "${id}" has alt min > max`);
     if (t.friendly && t.hostile) errors.push(`threats.json threat "${id}" cannot be both friendly and hostile`);
-    if (t.motion === 'orbit' && t.hostile) errors.push(`threats.json threat "${id}": orbit motion is only for non-hostile contacts`);
+    if (t.motion === 'orbit' && t.hostile) errors.push(`threats.json threat "${id}": orbit motion is only for non-hostile contacts (use surveil for hostile drones that circle)`);
+    if (t.motion === 'surveil' && !t.hostile) errors.push(`threats.json threat "${id}": surveil motion is only for hostile contacts`);
+    const or = t.orbitRadiusM;
+    if (t.motion === 'surveil' && or && (or[0] > or[1] || or[1] >= c.training.sim.radarRangeM)) errors.push(`threats.json threat "${id}": orbitRadiusM must be min <= max and inside radar range`);
   }
   for (const id of c.effectors.order) if (!E[id]) errors.push(`effectors.json order lists unknown effector "${id}"`);
   for (const id of Object.keys(E)) {

@@ -14,6 +14,26 @@ async function applyConfig(c: unknown, source: string) {
   try { const { useConfig } = await import('./validator'); useConfig(c as any); }
   catch (e) { console.warn(e); toast(`${source} settings were invalid, so the defaults are used.`); }
 }
+/** `?fps`: frame-rate meter (current and lowest of the last 10 s) for checking performance on a unit laptop. */
+function fpsMeter() {
+  const el = document.createElement('div');
+  el.id = 'fpsMeter';
+  el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:9999;padding:4px 8px;border-radius:3px;background:rgba(0,0,0,.75);color:#fff;font:12px/1.3 monospace;pointer-events:none';
+  document.body.appendChild(el);
+  let frames = 0, last = performance.now();
+  const hist: number[] = [];
+  const tick = (now: number) => {
+    frames++;
+    if (now - last >= 1000) {
+      const fps = Math.round((frames * 1000) / (now - last));
+      hist.push(fps); if (hist.length > 10) hist.shift();
+      el.textContent = `${fps} fps · low ${Math.min(...hist)} (10 s)`;
+      frames = 0; last = now;
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
 (async () => {
   const online = await detectServer();
   let session: Session | null = null;
@@ -25,5 +45,6 @@ async function applyConfig(c: unknown, source: string) {
   const [fg, ac, au, wi, ed, sc, v3, hm, shw] = await Promise.all([import('./fieldguide'), import('./academy'), import('./audio'), import('./whatif'), import('./editor'), import('./scenarios'), import('./view3d'), import('./home'), import('./showcase')]);
   fg.initFieldGuide(); ac.initAcademy(); au.initAudio(); wi.initWhatIf(); ed.initEditor({ online, user: session?.user ?? null, templates: session?.templates ?? null }); sc.initScenarios(); v3.init3D(); hm.initHome(); shw.initShowcase();
   boot();
+  if (new URLSearchParams(location.search).has('fps')) fpsMeter();
   if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(() => undefined);
 })();

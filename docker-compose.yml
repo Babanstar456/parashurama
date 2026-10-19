@@ -1,4 +1,4 @@
-# Unit network deployment. First start prints the admin password in the logs:  docker compose logs server
+# Unit network deployment. Sign-in is by name only (no passwords); sign in as "admin" for the admin tools.
 # HTTPS: run `bash deploy/make-cert.sh parashurama.local <server-ip>` first; certificates are mounted read-only.
 services:
   server:
@@ -12,7 +12,6 @@ services:
       TLS_CERT: /certs/server.crt
       TLS_KEY: /certs/server.key
       UNIT_NAME: "AD Troop 2"
-      # ADMIN_PASSWORD: set this to choose the first admin password instead of a random one
     volumes:
       - data:/data
       - ./deploy/certs:/certs:ro
