@@ -1,4 +1,4 @@
-// Online (unit server) mode: login, server history, drill sync with server-side verification, readiness board.
+// Online (unit server) mode: automatic sign-in (no login screen), server history, drill sync with server-side verification, readiness board.
 // Falls back to offline mode automatically when no server answers (file://, single laptop, LAN down).
 import { toast } from './toast';
 
@@ -15,25 +15,12 @@ export async function detectServer(): Promise<boolean> {
   if (location.protocol === 'file:') return false;
   try { const r = await fetch('/api/health', { cache: 'no-store' }); return r.ok && !!(await r.json()).ok; } catch { return false; }
 }
-function loginOverlay(): Promise<any> {
-  return new Promise((resolve) => {
-    const o = document.createElement('div'); o.className = 'overlay'; o.id = 'loginOverlay';
-    o.innerHTML = `<form class="login" id="loginForm" autocomplete="on"><h2>PARASHURAMA</h2><p>Sign in with the account your unit admin gave you.</p>
-      <label>Username<input name="username" autocomplete="username" required autofocus></label>
-      <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
-      <div class="err" id="loginErr" role="alert"></div><button class="primary" type="submit">Sign in</button></form>`;
-    document.body.appendChild(o);
-    (o.querySelector('#loginForm') as HTMLFormElement).onsubmit = async (e) => {
-      e.preventDefault();
-      const f = new FormData(e.target as HTMLFormElement);
-      try { const r = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: f.get('username'), password: f.get('password') }) }); o.remove(); resolve(r.user); }
-      catch (err: any) { (o.querySelector('#loginErr') as HTMLElement).textContent = err.status === 429 ? 'Too many attempts. Wait a minute.' : 'Wrong username or password.'; }
-    };
-  });
-}
+// No login screen: the app signs in to the server's built-in admin account automatically.
+const AUTO_USER = 'admin';
+const autoSignIn = async () => (await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ name: AUTO_USER }) })).user;
 export async function startSession(): Promise<Session> {
   let user: any;
-  try { user = (await api('/api/me')).user; } catch { user = await loginOverlay(); }
+  try { user = (await api('/api/me')).user; } catch { user = await autoSignIn(); }
   const [cfg, hist, tpl] = await Promise.all([api('/api/config').catch(() => null), api('/api/drills/mine').catch(() => ({ drills: [] })), api('/api/templates').catch(() => ({ templates: [] }))]);
   return { user, config: cfg?.custom ? cfg.config : null, history: hist.drills, templates: tpl.templates };
 }
@@ -50,8 +37,6 @@ export function initOnline(app: any, hooks: any, on: any, s: Session) {
   app.TRAINEE.name = s.user.name; app.TRAINEE.unit = s.user.unit;
   document.getElementById('whoName')!.textContent = s.user.name;
   document.getElementById('whoUnit')!.textContent = `${s.user.unit} · ${s.user.role}`;
-  const lo = document.getElementById('logoutBtn')!; lo.hidden = false;
-  lo.onclick = async () => { await api('/api/auth/logout', { method: 'POST' }).catch(() => null); location.reload(); };
   if (s.user.settings) { Object.assign(app.DB, { academy: s.user.settings.academy || app.DB.academy, settings: s.user.settings.settings || app.DB.settings, tourDone: s.user.settings.tourDone ?? app.DB.tourDone }); }
   const pushSettings = () => api('/api/me/settings', { method: 'PUT', body: JSON.stringify({ academy: app.DB.academy, settings: app.DB.settings, tourDone: app.DB.tourDone }) }).catch(() => null);
   on('finish', pushSettings); on('brief', pushSettings);
@@ -67,6 +52,7 @@ export function initOnline(app: any, hooks: any, on: any, s: Session) {
       chip.textContent = `${box.length} waiting to sync`; chip.className = 'sync warn'; toast('Server unreachable. The drill is saved and will sync later.');
     }
   };
+  hooks.exportCsv = () => { location.href = '/api/export/drills.csv'; };
   let board: any[] | null = null;
   const loadBoard = () => api('/api/readiness').then((r) => { board = r.operators; app.renderUnit(); }).catch(() => null);
   hooks.operators = () => (board ? board.map((o: any) => ({ n: o.id === s.user.id ? `${o.name} (you)` : o.name, v: o.mastery, me: o.id === s.user.id })) : [{ n: `${s.user.name} (you)`, v: app.R?.after || {}, me: true }]);

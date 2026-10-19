@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:https';
 import { buildApp } from './app';
 import { createUser } from './auth';
@@ -10,9 +9,8 @@ const tls = env.TLS_CERT && env.TLS_KEY ? { cert: readFileSync(env.TLS_CERT), ke
 const { app, db } = await buildApp({ dataDir: env.DATA_DIR ?? './data', webDir: env.WEB_DIR ?? '../web/dist', secureCookies: !!tls || env.COOKIE_SECURE === '1', logger: env.LOG !== '0' });
 // First start: create the admin account.
 if ((db.prepare('SELECT COUNT(*) AS n FROM users').get() as any).n === 0) {
-  const password = env.ADMIN_PASSWORD ?? randomBytes(9).toString('base64url');
-  createUser(db, { username: env.ADMIN_USERNAME ?? 'admin', name: 'Administrator', role: 'admin', unit: env.UNIT_NAME ?? 'Unit', password });
-  console.log(`\n  First start: created admin account "${env.ADMIN_USERNAME ?? 'admin'}"${env.ADMIN_PASSWORD ? '' : ` with password: ${password}\n  Save it now; it is not shown again.`}\n`);
+  createUser(db, { username: env.ADMIN_USERNAME ?? 'admin', name: 'Administrator', role: 'admin', unit: env.UNIT_NAME ?? 'Unit' });
+  console.log(`\n  First start: created admin account. Sign in as "${env.ADMIN_USERNAME ?? 'admin'}" to manage the unit.\n`);
 }
 const port = +(env.PORT ?? (tls ? 8443 : 8080)), host = env.HOST ?? '0.0.0.0';
 if (tls) {

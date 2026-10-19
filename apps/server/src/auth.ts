@@ -1,20 +1,8 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import type { DB } from './db';
 
 export type Role = 'trainee' | 'instructor' | 'commander' | 'admin';
 export interface User { id: number; username: string; name: string; role: Role; unit: string; settings: any; }
-const N = 16384, KEYLEN = 64;
-export function hashPassword(pw: string): string {
-  const salt = randomBytes(16);
-  return `scrypt$${N}$${salt.toString('base64')}$${scryptSync(pw, salt, KEYLEN, { N }).toString('base64')}`;
-}
-export function verifyPassword(pw: string, stored: string): boolean {
-  const [alg, n, s, h] = stored.split('$');
-  if (alg !== 'scrypt') return false;
-  const exp = Buffer.from(h, 'base64');
-  const got = scryptSync(pw, Buffer.from(s, 'base64'), exp.length, { N: +n });
-  return got.length === exp.length && timingSafeEqual(got, exp);
-}
 const sha = (t: string) => createHash('sha256').update(t).digest('hex');
 export const SESSION_HOURS = 12;
 export function createSession(db: DB, userId: number): string {
@@ -30,8 +18,13 @@ export function userForToken(db: DB, token: string | undefined): User | null {
   return r ? { ...r, settings: JSON.parse(r.settings || '{}') } : null;
 }
 export function dropSession(db: DB, token: string | undefined) { if (token) db.prepare('DELETE FROM sessions WHERE token_hash=?').run(sha(token)); }
-export function createUser(db: DB, u: { username: string; name: string; role: Role; unit?: string; password: string }): number {
-  const r = db.prepare('INSERT INTO users(username,name,role,unit,pass,created_at) VALUES(?,?,?,?,?,?)').run(u.username, u.name, u.role, u.unit ?? 'Unit', hashPassword(u.password), Date.now());
+/** Sign-in is by name only: turn a typed name into the account's username ("Nk Rao" -> "nk.rao"). */
+export function usernameFor(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9._-]/g, '').slice(0, 40);
+}
+export function createUser(db: DB, u: { username: string; name: string; role: Role; unit?: string }): number {
+  // `pass` is kept empty: accounts have no passwords.
+  const r = db.prepare('INSERT INTO users(username,name,role,unit,pass,created_at) VALUES(?,?,?,?,?,?)').run(u.username, u.name, u.role, u.unit ?? 'Unit', '', Date.now());
   return Number(r.lastInsertRowid);
 }
 /** Simple fixed-window limiter (per key). */

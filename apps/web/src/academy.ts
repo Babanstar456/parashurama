@@ -65,7 +65,7 @@ function explain(k: string, c: any, ok: boolean): string {
   if (k === 'Radar') {
     const sp = kmh < 50 ? 'slow: birds and hovering drones are slow' : kmh < 100 ? 'medium speed: swarm drones and friendly UAVs' : 'fast: FPV attack drones and loitering munitions are fast';
     const h = alt < 70 ? 'very low: FPVs fly low to hide' : alt < 220 ? 'low to medium height' : 'high: loitering munitions cruise high';
-    const e: Record<string, string> = { 'Very small': 'Tiny echo: a bird, FPV or swarm drone.', Small: 'Small echo: a quadcopter.', Medium: 'Medium echo: a bigger airframe, like a loitering munition or friendly UAV.' };
+    const e: Record<string, string> = { 'Very small': 'Tiny echo: a bird, FPV or swarm drone.', Small: 'Small echo: a quadcopter.', Medium: 'Medium echo: a bigger airframe, like a loitering munition or friendly UAV.', Large: 'Large echo: a big military UAV.' };
     return `<b>Radar.</b> ${kmh} km/h is ${sp}. ${alt} m is ${h}. ${e[t.echo] ?? ''}`;
   }
   if (!ok) return `<b>${k}.</b> <span class="wait">arriving…</span>`;
@@ -73,17 +73,18 @@ function explain(k: string, c: any, ok: boolean): string {
   if (k === 'RF signal') {
     if (app.live.cfg.fault === 'rf') return '<b>RF signal.</b> The detector is offline. Decide from the other clues.';
     if (t.friendly) return '<b>RF signal.</b> Our own data link.';
+    if (t.rfOn && !/2\.4|5\.8/.test(t.rf)) return `<b>RF signal.</b> ${t.rf}: someone is controlling it by radio. <b>A jammer can cut this link.</b>`;
     if (t.rfOn && t.gnss) return '<b>RF signal.</b> A 2.4 GHz control link: someone is flying it by remote control. <b>A jammer can cut this link.</b>';
     if (t.rfOn) return '<b>RF signal.</b> A 5.8 GHz video link: a pilot is watching live video. That is an FPV attack drone. <b>Jam it.</b>';
     return '<b>RF signal.</b> No emission: nobody is flying it by radio. It flies itself, or it is a bird. <b>Jamming will not work.</b>';
   }
   if (k === 'Behaviour') {
-    const m: Record<string, string> = { approachHover: c.hover ? 'it stopped to watch you: a spy (recon) drone' : 'creeping closer slowly: typical of a recon drone', weave: 'fast and weaving low: an FPV attack run', straight: 'diving straight at you: a loitering munition', swarm: 'moving as part of a group: a swarm', orbit: 'circling a planned route: our own patrol', wander: 'wandering at random: a bird' };
+    const m: Record<string, string> = { approachHover: c.hover ? 'it stopped to watch you: a spy (recon) drone' : 'creeping closer slowly: typical of a recon drone', weave: 'fast and weaving low: an FPV attack run', straight: 'diving straight at you: a loitering munition', swarm: 'moving as part of a group: a swarm', orbit: 'circling a planned route: our own patrol', wander: 'wandering at random: a bird', surveil: c.hover ? 'circling at a distance to watch you: a military surveillance drone' : 'flying in on a steady course: it may stop to circle and watch' };
     return `<b>Behaviour.</b> ${m[t.motion]}.`;
   }
   if (k === 'Camera') {
     if (!ok) return '<b>Camera.</b> Too far for the camera yet; it sharpens as the contact closes.';
-    const s: Record<string, string> = { quad: 'four rotors: a quadcopter (recon, FPV or swarm)', wing: 'fixed wings: a loitering munition or a friendly UAV', bird: 'flapping wings: a bird' };
+    const s: Record<string, string> = { quad: 'four rotors: a quadcopter (recon, FPV or swarm)', wing: 'fixed wings: a loitering munition, a military UAV or a friendly UAV', bird: 'flapping wings: a bird' };
     return `<b>Camera.</b> ${s[t.shape]}.`;
   }
   return '';

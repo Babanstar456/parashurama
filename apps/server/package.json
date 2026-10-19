@@ -3,7 +3,7 @@
   "version": "0.6.0",
   "private": true,
   "type": "module",
-  "description": "Unit server: logins and roles, versioned doctrine config, server-side drill verification, readiness board, backups.",
+  "description": "Unit server: name-only sign-in and roles, versioned doctrine config, server-side drill verification, readiness board, backups.",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "node build.mjs",

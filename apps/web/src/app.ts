@@ -1,5 +1,5 @@
 import {
-  avg, brgOf, buildScenario, calStats, chainHash, clamp, createEngine, decisionClass, demoHistory, expertPolicy, FAULT_LABEL,
+  avg, brgOf, buildScenario, calStats, chainHash, clamp, classificationStats, drillsToCsv, createEngine, decisionClass, demoHistory, expertPolicy, FAULT_LABEL,
   fmtTime, inReach, isDone, mastery, mulberry, observe, planNext, runSim, runTotal, scoreRun, sectorOf, SKILLS, step, sumCal,
   tti, visibleBlip, windOf, cameraRange, weatherFx, WEATHER_LABEL,
 } from '@parashurama/engine';
@@ -186,7 +186,7 @@ function renderClues(force){
     $('#selMeta').textContent=cls?'Identification locked.':'Clues arrive over a few seconds. Commit when you are sure enough.';
     $('#clues').innerHTML=cl.map((x,i)=>`<div class="clue ${x.ok?'':'wait'} ${x.ok&&prevOk[i]==='0'?'fresh':''}"><div class="k">${x.k}</div><div>${x.cam?(x.ok?`<canvas id="eo" width="264" height="176"></canvas><div class="v" style="font-size:12.5px;color:var(--nm);margin-top:3px">${x.v}</div>`:`<div class="v">${x.v}</div>`):`<div class="v">${x.ok?x.v:'arriving…'}</div>${x.ok?'':`<div class="prog"><i data-at="${x.at}" style="width:0%"></i></div>`}`}</div></div>`).join('');
     if(cls){$('#idBody').innerHTML=`<div class="locked">Identified as <b style="color:${KCOL(kindOfCls(cls))}">${TYPES[cls].label}</b> · ${confLabel(conf)}</div>`;}
-    else{$('#idBody').innerHTML=`<div class="idGrid">${ORDER.map((k,i)=>`<button class="nbtn ${live.pick.cls===k?'pick':''}" data-cls="${k}">${TYPES[k].short}<small>${i+1}</small></button>`).join('')}</div><div class="confRow">${CONF.map(x=>`<button class="nbtn ${live.pick.conf===x.p?'pick':''}" data-conf="${x.p}">${x.label}<small>${x.key} · ${Math.round(x.p*100)}%</small></button>`).join('')}</div><button class="commit" id="commitBtn" ${live.pick.cls&&live.pick.conf?'':'disabled'}>Commit identification <kbd>Enter</kbd></button>`;}
+    else{$('#idBody').innerHTML=`<div class="idGrid">${ORDER.map((k,i)=>`<button class="nbtn ${live.pick.cls===k?'pick':''}" data-cls="${k}">${TYPES[k].short}${i<10?`<small>${(i+1)%10}</small>`:''}</button>`).join('')}</div><div class="confRow">${CONF.map(x=>`<button class="nbtn ${live.pick.conf===x.p?'pick':''}" data-conf="${x.p}">${x.label}<small>${x.key} · ${Math.round(x.p*100)}%</small></button>`).join('')}</div><button class="commit" id="commitBtn" ${live.pick.cls&&live.pick.conf?'':'disabled'}>Commit identification <kbd>Enter</kbd></button>`;}
   }
   if(c.trackTick!=null){const since=(L.tick-c.trackTick)*DT;$$('#clues .prog i').forEach(el=>{el.style.width=clamp(since/(+el.dataset.at)*100,0,100)+'%';});}
   renderDef(c,cls);
@@ -259,7 +259,7 @@ function finishDrill(){
   const jamNoRF=sc.filter(s=>s.src===s.c&&s.e0&&s.e0.eff==='jam'&&!TYPES[s.c.type].rfOn).length;
   const cal=calStats(sc),obs=observe(E,sc);const before=mastery(DB.H);
   const prev=DB.H[DB.H.length-1];
-  const rec:any={n:DB.H.length+1,demo:false,date:Date.now(),cfg,total,obs,attn,thr,cal,jamNoRF,endTick,mode:live.mode,template:live.template};
+  const rec:any={n:DB.H.length+1,demo:false,date:Date.now(),cfg,total,obs,attn,thr,cal,cls:classificationStats(sc,C),jamNoRF,endTick,mode:live.mode,template:live.template};
   if(!practice){DB.H.push(rec);saveDB();}
   R={cfg,spawns,acts,E,X,sc,scX,total,totalX,verified:total===totalLive,before,after:practice?before:mastery(DB.H),thr,attn,cal,endTick,prevTotal:prev?prev.total:null,labels:{...live.labels},mode:live.mode,lesson:live.lesson,template:live.template,rec,server:null};
   if(!practice){plan=planNext(DB.H);if(hooks.syncDrill)hooks.syncDrill(rec,R);}
@@ -387,6 +387,12 @@ function renderUnit(){
   $('#rosterAns').innerHTML=`<div class="kicker">Ready for ${need.length?need.map(k=>({night:'night',swarm:'swarm',degraded:'faulty sensors',weather:'bad weather'}[k])).join(' + '):'any task'}</div><div class="bigAns">${ready.length} of ${all.length}</div>`;
   $('#rlist').innerHTML=scored.map(x=>`<div class="ritem ${x.min>=CERT.certifiedMastery?'ok':''}"><span>${x.o.n}</span><em class="num">${x.min>=CERT.certifiedMastery?'Ready':'Not yet'} · ${Math.round(x.min*100)}%</em></div>`).join('');
 }
+// Drill history as CSV for after-action review. Online: the server's verified records (scoped by role); offline: this browser's history.
+$('#csvBtn').addEventListener('click',()=>{
+  if(hooks.exportCsv)return hooks.exportCsv();
+  const blob=new Blob([drillsToCsv(DB.H.map(r=>({operator:TRAINEE.name,unit:TRAINEE.unit,record:r})),CERT.passMark)],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='parashurama-drills.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+});
 $('#rosterSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const k=b.dataset.k;roster.has(k)?roster.delete(k):roster.add(k);renderUnit();});
 
 // ===================== guided tour =====================
@@ -451,7 +457,7 @@ addEventListener('keydown',e=>{
   if(e.key===' '){e.preventDefault();togglePause();return;}
   if(e.key==='Tab'){e.preventDefault();const lst=L.contacts.filter(c=>c.state==='live'&&(c.trackTick!=null||(live.did[c.id]||{}).track)).sort((a,b)=>tti(a)-tti(b));if(lst.length){const i=lst.findIndex(c=>c.id===live.sel);select(lst[(i+1)%lst.length].id);}return;}
   const c=selC();if(!c)return;const identified=c.idCls||(live.did[c.id]||{}).id;
-  if(!identified){if(k>='1'&&k<='6'){live.pick.cls=ORDER[+k-1];live.sig='';renderRail();return;}const cf=CONF.find(x=>x.key.toLowerCase()===k);if(cf){live.pick.conf=cf.p;live.sig='';renderRail();return;}if(e.key==='Enter'){commitId();return;}}
+  if(!identified){if(k>='0'&&k<='9'&&ORDER[(+k+9)%10]){live.pick.cls=ORDER[(+k+9)%10];live.sig='';renderRail();return;}const cf=CONF.find(x=>x.key.toLowerCase()===k);if(cf){live.pick.conf=cf.p;live.sig='';renderRail();return;}if(e.key==='Enter'){commitId();return;}}
   else{const ef=EFF_ORDER.find(x=>EFF[x].key.toLowerCase()===k);if(ef){engageSel(ef);return;}if(k==='h')engageSel('hold');}
 });
 $('#beginBtn').onclick=()=>{if(tour.on&&TOUR[tour.i].p==='brief'){tour.i=TOUR.findIndex(x=>x.p==='fight');if(hooks.tourBegin)hooks.tourBegin();else startDrill(true);}else startDrill(false);};

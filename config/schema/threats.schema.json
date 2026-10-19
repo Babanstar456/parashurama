@@ -27,7 +27,7 @@
           "friendly": { "type": "boolean" },
           "hostile": { "type": "boolean" },
           "shape": { "enum": ["quad", "wing", "bird"] },
-          "motion": { "enum": ["approachHover", "weave", "straight", "swarm", "orbit", "wander"] },
+          "motion": { "enum": ["approachHover", "weave", "straight", "swarm", "orbit", "wander", "surveil"] },
           "hoverRangeM": { "type": "array", "items": { "type": "number", "minimum": 0 }, "minItems": 2, "maxItems": 2 },
           "orbitRadiusM": { "type": "array", "items": { "type": "number", "minimum": 0 }, "minItems": 2, "maxItems": 2 },
           "behaviour": { "type": "string" },

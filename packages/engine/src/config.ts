@@ -3,7 +3,7 @@ import effectorsJson from '../../../config/effectors.json';
 import doctrineJson from '../../../config/doctrine.json';
 import trainingJson from '../../../config/training.json';
 
-export type Motion = 'approachHover' | 'weave' | 'straight' | 'swarm' | 'orbit' | 'wander';
+export type Motion = 'approachHover' | 'weave' | 'straight' | 'swarm' | 'orbit' | 'wander' | 'surveil';
 export interface Threat {
   label: string; short: string; speed: number; alt: [number, number]; echo: string;
   rf: string; rfOn: boolean; gnss: boolean; friendly: boolean; hostile: boolean;

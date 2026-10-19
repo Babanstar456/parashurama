@@ -24,7 +24,7 @@ Requires Node.js 22.5 or newer.
 ```bash
 npm install
 npm run dev                 # web app only (offline mode) at http://localhost:5173
-npm run build && npm run server   # unit server with the web app at http://localhost:8080 (prints the first admin password)
+npm run build && npm run server   # unit server with the web app at http://localhost:8080 (no login: opens straight in)
 npm run ci                  # type-check, generated-code check, config check, all tests, all builds
 npm run e2e                 # browser end-to-end tests
 ```
@@ -46,7 +46,7 @@ parashurama/
 │  └─ src/generated/       config validators pre-compiled at build time (no eval at runtime)
 ├─ apps/web/               Vite + TypeScript interface
 │  └─ src/                 app (brief/fight/learn), academy + coach, field guide, audio, what-if, editor, online sync, PWA
-├─ apps/server/            Fastify + built-in SQLite: logins and roles, verification, config versions, readiness, backups
+├─ apps/server/            Fastify + built-in SQLite: name-only sign-in and roles, verification, config versions, readiness, backups
 ├─ deploy/                 HTTPS certificate script, systemd unit
 ├─ docs/                   trainee, field, instructor and admin guides
 ├─ Dockerfile, docker-compose.yml
@@ -67,7 +67,7 @@ Instructors use the in-app **Instructor panel** (validated, versioned on the uni
 | Engine: scoring | Golden test for every rule (D1, C1, R1–R8), incl. area-effect credit for swarms |
 | Engine: fuzz | 200 random drills with random/invalid input: no crashes, scores in range, replays match |
 | Engine: learning, enemy, config, integrity | Mastery model, first-drill plan, weakness targeting, config validation, SHA-256 chain |
-| Server (14) | Auth, rate limiting, roles, CSRF refusal, config versions, independent re-scoring, tamper detection, payload validation, readiness scoping, templates, users, backups, audit, logout |
+| Server (14) | Name-only sign-in, rate limiting, roles, CSRF refusal, config versions, independent re-scoring, tamper detection, payload validation, readiness scoping, templates, users, backups, audit, logout |
 | e2e (Playwright) | Tour, pause-during-tour, real radar click, verified debrief, adapted next drill, field-guide rules, a beginner completing Academy lesson 1 by following the coach |
 
 Also verified manually during development: all four Academy lessons completed by a headless browser that obeyed the coach literally; a full online session against the production server bundle (login, server-verified drill, logout, instructor edit with validation, scripted drill, readiness board, offline reload via the service worker); HTTPS with the generated certificate chain.

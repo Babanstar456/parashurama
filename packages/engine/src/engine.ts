@@ -29,6 +29,7 @@ function spawnContact(E: Engine, sp: Spawn, idx: number): void {
     c.x = Math.sin(a) * c.orad; c.y = -Math.cos(a) * c.orad;
   } else if (Ty.motion === 'wander') c.hdg = r() * 6.28;
   else if (Ty.motion === 'approachHover') { const [h0, h1] = Ty.hoverRangeM ?? [800, 1100]; c.hoverR = h0 + r() * (h1 - h0); }
+  else if (Ty.motion === 'surveil') { const [o0, o1] = Ty.orbitRadiusM ?? [1400, 1900]; c.orad = o0 + r() * (o1 - o0); }
   E.contacts.push(c);
 }
 
@@ -48,6 +49,11 @@ function moveContact(E: Engine, c: Contact, swarm: Contact[]): void {
   }
   if (Ty.motion === 'orbit') { c.oc += (c.v / c.orad) * dt; c.x = Math.sin(c.oc) * c.orad; c.y = -Math.cos(c.oc) * c.orad; c.hdg = c.oc + Math.PI / 2; return; }
   const d = Math.hypot(c.x, c.y);
+  // Surveillance UAV: flies in, then circles the asset at standoff range to watch (hover = on station, so no time to impact).
+  if (Ty.motion === 'surveil' && (c.orbit || d <= c.orad)) {
+    if (!c.orbit) { c.orbit = true; c.hover = true; c.orad = d; c.oc = Math.atan2(c.x, -c.y); }
+    c.oc += (c.v / c.orad) * dt; c.x = Math.sin(c.oc) * c.orad; c.y = -Math.cos(c.oc) * c.orad; c.hdg = c.oc + Math.PI / 2; return;
+  }
   if (Ty.motion === 'approachHover' && d <= c.hoverR) {
     c.hover = true; c.x += Math.sin(t * 0.5 + c.wob) * 0.8 * dt; c.y += Math.cos(t * 0.4 + c.wob) * 0.6 * dt; return;
   }
