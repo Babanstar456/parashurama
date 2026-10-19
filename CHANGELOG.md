@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- **EW collateral (R11)** (effectors 1.2.0, doctrine 1.4.0, scenarios 1.2.0):
+  - New optional `ewRestricted` drill flag, and `ewCollateral` on the jammer and spoofer.
+  - Jamming or spoofing in an EW-restricted area without clearance costs −10 (R11).
+  - "Airport in heavy rain" is EW-restricted.
+  - The brief and mission cards show it.
+  - The threat-library calculator has R11 and R12 options.
 - **Rules of engagement and clearance (R12)** (doctrine 1.3.0, scenarios 1.1.0):
   - Drills take an optional `roe`: `free` (default, unchanged), `tight` (gun and interceptor need clearance) or `peacetime` (every effector needs clearance, 6 s).
   - New `req` action: Request clearance, key **C**, with a countdown. Effectors that still need clearance show a lock.

@@ -15,7 +15,7 @@ export interface Threat {
 }
 export interface ThreatsFile { version: string; order: string[]; echoRcs: Record<string, number>; threats: Record<string, Threat>; }
 export type Affects = 'rf' | 'gnss' | 'all';
-export interface Effector { label: string; key: string; range: number; min: number; delay: number; color: string; affects: Affects; stock?: number; areaRadiusM?: number; collateralUrban?: boolean; /** Chance of a hit (0–1); missing = 1. */ pk?: number; }
+export interface Effector { label: string; key: string; range: number; min: number; delay: number; color: string; affects: Affects; stock?: number; areaRadiusM?: number; collateralUrban?: boolean; /** Chance of a hit (0–1); missing = 1. */ pk?: number; /** Emits/jams radio or GNSS, so it causes EW collateral (R11). */ ewCollateral?: boolean; }
 export interface EffectorsFile { version: string; order: string[]; effectors: Record<string, Effector>; }
 export type DecisionClass = 'rfLinked' | 'gnssOnly' | 'autonomous';
 export interface ConfidenceLevel { k: string; label: string; p: number; key: string; }
@@ -30,7 +30,7 @@ export interface DoctrineFile {
     friendlyHold: number; friendlyEngaged: number; clutterHold: number; clutterEngaged: number; hostileHeldButNeutralised: number;
     /** Optional so older doctrine files stay valid; defaults 40 / 0. */
     civilHold?: number; civilEngaged?: number;
-    modifiers: { urbanGun: number; lateEngagementSec: number; late: number; priority: number; priorityRatio: number; /** R10; missing = -10. */ missNotReengaged?: number; /** R12; missing = -40. */ unauthorised?: number };
+    modifiers: { urbanGun: number; lateEngagementSec: number; late: number; priority: number; priorityRatio: number; /** R10; missing = -10. */ missNotReengaged?: number; /** R12; missing = -40. */ unauthorised?: number; /** R11; missing = -10. */ ewRestricted?: number };
   };
 }
 export interface TrainingFile {

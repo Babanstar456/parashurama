@@ -1,5 +1,5 @@
 {
-  "version": "1.3.0",
+  "version": "1.4.0",
   "rules": {
     "D1": "Detection: full marks within 3 s of the first radar paint, zero at 20 s.",
     "C1": "Identification: correct = 18 + 12 × confidence; wrong = 10 × (1 − confidence), +5 if friend/foe was right.",
@@ -13,6 +13,7 @@
     "R8": "A hostile must not reach the asset or observe unchallenged.",
     "R9": "Unknown civil drone: report and monitor; do not engage.",
     "R10": "After a miss, engage again before impact.",
+    "R11": "Jamming/spoofing in an EW-restricted area disrupts own and civil systems.",
     "R12": "Kinetic or EW engagement without clearance under this ROE."
   },
   "confidence": [
@@ -38,6 +39,6 @@
     "clutterHold": 40, "clutterEngaged": 10,
     "hostileHeldButNeutralised": 20,
     "civilHold": 40, "civilEngaged": 0,
-    "modifiers": { "urbanGun": -15, "lateEngagementSec": 8, "late": -8, "priority": -5, "priorityRatio": 0.6, "missNotReengaged": -10, "unauthorised": -40 }
+    "modifiers": { "urbanGun": -15, "lateEngagementSec": 8, "late": -8, "priority": -5, "priorityRatio": 0.6, "missNotReengaged": -10, "unauthorised": -40, "ewRestricted": -10 }
   }
 }

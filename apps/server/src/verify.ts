@@ -13,7 +13,8 @@ export function cleanCfg(c: any): DrillConfig {
     faultSector: num(c.faultSector, 0, 360, 'cfg.faultSector'), pattern: oneOf(c.pattern, ['mixed', 'swarm'] as const, 'cfg.pattern'),
     ...(c.weather != null ? { weather: oneOf(c.weather, ['clear', 'rain', 'fog', 'dust'] as const, 'cfg.weather') } : {}), difficulty: int(c.difficulty, 1, 6, 'cfg.difficulty'),
     focus: { sector: f.sector == null ? null : num(f.sector, 0, 360, 'cfg.focus.sector'), loiter: !!f.loiter, decoy: !!f.decoy },
-    ...(c.roe != null ? { roe: oneOf(c.roe, ['free', 'tight', 'peacetime'] as const, 'cfg.roe') } : {}) };
+    ...(c.roe != null ? { roe: oneOf(c.roe, ['free', 'tight', 'peacetime'] as const, 'cfg.roe') } : {}),
+    ...(c.ewRestricted != null ? { ewRestricted: !!c.ewRestricted } : {}) };
 }
 export function cleanSpawns(s: any, C: Config): Spawn[] | undefined {
   if (s == null) return undefined;

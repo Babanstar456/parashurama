@@ -79,6 +79,10 @@
           "collateralUrban": {
             "type": "boolean"
           },
+          "ewCollateral": {
+            "description": "Jams or spoofs radio/GNSS, so it disrupts own and civil systems in an EW-restricted area (rule R11).",
+            "type": "boolean"
+          },
           "pk": {
             "description": "Training value: chance one engagement works on a drone it can affect (0-1). Missing = 1 (always works).",
             "type": "number",
