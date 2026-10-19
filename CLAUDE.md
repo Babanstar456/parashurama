@@ -44,6 +44,17 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
 - **Points.** Each contact is scored out of Detect 30 + Identify 30 + Defeat 40. Pass mark 75; certified mastery ≥ 80%, developing 55–80%.
 - **The doctrine tree is rule-based, not machine-learned.** This is deliberate: it is explainable and needs no dataset.
 - **Wording.** The code calls IFF the "Friendly check".
+- **Rules added after v0.6.0** (all optional, so old drills replay unchanged):
+  - R9: civil drone, report but never engage.
+  - R10: re-engage after a miss. Effector `pk` defaults to 1.
+  - R11: EW collateral in `ewRestricted` areas.
+  - R12: fire only with clearance under `roe` `tight` or `peacetime`. The new `req` action requests clearance, and there is a new `roe` skill.
+  - Sensor-down fairness note (`idAvail`): explains a missing clue but never changes points.
+- **Planner options and security features:**
+  - Control-group planning: `planNext(H, C, { adaptive: false })`, with a `cohort` per user.
+  - Signed threat packs: `pack.ts`, `config/trust/keys.json`, `POST /api/packs`.
+  - Encryption at rest of drill records: `apps/server/src/crypto.ts`. The key comes from `PARASHURAMA_DATA_KEY` or `PARASHURAMA_DATA_KEY_FILE`, and is required when `NODE_ENV=production`.
+  - Lite mode: `apps/web/src/lite.ts`.
 - **Threat library** (`config/threats.json`). Training values only, not equipment specifications.
   - The original six: recon, fpv, loiter, swarm, friendly, bird.
   - Military types added since: fibre-optic FPV, AI-guided attack, jet one-way attack, payload dropper, hybrid VTOL ISR, tactical ISR fixed-wing, large MALE UAV.
