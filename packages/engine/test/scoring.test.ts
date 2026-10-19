@@ -361,3 +361,27 @@ describe('golden scoring: EW collateral (item 5, R11)', () => {
     expect(scoreRun(E)[0].F).toBe(40);
   });
 });
+
+describe('sensor-down fairness flag (item 7)', () => {
+  it('records that the RF clue was unavailable at identification, without changing points', () => {
+    const E = single('recon', { fault: 'rf' });
+    drive(E, controller({ eff: () => 'jam' }));
+    const s = only(E);
+    expect(E.contacts[0].idAvail).toMatchObject({ rf: false, radarOk: true });
+    expect(s.sensorDown).toBe(true);
+    expect(s.why.join(' ')).toMatch(/RF detector was off/);
+    const ok = single('recon');
+    drive(ok, controller({ eff: () => 'jam' }));
+    const so = only(ok);
+    expect(ok.contacts[0].idAvail).toMatchObject({ rf: true, radarOk: true });
+    expect(so.sensorDown).toBeUndefined();
+    expect(s.total).toBe(so.total);
+  });
+
+  it('flags an identification inside the radar fault sector', () => {
+    const E = single('recon', { fault: 'radar', faultSector: 90 }, 90);
+    drive(E, controller({ eff: () => 'jam', ignoreVisibility: true }));
+    expect(E.contacts[0].idAvail?.radarOk).toBe(false);
+    expect(only(E).why.join(' ')).toMatch(/radar fault sector/);
+  });
+});

@@ -1,4 +1,4 @@
-import { getConfig, ticks, isEffective, weatherFx, type Config } from './config';
+import { cameraRange, getConfig, ticks, isEffective, weatherFx, type Config } from './config';
 import { buildScenario } from './scenario';
 import type { Action, Contact, DrillConfig, Engine, Spawn } from './types';
 import { clamp, hash2, mulberry, brgOf } from './util';
@@ -96,6 +96,14 @@ export function isCleared(E: Engine, c: Contact, eff: string): boolean {
   return !needsClearance(E, eff) || (c.clrAt != null && E.tick >= c.clrAt);
 }
 
+/** What the operator could rely on right now: RF detector up, a clear camera picture in range, radar healthy on this bearing. */
+export function clueAvailability(E: Engine, c: Contact): { rf: boolean; cam: boolean; radarOk: boolean } {
+  const S = E.C.training.sim, f = E.cfg.fault;
+  const inCam = Math.hypot(c.x, c.y) < cameraRange(E.C, E.cfg.time, E.cfg.weather);
+  const dd = Math.abs(((brgOf(c.x, c.y) - E.cfg.faultSector + 540) % 360) - 180);
+  return { rf: f !== 'rf', cam: f !== 'eo' && inCam, radarOk: f !== 'radar' || dd >= S.radarFaultHalfWidthDeg };
+}
+
 export function inReach(c: Contact, eff: string, C: Config = getConfig()): boolean {
   const e = C.effectors.effectors[eff];
   const d = Math.hypot(c.x, c.y);
@@ -107,7 +115,7 @@ function applyAction(E: Engine, a: Action): void {
   if (!c) return;
   if (a.k === 'track') { if (c.trackTick == null && c.state === 'live') c.trackTick = E.tick; return; }
   if (a.k === 'id') {
-    if (c.trackTick != null && c.idTick == null && a.cls && E.C.threats.threats[a.cls] && a.conf != null) { c.idTick = E.tick; c.idCls = a.cls; c.idConf = a.conf; }
+    if (c.trackTick != null && c.idTick == null && a.cls && E.C.threats.threats[a.cls] && a.conf != null) { c.idTick = E.tick; c.idCls = a.cls; c.idConf = a.conf; c.idAvail = clueAvailability(E, c); }
     return;
   }
   if (a.k === 'req') {
