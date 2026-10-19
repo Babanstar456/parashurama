@@ -73,6 +73,7 @@ function explain(k: string, c: any, ok: boolean): string {
   if (k === 'RF signal') {
     if (app.live.cfg.fault === 'rf') return '<b>RF signal.</b> The detector is offline. Decide from the other clues.';
     if (t.friendly) return '<b>RF signal.</b> Our own data link.';
+    if (t.civil) return `<b>RF signal.</b> ${t.rf}: a civil drone. <b>Report it and keep watching; never engage.</b>`;
     if (t.rfOn && !/2\.4|5\.8/.test(t.rf)) return `<b>RF signal.</b> ${t.rf}: someone is controlling it by radio. <b>A jammer can cut this link.</b>`;
     if (t.rfOn && t.gnss) return '<b>RF signal.</b> A 2.4 GHz control link: someone is flying it by remote control. <b>A jammer can cut this link.</b>';
     if (t.rfOn) return '<b>RF signal.</b> A 5.8 GHz video link: a pilot is watching live video. That is an FPV attack drone. <b>Jam it.</b>';

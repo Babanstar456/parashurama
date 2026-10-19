@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createEngine, scoreRun, type Spawn } from '../src';
+import { buildScenario, createEngine, scoreRun, type Spawn } from '../src';
 import { C, baseCfg, controller, drive, single } from './helpers';
 
 const only = (E: ReturnType<typeof single>) => { const s = scoreRun(E); expect(s).toHaveLength(1); return s[0]; };
@@ -180,5 +180,34 @@ describe('golden scoring: military threat library (items 1–2)', () => {
     expect(left.contacts[0].hover).toBe(true);
     expect(sl.F).toBe(0);
     expect(sl.why.join(' ')).toMatch(/watch the asset unchallenged/);
+  });
+});
+
+describe('golden scoring: civil drones (item 3, R9)', () => {
+  it('R9: civil drone held → 40; engaged → 0', () => {
+    const held = single('civil');
+    drive(held, controller({ eff: () => 'hold' }), 30, false);
+    const sh = only(held);
+    expect(sh.F).toBe(40);
+    expect(sh.rules).toContain('R9');
+    expect(sh.why.join(' ')).toMatch(/reported and monitored/);
+    const shot = single('civil');
+    drive(shot, controller({ eff: () => 'intc' }), 40, false);
+    expect(shot.contacts[0].engs[0]?.eff).toBe('intc');
+    const ss = only(shot);
+    expect(ss.F).toBe(0);
+    expect(ss.why.join(' ')).toMatch(/unlawful/);
+  });
+
+  it('urban drills gain one civil drone only when civilType is configured', () => {
+    const noCivil = { ...C, training: { ...C.training, scenario: { ...C.training.scenario, civilType: undefined } } };
+    for (const seed of [3, 17, 99]) {
+      const cfg = baseCfg({ seed, terrain: 'urban' });
+      const before = buildScenario(cfg, noCivil), after = buildScenario(cfg, C);
+      expect(before.some((s) => s.type === 'civil')).toBe(false);
+      expect(after.filter((s) => s.type === 'civil')).toHaveLength(1);
+      expect(after.filter((s) => s.type !== 'civil')).toEqual(before);
+      expect(buildScenario(baseCfg({ seed, terrain: 'rural' }), C)).toEqual(buildScenario(baseCfg({ seed, terrain: 'rural' }), noCivil));
+    }
   });
 });

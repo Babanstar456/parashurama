@@ -13,7 +13,8 @@
 9. **RF: no emission, wing, very fast** → jet one-way attack drone → **GNSS spoof** (or interceptor). Act early: it closes in about half a minute.
 10. **RF: 2.4 GHz, bigger echo, does not stop** → payload-drop drone → **RF jam** before it reaches the asset.
 11. **RF: control link (1.4 GHz or 868–900 MHz, or a datalink), flies in then hovers or circles at a distance** → VTOL ISR, tactical ISR wing or large military UAV → **RF jam**. Do not leave it watching.
-12. **Weapon greyed out?** Not in reach yet. Watch its bar; handle the most urgent contact first.
+12. **RF: registered 2.4 GHz link, drifting, never closes on the asset** → civil drone → **Hold / report** (R9). Engaging it is unlawful in peacetime airspace.
+13. **Weapon greyed out?** Not in reach yet. Watch its bar; handle the most urgent contact first.
 
 | Contact | Speed | Height | Echo | Radio | Behaviour | Camera | Do this |
 |---|---|---|---|---|---|---|---|
@@ -29,6 +30,7 @@
 | Payload dropper | ~43 km/h | 40–120 m | Medium | 2.4 GHz control | Slow, heavy, straight for the asset | 4 rotors | RF jam |
 | VTOL ISR | ~86 km/h | 100–400 m | Small | 1.4 GHz control | Flies in like a plane, then hovers | Fixed wing | RF jam |
 | Tactical ISR wing | ~101 km/h | 300–1000 m | Small | 868–900 MHz control | Flies in, then circles at a distance | Fixed wing | RF jam |
+| Civil drone (registered) | ~32 km/h | 30–120 m | Small | 2.4 GHz (registered) | Drifting, not heading for the asset | 4 rotors | Hold / report |
 | Large mil. UAV (MALE) | ~180 km/h | 1500–3000 m | Large | Satellite / LOS datalink | Flies in high, then circles at standoff | Fixed wing | RF jam |
 
 **Look-alikes:** friendly UAV vs loitering munition (both wings: friendly check and behaviour decide) · bird vs swarm vs FPV (all tiny: speed, radio and grouping decide) · recon vs FPV (both rotors and radio: speed and frequency decide) · FPV vs fibre-optic FPV (same flight: only the radio differs) · loitering munition vs jet attack drone vs AI-guided attack (all silent wings: speed and height decide; GNSS spoof fails on the AI-guided one) · recon vs payload dropper (both 2.4 GHz: the dropper's echo is bigger and it never stops) · tactical ISR wing vs friendly UAV (both circle: the friendly check decides).

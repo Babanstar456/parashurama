@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- **Civil drones (R9)** (threats 1.2.0, doctrine 1.1.0, training 1.3.0):
+  - New `civil` threat flag and a registered civil drone type.
+  - Rule R9: report and monitor, never engage. Held scores 40; engaged scores 0.
+  - Urban procedural drills include one civil drone, but only when `scenario.civilType` is set, so older configs build identical drills.
+  - The Hold button is now "Hold / report".
 - **Military threat library** (threats 1.1.0, training 1.2.0): seven new types, so all three defeat classes are covered:
   - Fibre-optic FPV and AI-guided attack drone (no radio and no GNSS, so only an interceptor or gun works).
   - Jet one-way attack drone (GNSS-guided, very fast).

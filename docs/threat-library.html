@@ -250,10 +250,10 @@ main section{scroll-margin-top:128px}
 
 <section id="threats">
 <h2>Threat library</h2>
-<p class="sub">Thirteen contact types, from a recon quad to a large military UAV. The skill being trained is telling them apart from radar, the friendly check, the radio signal, behaviour and, when close enough, the camera. Pick one to see its clues.</p>
+<p class="sub">Fourteen contact types, from a recon quad to a large military UAV. The skill being trained is telling them apart from radar, the friendly check, the radio signal, behaviour and, when close enough, the camera. Pick one to see its clues.</p>
 <div class="tabs" role="tablist" aria-label="Contact types" id="threatTabs"></div>
 <div class="tcard" id="threatCard" role="tabpanel"></div>
-<details class="all"><summary>Compare all thirteen side by side</summary>
+<details class="all"><summary>Compare all fourteen side by side</summary>
 <div class="scroll"><table>
 <thead><tr><th>Contact</th><th class="num">Speed</th><th>Altitude</th><th>Radar echo</th><th>Radio signal</th><th>Behaviour</th><th>Right response</th></tr></thead>
 <tbody id="threatRows"></tbody></table></div>
@@ -349,8 +349,9 @@ const T={
  vtol:{label:'Hybrid VTOL ISR drone',side:'hostile',speed:24,alt:'100–400 m',echo:'Small',rf:'Control link, 1.4 GHz',rfOn:true,gnss:true,cam:'Fixed wing',beh:'Flies in like a plane, then hovers',resp:'RF jam',rule:'R3',why:'A wing that suddenly stops and hovers is a VTOL surveillance drone. Its control link is its weak point.'},
  tacIsr:{label:'Tactical ISR fixed-wing',side:'hostile',speed:28,alt:'300–1000 m',echo:'Small',rf:'Control link, 868–900 MHz',rfOn:true,gnss:true,cam:'Fixed wing',beh:'Flies in, then circles at a distance',resp:'RF jam',rule:'R3',why:'It circles like our own patrol, but the friendly check fails: an enemy artillery spotter. Do not leave it watching.'},
  male:{label:'Large military UAV (MALE)',side:'hostile',speed:50,alt:'1500–3000 m',echo:'Large',rf:'Satellite / line-of-sight datalink',rfOn:true,gnss:true,cam:'Fixed wing',beh:'Flies in high, then circles at standoff range',resp:'RF jam',rule:'R3',why:'A large echo circling high at standoff range. It depends on its datalink: jam it, or intercept it while in reach.'},
+ civil:{label:'Civil drone (registered)',side:'neutral',civil:true,speed:9,alt:'30–120 m',echo:'Small',rf:'Control link, 2.4 GHz (registered)',rfOn:true,gnss:true,cam:'Quadcopter',beh:'Drifting about, not heading for the asset',resp:'Hold / report',rule:'R9',why:'Not military. Report it and keep watching; engaging a civil drone is unlawful in peacetime airspace.'},
 };
-const ORDER=['recon','fpv','loiter','swarm','friendly','bird','fibre','aiStrike','jetOwa','dropper','vtol','tacIsr','male'];
+const ORDER=['recon','fpv','loiter','swarm','friendly','bird','fibre','aiStrike','jetOwa','dropper','vtol','tacIsr','male','civil'];
 const EF={jam:{label:'RF jam',affects:'rf',min:0,max:2000,delay:2.5,color:'var(--jam)',note:'Drones with a radio link. No effect on GNSS-guided drones.'},
  spoof:{label:'GNSS spoof',affects:'gnss',min:0,max:2500,delay:3,color:'var(--spoof)',note:'GNSS-guided drones. Area effect: also takes swarm drones within 450 m.'},
  intc:{label:'Interceptor',affects:'all',min:300,max:2500,delay:4,color:'var(--intc)',note:'Any drone. Only 4 per drill, and not below 300 m.'},
@@ -358,7 +359,7 @@ const EF={jam:{label:'RF jam',affects:'rf',min:0,max:2000,delay:2.5,color:'var(-
 const TABLE={rfLinked:{jam:40,intc:30,spoof:30,gun:28},gnssOnly:{spoof:40,intc:36,gun:26,jam:0},autonomous:{intc:40,gun:30,jam:0,spoof:0}};
 const PREF={rfLinked:'jam',gnssOnly:'spoof',autonomous:'intc'};
 const REASON={rfLinked:'Radio link present',gnssOnly:'No radio link, GNSS-guided',autonomous:'No radio link and no GNSS'};
-const RULES={D1:'Detection: full marks within 3 s of the first radar paint, zero at 20 s.',C1:'Identification: correct = 18 + 12 × confidence; wrong = 10 × (1 − confidence), +5 if friend/foe was right.',R1:'Friendly identified: hold fire.',R2:'Bird or clutter: hold; don\'t waste an effector.',R3:'Radio-controlled hostile: RF jam first.',R4:'No radio link, GNSS-guided: GNSS spoof or interceptor.',R5:'Engage the most urgent threat first.',R6:'Gun in an urban area: collateral risk.',R7:'Engage with at least 8 s to impact.',R8:'A hostile must not reach the asset or observe unchallenged.'};
+const RULES={D1:'Detection: full marks within 3 s of the first radar paint, zero at 20 s.',C1:'Identification: correct = 18 + 12 × confidence; wrong = 10 × (1 − confidence), +5 if friend/foe was right.',R1:'Friendly identified: hold fire.',R2:'Bird or clutter: hold; don\'t waste an effector.',R3:'Radio-controlled hostile: RF jam first.',R4:'No radio link, GNSS-guided: GNSS spoof or interceptor.',R5:'Engage the most urgent threat first.',R6:'Gun in an urban area: collateral risk.',R7:'Engage with at least 8 s to impact.',R8:'A hostile must not reach the asset or observe unchallenged.',R9:'Unknown civil drone: report and monitor; do not engage.'};
 const WX=[['Clear',1,1,'Baseline.'],['Heavy rain',.7,.6,'Track early: blips drop out.'],['Dense fog',.95,.35,'Decide from the radio signal, not the picture.'],['Dust storm',.85,.5,'Expect noisy tracks and late camera confirmation.']];
 const $=id=>document.getElementById(id);
 const dot=s=>`<span class="dot bg-${T[s].side}"></span>`;
@@ -428,10 +429,11 @@ function run(){
   else{const ff=(T[idT].side==='hostile')===hostile;C=Math.round(10*(1-p)+(ff?5:0));
     why.push(['C1',`Wrong call (${T[idT].label}), ${confLabel[p].toLowerCase()}${ff?'; friend or foe was still right (+5)':''}`,C])}
   let F=0;
-  if(t.side==='friendly'){F=eff==='hold'?40:0;why.push(['R1',eff==='hold'?'Friendly: held fire':'Engaged a friendly UAV: fratricide',F])}
+  if(t.civil){F=eff==='hold'?40:0;why.push(['R9',eff==='hold'?'Civil drone: reported and monitored':'Engaged a civil drone: unlawful in peacetime airspace',F])}
+  else if(t.side==='friendly'){F=eff==='hold'?40:0;why.push(['R1',eff==='hold'?'Friendly: held fire':'Engaged a friendly UAV: fratricide',F])}
   else if(t.side==='neutral'){F=eff==='hold'?40:10;why.push(['R2',eff==='hold'?'Bird: no effector wasted':'Effector wasted on a bird',F])}
   else if(leak){F=0;why.push(['R8','Reached the protected asset',0])}
-  else if(eff==='hold'){F=0;why.push(['R8',S.type==='recon'?'Recon left to observe unchallenged':'Held fire on a hostile',0])}
+  else if(eff==='hold'){F=0;why.push(['R8',['recon','vtol','tacIsr','male'].includes(S.type)?'Left to watch the asset unchallenged':'Held fire on a hostile',0])}
   else{const c=cls(t),ef=EF[eff],pref=PREF[c],ok=effective(t,ef);F=ok?TABLE[c][eff]:0;
     const rule=c==='rfLinked'?'R3':'R4';
     why.push([rule,eff===pref?`${REASON[c]}: ${ef.label} was right`:!ok?(ef.affects==='rf'?'Jammed a drone with no radio link: no effect':`${ef.label} has no effect on this drone`):`${ef.label} works, but ${EF[pref].label} was the better first choice`,F]);

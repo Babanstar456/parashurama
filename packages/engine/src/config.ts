@@ -7,6 +7,8 @@ export type Motion = 'approachHover' | 'weave' | 'straight' | 'swarm' | 'orbit' 
 export interface Threat {
   label: string; short: string; speed: number; alt: [number, number]; echo: string;
   rf: string; rfOn: boolean; gnss: boolean; friendly: boolean; hostile: boolean;
+  /** Civil (non-military) drone: report and monitor, never engage (R9). */
+  civil?: boolean;
   shape: 'quad' | 'wing' | 'bird'; motion: Motion;
   hoverRangeM?: [number, number]; orbitRadiusM?: [number, number];
   behaviour: string; behaviourHover?: string; deciding: string;
@@ -24,6 +26,8 @@ export interface DoctrineFile {
   defeat: {
     points: number; preferred: Record<DecisionClass, string>; tables: Record<DecisionClass, Record<string, number>>;
     friendlyHold: number; friendlyEngaged: number; clutterHold: number; clutterEngaged: number; hostileHeldButNeutralised: number;
+    /** Optional so older doctrine files stay valid; defaults 40 / 0. */
+    civilHold?: number; civilEngaged?: number;
     modifiers: { urbanGun: number; lateEngagementSec: number; late: number; priority: number; priorityRatio: number };
   };
 }
@@ -34,7 +38,7 @@ export interface TrainingFile {
   expert: { trackDelaySec: number; identifyDelaySec: number };
   learning: { pInit: number; learn: number; forget: number; slip: number; guess: number; maxObsPerDrill: number };
   certification: { passMark: number; certifiedMastery: number; developingMastery: number };
-  scenario: { hostilePool: string[]; swarmType: string; friendlyType: string; clutterType: string; focusType: string };
+  scenario: { hostilePool: string[]; swarmType: string; friendlyType: string; clutterType: string; focusType: string; /** Optional: one civil drone in urban drills. */ civilType?: string };
   /** Optional so older instructor-saved configs stay valid; missing = every weather behaves as clear. */
   weather?: Record<string, WeatherFx>;
 }

@@ -204,7 +204,7 @@ function renderDef(c,cls){
   if(c.effectAt!=null)note=`<div class="locked" style="margin-bottom:8px">${EFF[c.effectBy].label} sent. Effect in ${Math.max(0,(c.effectAt-L.tick)*DT).toFixed(1)} s.</div>`;
   else if(last&&last.eff!=='hold'&&!last.effective)note=`<div class="locked" style="margin-bottom:8px;border-color:var(--nh)">${EFF[last.eff].label}: <b>no effect</b>. It is still coming. Choose again.</div>`;
   else if(last&&last.eff==='hold')note=`<div class="locked" style="margin-bottom:8px">Holding fire. Keep watching it.</div>`;
-  $('#defBody').innerHTML=note+`<div class="effGrid">${EFF_ORDER.map((k,i)=>`<button class="nbtn" data-eff="${k}" ${av[i].ok?'':'disabled'}><span>${EFF[k].label}${EFF[k].stock!=null?` (${L.stock[k]})`:''}<small>${av[i].txt}</small></span><kbd>${EFF[k].key}</kbd></button>`).join('')}<button class="nbtn hold" data-eff="hold" ${c.effectAt!=null||c.engs.length?'disabled':''}><span>Hold / monitor<small>for friendlies and birds</small></span><kbd>H</kbd></button></div>`;
+  $('#defBody').innerHTML=note+`<div class="effGrid">${EFF_ORDER.map((k,i)=>`<button class="nbtn" data-eff="${k}" ${av[i].ok?'':'disabled'}><span>${EFF[k].label}${EFF[k].stock!=null?` (${L.stock[k]})`:''}<small>${av[i].txt}</small></span><kbd>${EFF[k].key}</kbd></button>`).join('')}<button class="nbtn hold" data-eff="hold" ${c.effectAt!=null||c.engs.length?'disabled':''}><span>Hold / report<small>friendlies, birds, civil drones</small></span><kbd>H</kbd></button></div>`;
 }
 function drawEO(){
   const cv=$('#eo');const c=selC();if(!cv||!c)return;const ctx=cv.getContext('2d',{willReadFrequently:true});const W=cv.width,H=cv.height;const night=live.cfg.time==='night';
