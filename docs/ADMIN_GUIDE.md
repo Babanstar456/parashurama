@@ -62,6 +62,22 @@ Trainee accounts are created automatically the first time someone signs in. To g
 DATA_DIR=/var/lib/parashurama npm run user:add -w @parashurama/server -- nk.rao "Nk Arjun Rao" instructor "AD Troop 2"
 ```
 
+## Threat packs (offline updates)
+
+Doctrine and threat updates can arrive as signed `*.cuaspack.json` files, for example on USB.
+
+1. **Install a pack:** Instructor panel → *Import signed threat pack*. Online, it becomes a new config version on the unit server; offline, it is saved in that browser.
+2. **Rejection:** a pack is refused if any byte was changed, if it was signed by a key that is not trusted, or if its contents fail validation.
+
+**Trusted keys** are listed in `config/trust/keys.json` and built into the app.
+
+**Issuer setup (done once, on an offline machine):**
+```bash
+npm run pack:keygen -- DSSC dssc-2026 /secure/offline/dssc-2026.pem   # private key must be outside the repo
+npm run pack:sign -- pack.json /secure/offline/dssc-2026.pem          # writes pack.cuaspack.json
+```
+`pack.json` contains `{ "meta": { "id", "version", "issuer", "date" }, "config": { "threats" | "effectors" | "doctrine" | "training" } }`.
+
 ## Backups and restore
 
 - Manual: instructor panel → *Back up database now*, or `npm run backup -w @parashurama/server`.

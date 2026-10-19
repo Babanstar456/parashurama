@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- **Signed threat packs** (`*.cuaspack.json`):
+  - Packs are signed with ECDSA P-256 / SHA-256 over canonical JSON. The verifier in `packages/engine/src/pack.ts` uses WebCrypto, so it runs in both the browser and Node.
+  - Trusted public keys live in `config/trust/keys.json`, which ships empty. `npm run pack:keygen` refuses to write the private key inside the repo, and `npm run pack:sign` signs a pack.
+  - `POST /api/packs` (instructor or admin) checks the signature, then validates the merged config, then stores it as a config version. Every attempt is audited.
+  - The offline Instructor panel has "Import signed threat pack", which runs the same checks.
 - **Supply chain**:
   - `npm run sbom` writes a CycloneDX SBOM to `docs/sbom.cdx.json`. `npm run notices` turns it into `THIRD_PARTY_NOTICES.md` (66 production packages).
   - `npm run audit:prod` runs in CI.

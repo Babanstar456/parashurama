@@ -19,6 +19,7 @@ Every figure below is printed by the test suite as an `EVIDENCE …` line (`npm 
 | Adaptive difficulty and randomisation | `enemy.ts` `planNext()`; learning model `learning.ts` (Bayesian knowledge tracing) | `enemy.test.ts`, `learning.test.ts`, `evidence.test.ts` |
 | Proof that training transfers (study design) | `planNext(..., { adaptive: false })` control mode; `users.cohort`; `cohort` column in the CSV export | `enemy.test.ts` (control ignores weaknesses, adaptive unchanged), `apps/server/test/evidence.test.ts` (cohort set and exported) |
 | Ordinary computers, unit level | Single offline file `docs/index.html`; unit server on SQLite | `evidence.test.ts` (headless speed); `?fps` meter |
+| Untampered offline updates | Signed threat packs: `pack.ts` (`verifyPack`, `canonical`), `config/trust/keys.json`, `POST /api/packs`, editor import | `pack.test.ts` (valid accepted; changed byte, unknown or untrusted key rejected; invalid config caught), `apps/server/test/evidence.test.ts` |
 | Supply-chain hygiene | `docs/sbom.cdx.json`, `THIRD_PARTY_NOTICES.md`, `npm run audit:prod` in CI, `docs/RELEASE.txt` (SHA-256 of the offline file) | CI workflow `.github/workflows/ci.yml` |
 | Tamper-evident records | Server re-runs each drill (`apps/server/src/verify.ts`); SHA-256 chained log (`integrity.ts`) | `integrity.test.ts`, `server.test.ts` |
 

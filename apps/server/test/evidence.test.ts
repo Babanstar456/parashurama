@@ -3,7 +3,8 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createEngine, defaultConfig, expertPolicy, isDone, runTotal, scoreRun, step, ticks, type Action, type DrillConfig } from '@parashurama/engine';
+import { generateKeyPairSync, sign } from 'node:crypto';
+import { createEngine, defaultConfig, expertPolicy, isDone, packPayload, runTotal, scoreRun, step, ticks, type Action, type DrillConfig } from '@parashurama/engine';
 import { buildApp } from '../src/app';
 import { createUser } from '../src/auth';
 
@@ -72,6 +73,29 @@ describe('evidence: persistence and export', () => {
     const csv = (await app.inject({ method: 'GET', url: '/api/export/drills.csv', headers: { cookie: inst } })).body.trim().split('\r\n');
     expect(csv[0].endsWith(',cohort')).toBe(true);
     expect(csv.find((r) => r.startsWith('Sep Demo B,'))!.endsWith(',control')).toBe(true);
+    await app.close(); db.close();
+  });
+
+  it('installs a signed threat pack as a new config version; refuses tampered, invalid or unauthorised packs', async () => {
+    const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+    const { kty, crv, x, y } = publicKey.export({ format: 'jwk' });
+    const { app, db } = await buildApp({ dataDir: dir, trustKeys: [{ id: 'dssc-test', issuer: 'DSSC', jwk: { kty, crv, x, y } }] });
+    const mk = (threats: any) => { const meta = { id: 'pack-t', version: '1.0.1', issuer: 'DSSC', date: '2026-11-01' }, config = { threats };
+      return { meta, config, sig: sign('sha256', packPayload({ meta, config }), { key: privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64') }; };
+    const t = JSON.parse(JSON.stringify(defaultConfig.threats)); t.threats.recon.speed = 13;
+    const inst = await signIn(app, 'inst');
+    const post = (cookie: string, payload: any) => app.inject({ method: 'POST', url: '/api/packs', headers: { cookie }, payload });
+    const ok = await post(inst, mk(t));
+    expect(ok.statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/config', headers: { cookie: inst } })).json().config.threats.threats.recon.speed).toBe(13);
+    const tampered = mk(t); tampered.config.threats.threats.recon.speed = 14;
+    expect((await post(inst, tampered)).json().error).toMatch(/Signature does not match/);
+    const bad = JSON.parse(JSON.stringify(t)); bad.threats.recon.alt = [150, 60];
+    const inv = await post(inst, mk(bad));
+    expect(inv.statusCode).toBe(400); expect(inv.json().errors.join()).toMatch(/alt min > max/);
+    expect((await post(await signIn(app, 'sep.a'), mk(t))).statusCode).toBe(403);
+    const ev = (db.prepare("SELECT action FROM audit WHERE action LIKE 'pack-%'").all() as any[]).map((e) => e.action);
+    expect(ev).toEqual(['pack-installed', 'pack-rejected', 'pack-rejected']);
     await app.close(); db.close();
   });
 });
