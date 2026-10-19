@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- **Phones**:
+  - Drill controls (Sound, Lite, Pause, End drill) sit above the radar instead of covering it.
+  - Identify buttons are in two columns with larger tap targets, and so are the effector and clearance buttons.
+  - The readiness board fits its card. The table scrolls sideways with the operator column pinned.
+  - On the threat library page, the 14 threat tabs and the calculator's type picker are one swipeable row.
+- **Fix:** the threat library page (`docs/threat-library.html`) had a script error after the military types were added. Its tabs, comparison table and calculator were empty. New e2e tests load both judge pages, fail on any script error, and check phone layout.
 - **Lite mode for low-spec laptops**:
   - On the first scored drill, the app measures the average frame rate over 5 s. Below 25 fps it switches to Lite mode: the 3D view is not auto-opened, the 3D pixel ratio is 1×, and there are no 3D weather particles.
   - The trainee is told, and can toggle it with the drill's **Lite** button or **L**. `?lite` forces it.

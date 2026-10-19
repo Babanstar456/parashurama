@@ -524,6 +524,23 @@ body.night #homeBtn{display:none}
   .cond{border-bottom:1px solid var(--rule2)}
   .fightGrid,.learnWrap{max-width:100vw;overflow-x:hidden}
 }
+/* phones: readiness board scrolls inside its card; drill controls sit above the radar, not on it */
+@media (max-width:1100px){
+  .unitGrid{grid-template-columns:minmax(0,1fr)}
+  .unitGrid>*{min-width:0}
+}
+@media (max-width:700px){
+  .radarWrap{padding-top:108px}
+  .hudCtl{top:60px;justify-content:flex-start}
+  .hudCtl .ghostBtn{padding:6px 10px;font-size:14px}
+  table.board th{font-size:11.5px;padding:3px 4px}
+  table.board td{font-size:14px;padding:7px 4px}
+  table.board td:first-child{font-size:13px;min-width:92px}
+  table.board td:first-child,table.board th:first-child{position:sticky;left:0;z-index:1;background:var(--card)}
+  .idGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .idGrid .nbtn{min-height:44px}
+  .effGrid .nbtn,.clrRow .nbtn{min-height:48px}
+}
 @media (max-width:700px){
   .fingerRow{grid-template-columns:minmax(0,1fr)}
   .fingerRow>div:first-child{max-width:200px;margin:0 auto}
