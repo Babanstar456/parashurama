@@ -1,11 +1,6 @@
-PARASHURAMA 0.6.0, released 2026-10-20 15:31 UTC
+PARASHURAMA 0.6.0
+file: index.html
+bytes: 1626358
+sha256: 4e7d6cba0d56b63ed6421d5a644f2b4be0c4577f64f3eb04197b2dc227fb28b5
 
-Main site (the full build: app, 3D models, skies, textures, sounds)
-  files: 118, 73.2 MB
-  index.html sha256: e7baf4237940a77ea857f396ac75cc408c31ea625b6a8d287dd67292a0392add
-  full build fingerprint: f62a81861dd595efea4a6de74c0504d668f359c76d6d47c31b9434a6317ba8c8
-  Check a copy of the site:  node scripts/release-docs.mjs --check <folder>
-
-Offline single-file copy (offline/index.html; the 3D drill uses plain shapes and generated sound)
-  sha256: 4e7d6cba0d56b63ed6421d5a644f2b4be0c4577f64f3eb04197b2dc227fb28b5
-  Check a copy:  sha256sum index.html   (Windows: certutil -hashfile index.html SHA256)
+Check a copy:  sha256sum index.html   (Windows: certutil -hashfile index.html SHA256)

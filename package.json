@@ -35,7 +35,7 @@
     "sbom": "npm sbom --sbom-format cyclonedx --omit dev > docs/sbom.cdx.json",
     "notices": "node scripts/notices.mjs",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
-    "release:docs": "npm run build -w @parashurama/web && npm run build:single && node scripts/release-docs.mjs",
+    "release:docs": "npm run build:single && node scripts/release-docs.mjs",
     "pack:keygen": "tsx packages/engine/scripts/pack-keygen.ts",
     "pack:sign": "tsx packages/engine/scripts/sign-pack.ts"
   },
