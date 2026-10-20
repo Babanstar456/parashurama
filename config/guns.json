@@ -19,7 +19,14 @@
       "barrels": 2, "rpmPerBarrel": 1800, "beltRounds": 50, "ammo": "hei",
       "slewDegS": { "az": 40, "el": 30 }, "elevDeg": [-10, 90], "effRangeM": 2500, "dispMil": 1.6,
       "heatPerRound": 1, "coolPerSec": 4, "heatLimit": 220, "stoppageP": 0.004,
-      "sightFovDeg": 12
+      "sightFovDeg": 12,
+      "reload": [
+        { "id": "cover", "label": "Open the feed cover", "sec": 1.5 },
+        { "id": "box", "label": "Fit a full ammunition box", "sec": 3 },
+        { "id": "belt", "label": "Lay the belt on the feed tray", "sec": 3 },
+        { "id": "close", "label": "Close the feed cover", "sec": 1 },
+        { "id": "cock", "label": "Cock the gun (charging handle)", "sec": 2 }
+      ]
     },
     "zsu234": {
       "label": "ZSU-23-4 (radar fire control)", "short": "ZSU-23-4", "sight": "radar",
@@ -27,7 +34,12 @@
       "slewDegS": { "az": 70, "el": 60 }, "elevDeg": [-4, 85], "effRangeM": 2500, "dispMil": 1.1,
       "heatPerRound": 1, "coolPerSec": 6, "heatLimit": 400, "stoppageP": 0.002,
       "sightFovDeg": 12,
-      "radar": { "acquireRangeM": 6000, "lockSec": 3, "trackNoiseMil": 0.4, "faultP": 0 }
+      "radar": { "acquireRangeM": 6000, "lockSec": 3, "trackNoiseMil": 0.4, "faultP": 0 },
+      "reload": [
+        { "id": "box", "label": "Switch to the next ammunition box", "sec": 4 },
+        { "id": "feed", "label": "Feed the belts to the guns", "sec": 4 },
+        { "id": "charge", "label": "Charge the guns", "sec": 2 }
+      ]
     }
   },
   "targets": {
@@ -42,6 +54,24 @@
     "standToSec": { "white": 20, "yellow": 8, "red": 0 }, "killReportSec": 8
   },
   "met": { "stdTempC": 15, "stdPressureHpa": 1013.25, "latitudeDeg": 26 },
+  "lfx": {
+    "note": "Live-fire drill checklists, reconstructed from the public brief. A draft for DSSC / AAD College to confirm.",
+    "gunChecks": [
+      { "id": "barrel", "label": "Barrels and flash hiders inspected, bores clear" },
+      { "id": "mount", "label": "Mounting, traverse and elevation checked" },
+      { "id": "level", "label": "Gun levelled" },
+      { "id": "sight", "label": "Sight zeroed (boresight checked)" },
+      { "id": "ammo", "label": "Ammunition issued and counted" }
+    ],
+    "rangeChecks": [
+      { "id": "redZone", "label": "Danger area clear of people and vehicles" },
+      { "id": "flags", "label": "Range flags up, sentries posted" },
+      { "id": "met", "label": "Met message received (wind, temperature, pressure)" },
+      { "id": "airspace", "label": "Airspace clear; own-drone and flight schedule checked" },
+      { "id": "brief", "label": "Joint pre-brief done: ROE, safe arcs, abort procedure" }
+    ],
+    "checkSec": 1, "uxoSearchSec": 2
+  },
   "orders": {
     "note": "Placeholder words of command in standard air-defence fire-control style. Replace with the unit's exact drill wording (DSSC / AAD College).",
     "rangeClear": "RANGE CLEAR",
@@ -58,6 +88,7 @@
     "stoppage": "STOPPAGE",
     "reportSafe": "GUN CLEAR, {n} ROUNDS EXPENDED",
     "killDestroyed": "TARGET DESTROYED",
-    "killNoEffect": "NO EFFECT, RE-ENGAGING"
+    "killNoEffect": "NO EFFECT, RE-ENGAGING",
+    "rangeGreen": "RANGE GREEN"
   }
 }

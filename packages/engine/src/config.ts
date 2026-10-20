@@ -58,6 +58,7 @@ export interface Gun {
   label: string; short: string; sight: 'manual' | 'radar'; barrels: number; rpmPerBarrel: number; beltRounds: number; ammo: string;
   slewDegS: { az: number; el: number }; elevDeg: [number, number]; effRangeM: number; dispMil: number;
   heatPerRound: number; coolPerSec: number; heatLimit: number; stoppageP: number; sightFovDeg: number;
+  /** Optional reload drill, in order; missing = one-step load. */ reload?: { id: string; label: string; sec: number }[];
   radar?: { acquireRangeM: number; lockSec: number; trackNoiseMil: number; faultP: number };
 }
 export interface GunsFile {
@@ -70,8 +71,10 @@ export interface GunsFile {
   met: { stdTempC: number; stdPressureHpa: number; latitudeDeg: number };
   /** Words of command (placeholders until the unit's exact drill wording is loaded). */
   orders?: Record<OrderWord, string> & { note?: string };
+  /** Optional live-fire drill procedure (pre-firing checks, range sweep). Missing = none. */
+  lfx?: { note?: string; gunChecks: { id: string; label: string }[]; rangeChecks: { id: string; label: string }[]; checkSec: number; uxoSearchSec: number };
 }
-export type OrderWord = 'rangeClear' | 'alert' | 'target' | 'method' | 'engage' | 'hold' | 'cease' | 'unload' | 'ack' | 'ready' | 'onTarget' | 'stoppage' | 'reportSafe' | 'killDestroyed' | 'killNoEffect';
+export type OrderWord = 'rangeClear' | 'alert' | 'target' | 'method' | 'engage' | 'hold' | 'cease' | 'unload' | 'ack' | 'ready' | 'onTarget' | 'stoppage' | 'reportSafe' | 'killDestroyed' | 'killNoEffect' | 'rangeGreen';
 /** guns is optional so configs saved before the gun mode stay valid; use gunsOf() to read it. */
 export interface Config { threats: ThreatsFile; effectors: EffectorsFile; doctrine: DoctrineFile; training: TrainingFile; guns?: GunsFile; }
 

@@ -606,8 +606,8 @@ body.gunOn{overflow:hidden}
 .gnMain canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
 #gnScope{position:absolute;right:12px;bottom:12px;width:220px!important;height:220px!important;border:1px solid var(--nl);border-radius:6px}
 .gnSide{border-left:1px solid var(--nl);display:flex;flex-direction:column;min-height:0;overflow:auto}
-.gnBox{padding:4px 14px 10px;border-bottom:1px solid var(--nl)}
-.gnRadioBox{flex:1;min-height:180px;display:flex;flex-direction:column}
+.gnBox{padding:4px 14px 10px;border-bottom:1px solid var(--nl);flex-shrink:0}
+.gnRadioBox{flex:1 0 180px;display:flex;flex-direction:column}
 .gnRadio{flex:1;overflow:auto;font:500 13.5px/1.35 var(--cond);max-height:300px}
 .gnRadio p{margin:0 0 4px;display:grid;grid-template-columns:38px 36px 1fr;gap:4px}
 .gnRadio i{font-style:normal;color:var(--nm)}.gnRadio b{color:var(--nf)}.gnRadio p.GUN b{color:var(--gun)}.gnRadio p.SYS{color:var(--nm)}.gnRadio p.SYS b{color:var(--nm)}
@@ -645,3 +645,17 @@ body.gunOn{overflow:hidden}
 .gnBursts{display:flex;align-items:flex-end;gap:3px;height:120px;padding:6px;background:var(--np);border:1px solid var(--nl);border-radius:6px}
 .gnBursts i{flex:1;max-width:22px;background:var(--nl);border-radius:2px 2px 0 0}.gnBursts i.hit{background:var(--nn)}.gnBursts i.bad{background:var(--nh)}
 @media (max-width:900px){.gnCards,.gnCols{grid-template-columns:1fr}.gnDrill{grid-template-columns:1fr;grid-template-rows:auto 55vh auto}.gnSide{border-left:0}}
+.gnPractice{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:14px 18px;border-radius:10px;background:var(--np);border:1px solid var(--nl);margin-bottom:14px}
+.gnPractice b{font:700 20px var(--cond);color:#fff}.gnPractice span{flex:1;min-width:260px;color:#b9c6cf;font-size:14px}
+.gnChecks,.gnReload{display:grid;gap:5px}
+.gnChecks button,.gnReload button{background:var(--np2);color:var(--nt);border:1px solid var(--nl);border-radius:4px;padding:7px 9px;font-size:14px;text-align:left}
+.gnChecks button{border-color:var(--nu)}
+.gnReload button.done{color:var(--nn);border-color:var(--nn)}.gnReload button:disabled{opacity:.5;cursor:default}
+.gnProc{list-style:none;margin:0;padding:0;display:grid;gap:2px;font:500 13.5px/1.3 var(--cond)}
+.gnProc li{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:6px;padding:3px 4px;border-radius:3px;color:var(--nm)}
+.gnProc li i{font-style:normal;text-align:center;font-weight:700}
+.gnProc li.ok{color:#b8d9c4}.gnProc li.ok i{color:var(--nn)}
+.gnProc li.now{background:rgba(242,201,76,.12);color:#fff}.gnProc li.now i{color:var(--nu)}
+.gnProc button{all:unset;cursor:pointer;color:var(--nu);text-decoration:underline dotted;text-underline-offset:3px}
+.gnProc button:focus-visible{outline:2px solid var(--nu)}
+#gnProc{max-height:42vh;overflow:auto}
