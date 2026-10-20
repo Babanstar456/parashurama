@@ -1,4 +1,4 @@
-// Lecture library: upload, list, stream with range requests, delete; roles, types and size limits enforced.
+// Classroom library (videos and notes): upload, list, stream with range requests, delete; roles, types and size limits enforced.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
@@ -67,5 +67,22 @@ describe('lecture library', () => {
     expect((await app.inject({ method: 'GET', url: `/api/lectures/${id}/video`, headers: { cookie: cookie.sep } })).statusCode).toBe(404);
     const ev = (db.prepare("SELECT action FROM audit WHERE action LIKE 'lecture-%'").all() as any[]).map((e) => e.action);
     expect(ev).toEqual(['lecture-upload', 'lecture-delete']);
+  });
+});
+
+describe('classroom notes', () => {
+  const q = (title: string, topic: string) => new URLSearchParams({ title, topic }).toString();
+  it('accepts PDF, image and text notes, serves them inline, and still refuses HTML and SVG', async () => {
+    const note = await upload('inst', Buffer.from('ZU-23-2 manual lead: set speed, course, range.'), q('Manual lead precis', 'On Ground (gun)'), 'text/plain');
+    expect(note.statusCode).toBe(200);
+    const r = await app.inject({ method: 'GET', url: `/api/lectures/${note.json().id}/video`, headers: { cookie: cookie.sep } });
+    expect(r.headers['content-type']).toContain('text/plain');
+    expect(r.headers['content-disposition']).toBe('inline; filename="Manual lead precis.txt"');
+    expect(r.body).toContain('manual lead');
+    expect((await upload('inst', Buffer.from('%PDF-1.4 test'), q('Range orders', 'Live-fire safety'), 'application/pdf')).statusCode).toBe(200);
+    expect((await upload('inst', Buffer.from('<script>alert(1)</script>'), q('x', 'Other'), 'text/html')).statusCode).toBe(415);
+    expect((await upload('inst', Buffer.from('<svg onload="x()"/>'), q('x', 'Other'), 'image/svg+xml')).statusCode).toBe(415);
+    const list = (await app.inject({ method: 'GET', url: '/api/lectures', headers: { cookie: cookie.sep } })).json();
+    expect(list.topics).toEqual(expect.arrayContaining(['Control Room', 'On Ground (gun)', 'UAV GCS', 'Live-fire safety']));
   });
 });

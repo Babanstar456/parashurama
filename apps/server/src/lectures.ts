@@ -1,4 +1,4 @@
-// Lecture library: instructors upload training videos once; every trainee on the unit network can watch them.
+// Classroom library: instructors upload training videos and notes (PDF, images, text précis) once; every trainee on the unit network can use them.
 // Files are stored in <dataDir>/lectures/ and streamed with HTTP range requests (seeking works on any player).
 import { createHash, randomBytes } from 'node:crypto';
 import { createReadStream, createWriteStream, existsSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
@@ -9,9 +9,13 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { audit, type DB } from './db';
 import { BadRequest } from './verify';
 
-/** Formats every browser can play without plugins. */
-export const LECTURE_TYPES: Record<string, string> = { 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/ogg': 'ogv' };
-export const TOPICS = ['Basics', 'Threat recognition', 'Sensors', 'Effectors', 'Doctrine and ROE', 'Exercises', 'Other'];
+/** Formats every browser shows without plugins: videos, and notes. No HTML or SVG, so an upload can never carry script. */
+export const LECTURE_TYPES: Record<string, string> = {
+  'video/mp4': 'mp4', 'video/webm': 'webm', 'video/ogg': 'ogv',
+  'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'text/plain': 'txt', 'text/markdown': 'md',
+};
+/** Topics, then the courses of the gun and UAV drills. */
+export const TOPICS = ['Basics', 'Threat recognition', 'Sensors', 'Effectors', 'Doctrine and ROE', 'Exercises', 'Control Room', 'On Ground (gun)', 'UAV GCS', 'Live-fire safety', 'Other'];
 
 type Guard = (req: FastifyRequest, reply: FastifyReply) => Promise<unknown>;
 const text = (v: unknown, name: string, max: number, required = true) => {
@@ -24,6 +28,8 @@ const text = (v: unknown, name: string, max: number, required = true) => {
 export function registerLectures(app: FastifyInstance, db: DB, dataDir: string, need: (...roles: string[]) => Guard, maxBytes: number) {
   const dir = join(dataDir, 'lectures'); mkdirSync(dir, { recursive: true });
   // Video bodies arrive as a raw stream (no multipart dependency); the size limit is enforced while streaming.
+  // Bodies arrive as a raw stream. (No other route takes text/plain, so the default parser can be replaced.)
+  app.removeContentTypeParser('text/plain');
   app.addContentTypeParser(Object.keys(LECTURE_TYPES), (_req, payload, done) => done(null, payload));
   const row = (id: number) => db.prepare('SELECT * FROM lectures WHERE id=?').get(id) as any;
   const pub = (r: any) => ({ id: r.id, title: r.title, topic: r.topic, description: r.description, mime: r.mime, size: r.size, duration: r.duration, sha256: r.sha256, created: r.created_at, author: r.author_name ?? null });
@@ -35,7 +41,7 @@ export function registerLectures(app: FastifyInstance, db: DB, dataDir: string, 
   // POST /api/lectures?title=…&topic=…&description=…&duration=…   body: the video file (Content-Type video/mp4|webm|ogg)
   app.post('/api/lectures', { preHandler: need('instructor', 'admin') }, async (req, reply) => {
     const mime = String(req.headers['content-type'] ?? '').split(';')[0].trim();
-    if (!LECTURE_TYPES[mime]) return reply.code(415).send({ error: 'Upload an MP4, WebM or Ogg video' });
+    if (!LECTURE_TYPES[mime]) return reply.code(415).send({ error: 'Upload a video (MP4, WebM, Ogg) or notes (PDF, PNG, JPEG, text)' });
     const q = req.query as Record<string, string>;
     const title = text(q.title, 'title', 120), topic = text(q.topic, 'topic', 40), description = text(q.description, 'description', 1000, false);
     if (!TOPICS.includes(topic)) throw new BadRequest(`topic must be one of: ${TOPICS.join(', ')}`);
@@ -61,7 +67,8 @@ export function registerLectures(app: FastifyInstance, db: DB, dataDir: string, 
     const r = row(+req.params.id), path = r && join(dir, r.file);
     if (!r || !existsSync(path)) return reply.code(404).send({ error: 'No such lecture' });
     const total = statSync(path).size, range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''));
-    reply.header('Accept-Ranges', 'bytes').header('Content-Type', r.mime).header('Cache-Control', 'private, max-age=3600');
+    const fname = `${String(r.title).replace(/[^A-Za-z0-9 ._-]+/g, '').trim().slice(0, 80) || 'lecture'}.${LECTURE_TYPES[r.mime] ?? 'bin'}`;
+    reply.header('Accept-Ranges', 'bytes').header('Content-Type', r.mime).header('Cache-Control', 'private, max-age=3600').header('Content-Disposition', `inline; filename="${fname}"`);
     if (!range || (range[1] === '' && range[2] === '')) return reply.header('Content-Length', total).send(createReadStream(path));
     let start = range[1] === '' ? total - Number(range[2]) : Number(range[1]);
     let end = range[1] === '' || range[2] === '' ? total - 1 : Math.min(Number(range[2]), total - 1);

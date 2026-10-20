@@ -1,4 +1,4 @@
-// Lecture library: training videos (MP4 / WebM / Ogg) for self-study between drills.
+// Classroom library: training videos (MP4 / WebM / Ogg) and notes (PDF, images, text précis) for self-study between drills.
 // Online (unit server): instructors upload once and every trainee can watch; files stream with range requests.
 // Offline (single file, static hosting): lectures are stored in this browser's IndexedDB and stay on this device.
 import { app, hooks } from './app';
@@ -6,8 +6,12 @@ import { $ } from './dom';
 import { api } from './online';
 import { toast } from './toast';
 
-export const TOPICS = ['Basics', 'Threat recognition', 'Sensors', 'Effectors', 'Doctrine and ROE', 'Exercises', 'Other'];
-const TYPES = ['video/mp4', 'video/webm', 'video/ogg'];
+export const TOPICS = ['Basics', 'Threat recognition', 'Sensors', 'Effectors', 'Doctrine and ROE', 'Exercises', 'Control Room', 'On Ground (gun)', 'UAV GCS', 'Live-fire safety', 'Other'];
+const VIDEO = ['video/mp4', 'video/webm', 'video/ogg'], NOTES = ['application/pdf', 'image/png', 'image/jpeg', 'text/plain', 'text/markdown'];
+const TYPES = [...VIDEO, ...NOTES];
+const isVideo = (m: string) => VIDEO.includes(m);
+/** Some systems give .md files no type: treat them as Markdown text. */
+const typeOf = (f: File) => f.type || (/\.md$/i.test(f.name) ? 'text/markdown' : /\.txt$/i.test(f.name) ? 'text/plain' : '');
 interface Lecture { id: number; title: string; topic: string; description: string; mime: string; size: number; duration: number | null; created: number; author?: string | null; }
 interface Store {
   where: string; list(): Promise<Lecture[]>; src(l: Lecture): Promise<string>;
@@ -90,10 +94,10 @@ async function render() {
   const shown = list.filter((l) => filter === 'All' || l.topic === filter);
   $('#lecCount').textContent = list.length ? `${list.length} lecture${list.length > 1 ? 's' : ''} · ${list.filter((l) => w.has(key(l.id))).length} watched` : '';
   $('#lecList').innerHTML = !list.length
-    ? `<div class="lecEmpty"><b>No lectures yet.</b><span>${canEdit() ? 'Add a training video below: MP4, WebM or Ogg.' : 'Your instructor has not added any lectures yet.'}</span></div>`
+    ? `<div class="lecEmpty"><b>No lectures yet.</b><span>${canEdit() ? 'Add a training video or notes below.' : 'Your instructor has not added any lectures yet.'}</span></div>`
     : shown.map((l) => `<div class="lecItem ${playing?.id === l.id ? 'on' : ''}">
-        <button class="lecPlay" data-play="${l.id}" aria-label="Play ${esc(l.title)}"><i aria-hidden="true">${w.has(key(l.id)) ? '✓' : '▶'}</i>
-          <span><b>${esc(l.title)}</b><small>${esc(l.topic)}${l.duration != null ? ' · ' + mins(l.duration) : ''} · ${mb(l.size)}${l.author ? ' · ' + esc(l.author) : ''}</small>${l.description ? `<em>${esc(l.description)}</em>` : ''}</span></button>
+        <button class="lecPlay" data-play="${l.id}" aria-label="Play ${esc(l.title)}"><i aria-hidden="true">${w.has(key(l.id)) ? '✓' : isVideo(l.mime) ? '▶' : '📄'}</i>
+          <span><b>${esc(l.title)}</b><small>${esc(l.topic)}${isVideo(l.mime) ? '' : ` · ${l.mime === 'application/pdf' ? 'PDF notes' : l.mime.startsWith('image/') ? 'Image' : 'Text notes'}`}${l.duration != null ? ' · ' + mins(l.duration) : ''} · ${mb(l.size)}${l.author ? ' · ' + esc(l.author) : ''}</small>${l.description ? `<em>${esc(l.description)}</em>` : ''}</span></button>
         ${canEdit() ? `<button class="smallBtn lecDel" data-del="${l.id}" aria-label="Delete ${esc(l.title)}">Delete</button>` : ''}</div>`).join('');
 }
 
@@ -102,7 +106,15 @@ async function play(id: number) {
   stopPlayer();
   const url = await store.src(l);
   playing = { id, url, local: !ctx.online };
-  $('#lecPlayer').innerHTML = `<video controls autoplay playsinline preload="metadata" src="${esc(url)}"></video><div class="lecNow"><b>${esc(l.title)}</b><span>${esc(l.topic)}${l.description ? ' · ' + esc(l.description) : ''}</span></div>`;
+  const now = `<div class="lecNow"><b>${esc(l.title)}</b><span>${esc(l.topic)}${l.description ? ' · ' + esc(l.description) : ''}</span></div>`;
+  if (!isVideo(l.mime)) {
+    // Notes: images and text shown here; PDFs open in a new tab (the server forbids embedding pages in frames).
+    if (l.mime.startsWith('image/')) $('#lecPlayer').innerHTML = `<img class="lecImg" alt="${esc(l.title)}" src="${esc(url)}">${now}`;
+    else if (l.mime === 'application/pdf') $('#lecPlayer').innerHTML = `<div class="lecPdf"><a class="smallBtn solid" href="${esc(url)}" target="_blank" rel="noopener">Open the PDF notes ↗</a></div>${now}`;
+    else { $('#lecPlayer').innerHTML = `<pre class="lecText">Loading…</pre>${now}`; try { ($('#lecPlayer .lecText') as HTMLElement).textContent = await (await fetch(url)).text(); } catch { toast('Could not open these notes'); } }
+    markWatched(id); render(); $('#lecPlayer').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return;
+  }
+  $('#lecPlayer').innerHTML = `<video controls autoplay playsinline preload="metadata" src="${esc(url)}"></video>${now}`;
   const v = $('#lecPlayer video') as HTMLVideoElement;
   v.onerror = () => toast('This browser cannot play this video. Try MP4 (H.264) or WebM.');
   v.ontimeupdate = () => { if (v.duration && v.currentTime / v.duration > 0.9) markWatched(id); };
@@ -114,15 +126,15 @@ async function play(id: number) {
 export async function openLectures() {
   closeLectures();
   const o = document.createElement('div'); o.className = 'overlay'; o.id = 'lectures';
-  o.innerHTML = `<div class="sheet lecSheet" role="dialog" aria-label="Lecture library">
-    <div class="sheetHead"><h2>Lecture library</h2><span class="lecCount" id="lecCount"></span><button class="smallBtn" id="lecClose">Close</button></div>
-    <p class="note" style="padding:0 0 8px">${store.where} Videos from your instructors: watch them between drills.</p>
+  o.innerHTML = `<div class="sheet lecSheet" role="dialog" aria-label="Classroom library">
+    <div class="sheetHead"><h2>Classroom library</h2><span class="lecCount" id="lecCount"></span><button class="smallBtn" id="lecClose">Close</button></div>
+    <p class="note" style="padding:0 0 8px">${store.where} Videos and notes from your instructors, by course: study them between drills.</p>
     <div class="lecPlayer" id="lecPlayer"></div>
     <div class="lecTopics" id="lecTopics"></div>
     <div class="lecList" id="lecList"><p class="note">Loading…</p></div>
-    ${canEdit() ? `<form class="card lecAdd" id="lecAdd"><div class="cardHead"><h3>Add a lecture</h3><span>MP4, WebM or Ogg video</span></div>
+    ${canEdit() ? `<form class="card lecAdd" id="lecAdd"><div class="cardHead"><h3>Add a lecture or notes</h3><span>Video (MP4, WebM, Ogg) or notes (PDF, PNG, JPEG, text)</span></div>
       <div class="edForm"><div class="row">
-        <label>Video file<input type="file" id="lecFile" accept="${TYPES.join(',')}" required></label>
+        <label>File<input type="file" id="lecFile" accept="${TYPES.join(',')},.md,.txt" required></label>
         <label>Title<input id="lecTitle" maxlength="120" required placeholder="e.g. Reading the RF clue"></label>
         <label>Topic<select id="lecTopic">${TOPICS.map((t) => `<option>${esc(t)}</option>`).join('')}</select></label></div>
         <label>Description (optional)<input id="lecDesc" maxlength="1000" placeholder="What the trainee will learn"></label>
@@ -147,11 +159,13 @@ export async function openLectures() {
     e.preventDefault();
     const f = ($('#lecFile') as HTMLInputElement).files?.[0], title = ($('#lecTitle') as HTMLInputElement).value.trim();
     const msg = $('#lecMsg'), prog = $('#lecProg') as HTMLProgressElement, btn = $('#lecSave') as HTMLButtonElement;
-    if (!f || !title) { msg.innerHTML = '<b class="bad">Choose a video and give it a title.</b>'; return; }
-    if (!TYPES.includes(f.type)) { msg.innerHTML = '<b class="bad">Use an MP4, WebM or Ogg video.</b>'; return; }
+    if (!f || !title) { msg.innerHTML = '<b class="bad">Choose a file and give it a title.</b>'; return; }
+    const mime = typeOf(f);
+    if (!TYPES.includes(mime)) { msg.innerHTML = '<b class="bad">Use a video (MP4, WebM, Ogg) or notes (PDF, PNG, JPEG, text).</b>'; return; }
+    const file = mime === f.type ? f : new File([f], f.name, { type: mime });
     btn.disabled = true; prog.hidden = false; prog.value = 0; msg.textContent = 'Uploading…';
     try {
-      await store.add(f, { title, topic: ($('#lecTopic') as HTMLSelectElement).value, description: ($('#lecDesc') as HTMLInputElement).value.trim(), duration: await durationOf(f) }, (p) => (prog.value = p));
+      await store.add(file, { title, topic: ($('#lecTopic') as HTMLSelectElement).value, description: ($('#lecDesc') as HTMLInputElement).value.trim(), duration: isVideo(mime) ? await durationOf(file) : null }, (p) => (prog.value = p));
       form.reset(); msg.innerHTML = '<b class="good">Lecture added ✓</b>'; render();
     } catch (err: any) {
       msg.innerHTML = `<b class="bad">Not added:</b> ${esc(err?.name === 'QuotaExceededError' ? 'this browser has no room left for the video. Free up space or use the unit server.' : err?.message || 'unknown error')}`;
