@@ -10,3 +10,5 @@ deploy/certs/
 data/
 deploy/secrets/
 *.pem
+vercel-out/
+.vercel/
