@@ -671,3 +671,4 @@ body.gunOn{overflow:hidden}
 .lecImg{display:block;max-width:100%;max-height:60vh;margin:0 auto;border-radius:6px;background:#000}
 .lecPdf{padding:18px;border:1px dashed var(--rule);border-radius:6px;text-align:center}
 .lecText{max-height:55vh;overflow:auto;white-space:pre-wrap;background:var(--card2);border:1px solid var(--rule);border-radius:6px;padding:12px;font:14px/1.5 var(--body)}
+.idGrid .nbtn.unk{border-style:dashed}

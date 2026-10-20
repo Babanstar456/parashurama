@@ -10,6 +10,9 @@ import { radarChart } from './charts';
 import { toast } from './toast';
 
 const fmt = fmtTime;
+// Threat type of an identification, including the operator's explicit "Unknown".
+const TY=(k:any):any=>TYPES[k]||{label:'Unknown',short:'Unknown',hostile:false,friendly:false,rfOn:false,gnss:false};
+const isUnk=(k:any)=>k==='unknown';
 // ---- extension points: feature modules subscribe here instead of editing this file ----
 type Handler = (arg?: any) => void;
 const listeners: Record<string, Handler[]> = {};
@@ -38,10 +41,11 @@ function renderBrief(){
   $('#drillNo').textContent='DRILL '+String(c.drill).padStart(2,'0');
   $('#drillWhen').innerHTML=`Built for ${TRAINEE.name}<br>Seed ${c.seed}`;
   const tested=plan.tests.join(' ');
-  const cards=[['Time',c.time==='night'?'Night':'Day',c.time==='night'],['Terrain',cap(c.terrain),false],['Sensors',c.fault==='radar'?`Radar fault ${ABBR[windOf(c.faultSector)]}`:FAULT_LABEL[c.fault],c.fault!=='none'],['Weather',WEATHER_LABEL[c.weather||'clear'],(c.weather||'clear')!=='clear'],['Attack',c.pattern==='swarm'?'Swarm raid':'Mixed raid',c.pattern==='swarm'],...(c.ewRestricted?[['Spectrum','EW-restricted area',true]]:[]),...((c.roe||'free')!=='free'?[['ROE',c.roe==='peacetime'?'Peacetime: clear every shot':'Tight: clear kinetic shots',true]]:[])];
+  const cards=[['Time',c.time==='night'?'Night':'Day',c.time==='night'],['Terrain',cap(c.terrain),false],['Sensors',c.fault==='radar'?`Radar fault ${ABBR[windOf(c.faultSector)]}`:FAULT_LABEL[c.fault],c.fault!=='none'],['Weather',WEATHER_LABEL[c.weather||'clear'],(c.weather||'clear')!=='clear'],['Attack',c.pattern==='swarm'?'Swarm raid':'Mixed raid',c.pattern==='swarm'],...(c.wcs?[['Weapons',{hold:'HOLD (self-defence)',tight:'TIGHT (hostile ID only)',free:'FREE'}[c.wcs],c.wcs!=='free']]:[]),...(c.safeArcs?[['Safe arc',c.safeArcs.map(([x,y])=>`${String(x).padStart(3,'0')}–${String(y).padStart(3,'0')}°`).join(', '),true]]:[]),...(c.killAssess?[['Kill reports','Report every kill (K)',false]]:[]),...(c.ewRestricted?[['Spectrum','EW-restricted area',true]]:[]),...((c.roe||'free')!=='free'?[['ROE',c.roe==='peacetime'?'Peacetime: clear every shot':'Tight: clear kinetic shots',true]]:[])];
   $('#conds').innerHTML=cards.map(([k,v,h])=>`<div class="cond ${h?'hot':''}"><small>${k}</small><b>${v}</b></div>`).join('');
   const sp=buildScenario(c);const nh=sp.filter(x=>TYPES[x.type].hostile).length;
-  $('#expect').innerHTML=`<span>Expected hostiles <b>${Math.max(1,nh-1)}–${nh+2}</b></span><span>Difficulty <b>${c.difficulty} / 6</b></span><span>About <b>2½ min</b></span>`;
+  const own=sp.filter(x=>TYPES[x.type].friendly);
+  $('#expect').innerHTML=`<span>Expected hostiles <b>${Math.max(1,nh-1)}–${nh+2}</b></span><span>Difficulty <b>${c.difficulty} / 6</b></span><span>About <b>2½ min</b></span>${own.length?`<span>Own UAV schedule <b>${own.map(x=>`${TYPES[x.type].short} T+${Math.round(x.t)} s from ${String(Math.round(x.brg)).padStart(3,'0')}°`).join('; ')}</b></span>`:''}`;
   $('#intentSub').textContent=DB.H.length?`Built from your last ${Math.min(5,DB.H.length)} drills`:'Starts after your first drill';
   $('#intentList').innerHTML=plan.lines.map((l,i)=>`<li><i>${i+1}</i><span><b>${l.b}</b>${l.t}</span></li>`).join('');
   $('#tests').innerHTML=`<b>This drill tests:</b> ${plan.tests.join(', ')}.`;
@@ -69,7 +73,7 @@ function startDrill(fromTour,opts:any={}){
 function sizeRadar(){const w=$('#radarWrap');const side=Math.max(320,Math.min(w.clientWidth-28,w.clientHeight-28));rc.style.width=side+'px';rc.style.height=side+'px';}
 function act(a){a.tick=L.tick;live.queue.push(a);live.actions.push(a);}
 function doTrack(c){if((live.did[c.id]||{}).track)return;live.did[c.id]={...(live.did[c.id]||{}),track:true};if(!live.labels[c.id])live.labels[c.id]='T'+String(++live.nLab).padStart(2,'0');act({k:'track',cid:c.id});emit('act',{k:'track',c});}
-function doId(c,cls,conf){const d=live.did[c.id]||{};if(d.id)return;live.did[c.id]={...d,id:{cls,conf}};act({k:'id',cid:c.id,cls,conf});emit('act',{k:'id',c,cls,conf});}
+function doId(c,cls,conf){const d=live.did[c.id]||{};if(d.id&&!(isUnk(d.id.cls)&&!isUnk(cls)))return;live.did[c.id]={...d,id:{cls,conf}};act({k:'id',cid:c.id,cls,conf});emit('act',{k:'id',c,cls,conf});}
 // A shot that could work but missed (effector pk < 1): tell the trainee once, so they engage again.
 const missSeen=new WeakSet();
 function noteMisses(){for(const c of L.contacts){const e=c.engs[c.engs.length-1];if(e&&e.miss&&!missSeen.has(e)){missSeen.add(e);toast(`MISS: ${EFF[e.eff].label} on ${live.labels[c.id]||'contact'}. Engage again.`);}}}
@@ -96,6 +100,8 @@ function drawRadar(){
   if(live.cfg.terrain==='urban'){for(let i=0;i<120;i++){ctx.strokeRect(tr()*1000,tr()*1000,6+tr()*20,6+tr()*14);}}else{for(let i=0;i<14;i++){ctx.beginPath();ctx.ellipse(tr()*1000,tr()*1000,30+tr()*70,20+tr()*40,tr()*3,0,7);ctx.stroke();}}
   if(live.cfg.fault==='radar'){const a0=(live.cfg.faultSector-30-90)*Math.PI/180,a1=(live.cfg.faultSector+30-90)*Math.PI/180;ctx.fillStyle='rgba(242,201,76,0.07)';ctx.beginPath();ctx.moveTo(C0,C0);ctx.arc(C0,C0,R0,a0,a1);ctx.closePath();ctx.fill();
     const am=(live.cfg.faultSector-90)*Math.PI/180;ctx.fillStyle='rgba(242,201,76,0.7)';ctx.font=`600 19px ${cond}`;ctx.textAlign='center';ctx.fillText('RADAR FAULT',C0+Math.cos(am)*R0*0.62,C0+Math.sin(am)*R0*0.62);ctx.textAlign='left';}
+  for(const [a,b] of live.cfg.safeArcs||[]){const a0=(a-90)*Math.PI/180,a1=((b<a?b+360:b)-90)*Math.PI/180;ctx.fillStyle='rgba(255,92,97,0.10)';ctx.beginPath();ctx.moveTo(C0,C0);ctx.arc(C0,C0,R0,a0,a1);ctx.closePath();ctx.fill();
+    const am=(a0+a1)/2;ctx.fillStyle='rgba(255,140,140,0.8)';ctx.font=`600 17px ${cond}`;ctx.textAlign='center';ctx.fillText('SAFE ARC · NO GUN',C0+Math.cos(am)*R0*0.78,C0+Math.sin(am)*R0*0.78);ctx.textAlign='left';}
   drawWeatherScope(ctx,cond);
   const sw=(L.tick*DT/SWEEP*360)%360;for(let i=0;i<36;i++){const a=(sw-i*1.1-90)*Math.PI/180;ctx.strokeStyle=`rgba(63,167,150,${0.32*(1-i/36)})`;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(C0,C0);ctx.lineTo(C0+Math.cos(a)*R0,C0+Math.sin(a)*R0);ctx.stroke();}
   ctx.restore();
@@ -153,12 +159,13 @@ function renderRail(force=false){
   const blips=L.contacts.filter(c=>c.trackTick==null&&!(live.did[c.id]||{}).track&&visibleBlip(L,c)).length;
   $('#ccount').textContent=`${tracked.filter(c=>c.state==='live').length} tracked · ${blips} unknown blip${blips===1?'':'s'}`;
   const order=tracked.slice().sort((a,b)=>(a.state==='live'?0:1)-(b.state==='live'?0:1)||tti(a)-tti(b));
+  const ranked=order.filter(c=>c.state==='live'&&isFinite(tti(c)));
   $('#contacts').innerHTML=order.map(c=>{
     const kind=contactKind(c),col=KCOL(kind);const d=live.did[c.id]||{};const cls=c.idCls||(d.id&&d.id.cls);const tt=tti(c);
     const st=c.state==='neutralised'?'Neutralised':c.state==='leaked'?'Reached asset':!cls?'Identify':c.effectAt!=null?'Engaging':(c.engs.length&&c.engs[0].eff==='hold'?'Holding':'Decide');
     const w=c.state==='live'?windows(c):null;
     const win=!w?'':(isFinite(tt)||Object.values(w).some(Boolean))?`<div class="win"><div class="wbox">${EFF_ORDER.map((k,i)=>w[k]?`<i style="top:${2+i*4}px;left:${w[k][0]/60*100}%;width:${Math.max(1.5,(w[k][1]-w[k][0])/60*100)}%;background:var(${EFF[k].color})"></i>`:'').join('')}${isFinite(tt)&&tt<60?`<b style="left:${tt/60*100}%"></b>`:''}</div></div>`:`<div class="wnote">Not closing on the asset</div>`;
-    return `<div class="ccard ${live.sel===c.id?'sel':''} ${c.state!=='live'?'done':''}" data-id="${c.id}">${symSvg(kind,col,kind==='unknown')}<div class="nm">${live.labels[c.id]||'—'}<small>${cls?TYPES[cls].short:'Unknown'}</small></div><div class="tt">${c.state!=='live'?st:isFinite(tt)?`<b class="num ${tt<15?'urgent':''}">${Math.round(tt)} s</b> to impact`:`<b>${(Math.hypot(c.x,c.y)/1000).toFixed(1)} km</b>`}<br><span style="font-size:12.5px">${c.state==='live'?st:''}</span></div>${win}</div>`;}).join('')||'<div class="empty">No tracks yet. Click a yellow blip on the radar.</div>';
+    return `<div class="ccard ${live.sel===c.id?'sel':''} ${c.state!=='live'?'done':''}" data-id="${c.id}">${symSvg(kind,col,kind==='unknown')}<div class="nm">${live.labels[c.id]||'—'}<small>${cls?TY(cls).short:'Unknown'}${ranked.includes(c)?` · <b title="Rank by time to the asset">#${ranked.indexOf(c)+1}</b>`:''}</small></div><div class="tt">${c.state!=='live'?st:isFinite(tt)?`<b class="num ${tt<15?'urgent':''}">${Math.round(tt)} s</b> to impact`:`<b>${(Math.hypot(c.x,c.y)/1000).toFixed(1)} km</b>`}<br><span style="font-size:12.5px">${c.state==='live'?st:''}</span></div>${win}</div>`;}).join('')||'<div class="empty">No tracks yet. Click a yellow blip on the radar.</div>';
   $('#clock').textContent=fmt(L.tick*DT);
   $('#left').textContent=L.contacts.filter(c=>TYPES[c.type].hostile&&c.state==='live').length+(L.spawns.slice(L.next).filter(s=>TYPES[s.type].hostile).length);
   renderClues(force);
@@ -188,11 +195,11 @@ function renderClues(force){
   $('#selSub').textContent=c.state==='live'?`${(Math.hypot(c.x,c.y)/1000).toFixed(2)} km · ${String(Math.round(brgOf(c.x,c.y))).padStart(3,'0')}°`:'';
   if(sig!==live.sig||force){
     const prevOk=(live.sig.split('|')[2]||'');live.sig=sig;
-    $('#selTitle').textContent=`${live.labels[c.id]||'—'} · ${cls?TYPES[cls].label:'Unknown contact'}`;
+    $('#selTitle').textContent=`${live.labels[c.id]||'—'} · ${cls?TY(cls).label:'Unknown contact'}`;
     $('#selMeta').textContent=cls?'Identification locked.':'Clues arrive over a few seconds. Commit when you are sure enough.';
     $('#clues').innerHTML=cl.map((x,i)=>`<div class="clue ${x.ok?'':'wait'} ${x.ok&&prevOk[i]==='0'?'fresh':''}"><div class="k">${x.k}</div><div>${x.cam?(x.ok?`<canvas id="eo" width="264" height="176"></canvas><div class="v" style="font-size:12.5px;color:var(--nm);margin-top:3px">${x.v}</div>`:`<div class="v">${x.v}</div>`):`<div class="v">${x.ok?x.v:x.wait||'arriving…'}</div>${x.ok||x.wait?'':`<div class="prog"><i data-at="${x.at}" style="width:0%"></i></div>`}`}</div></div>`).join('');
-    if(cls){$('#idBody').innerHTML=`<div class="locked">Identified as <b style="color:${KCOL(kindOfCls(cls))}">${TYPES[cls].label}</b> · ${confLabel(conf)}</div>`;}
-    else{$('#idBody').innerHTML=`<div class="idGrid">${ORDER.map((k,i)=>`<button class="nbtn ${live.pick.cls===k?'pick':''}" data-cls="${k}">${TYPES[k].short}${i<10?`<small>${(i+1)%10}</small>`:''}</button>`).join('')}</div><div class="confRow">${CONF.map(x=>`<button class="nbtn ${live.pick.conf===x.p?'pick':''}" data-conf="${x.p}">${x.label}<small>${x.key} · ${Math.round(x.p*100)}%</small></button>`).join('')}</div><button class="commit" id="commitBtn" ${live.pick.cls&&live.pick.conf?'':'disabled'}>Commit identification <kbd>Enter</kbd></button>`;}
+    if(cls&&!isUnk(cls)){$('#idBody').innerHTML=`<div class="locked">Identified as <b style="color:${KCOL(kindOfCls(cls))}">${TY(cls).label}</b> · ${confLabel(conf)}</div>`;}
+    else{$('#idBody').innerHTML=`${isUnk(cls)?'<div class="locked" style="margin-bottom:8px">Declared <b>Unknown</b>. Identify it as soon as the clues allow.</div>':''}<div class="idGrid">${ORDER.map((k,i)=>`<button class="nbtn ${live.pick.cls===k?'pick':''}" data-cls="${k}">${TYPES[k].short}${i<10?`<small>${(i+1)%10}</small>`:''}</button>`).join('')}${isUnk(cls)?'':`<button class="nbtn unk ${live.pick.cls==='unknown'?'pick':''}" data-cls="unknown">Unknown<small>U</small></button>`}</div><div class="confRow">${CONF.map(x=>`<button class="nbtn ${live.pick.conf===x.p?'pick':''}" data-conf="${x.p}">${x.label}<small>${x.key} · ${Math.round(x.p*100)}%</small></button>`).join('')}</div><button class="commit" id="commitBtn" ${live.pick.cls&&live.pick.conf?'':'disabled'}>Commit identification <kbd>Enter</kbd></button>`;}
   }
   if(c.trackTick!=null){const since=(L.tick-c.trackTick)*DT;$$('#clues .prog i').forEach(el=>{el.style.width=clamp(since/(+el.dataset.at)*100,0,100)+'%';});}
   renderDef(c,cls);
@@ -202,10 +209,10 @@ function renderDef(c,cls){
   const last=c.engs[c.engs.length-1];
   const av=EFF_ORDER.map(k=>availability(c,k));
   const clrLeft=c.clrAt!=null?Math.ceil(Math.max(0,(c.clrAt-L.tick)*DT)):'';
-  const dsig=[c.id,cls,c.state,c.effectAt,c.engs.length,av.map(a=>a.txt).join(','),JSON.stringify(L.stock),c.clrReq,d.req,clrLeft].join('|');
+  const dsig=[c.id,cls,c.state,c.bdaTick,d.bda,c.effectAt,c.engs.length,av.map(a=>a.txt).join(','),JSON.stringify(L.stock),c.clrReq,d.req,clrLeft].join('|');
   if(dsig===live.defSig)return;live.defSig=dsig;
   if(!cls){$('#defBody').innerHTML='<div class="empty" style="padding:2px 0 8px">Identify first.</div>';return;}
-  if(c.state==='neutralised'){$('#defBody').innerHTML=`<div class="locked" style="border-color:var(--nn)">Neutralised by <b>${EFF[c.effectBy].label}</b>.</div>`;return;}
+  if(c.state==='neutralised'){const ka=L.cfg.killAssess&&TY(cls).hostile&&c.bdaTick==null&&!d.bda;$('#defBody').innerHTML=`<div class="locked" style="border-color:var(--nn)">Neutralised by <b>${EFF[c.effectBy].label}</b>.${c.bdaTick!=null||d.bda?' Kill reported ✓':''}</div>${ka?`<div class="clrRow"><button class="nbtn" data-act="bda"><span>${TY(c.type).payload?'Confirm kill · mark crash site for EOD':'Confirm kill and report'}<small>Kill assessment</small></span><kbd>K</kbd></button></div>`:''}`;return;}
   if(c.state==='leaked'){$('#defBody').innerHTML='<div class="locked" style="border-color:var(--nh)">Reached the protected asset.</div>';return;}
   let note='';
   if(c.effectAt!=null)note=`<div class="locked" style="margin-bottom:8px">${EFF[c.effectBy].label} sent. Effect in ${Math.max(0,(c.effectAt-L.tick)*DT).toFixed(1)} s.</div>`;
@@ -213,7 +220,7 @@ function renderDef(c,cls){
   else if(last&&last.eff!=='hold'&&!last.effective)note=`<div class="locked" style="margin-bottom:8px;border-color:var(--nh)">${EFF[last.eff].label}: <b>no effect</b>. It is still coming. Choose again.</div>`;
   else if(last&&last.eff==='hold')note=`<div class="locked" style="margin-bottom:8px">Holding fire. Keep watching it.</div>`;
   // Rules of engagement: some effectors need clearance first (key C). Firing without it still works but costs R12.
-  const need=TYPES[cls]?.hostile?EFF_ORDER.filter(k=>needsClearance(L,k)):[];
+  const need=TY(cls).hostile||isUnk(cls)?EFF_ORDER.filter(k=>needsClearance(L,k)):[];
   if(need.length&&c.effectAt==null){
     if(c.clrReq==null&&!d.req)note+=`<div class="clrRow"><button class="nbtn" data-act="req"><span>Request clearance<small>${L.cfg.roe} ROE: ${need.map(k=>EFF[k].label).join(', ')} need clearance</small></span><kbd>C</kbd></button></div>`;
     else if(c.clrAt==null||L.tick<c.clrAt)note+=`<div class="locked" style="margin-bottom:8px">Clearance requested. Cleared in ${clrLeft===''?'…':clrLeft+' s'}.</div>`;
@@ -238,9 +245,10 @@ function drawEO(){
   ctx.strokeStyle='rgba(255,255,255,0.55)';ctx.lineWidth=1.5;ctx.beginPath();[[-1,0],[1,0],[0,-1],[0,1]].forEach(([a,b])=>{ctx.moveTo(W/2+a*8,H/2+b*8);ctx.lineTo(W/2+a*20,H/2+b*20);});ctx.stroke();
 }
 $('#contacts').addEventListener('click',e=>{const el=e.target.closest('.ccard');if(el)select(+el.dataset.id);});
-$('#idBody').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.disabled)return;if(b.dataset.cls){live.pick.cls=b.dataset.cls;live.sig='';renderRail();}else if(b.dataset.conf){live.pick.conf=+b.dataset.conf;live.sig='';renderRail();}else if(b.id==='commitBtn')commitId();});
-$('#defBody').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.disabled)return;if(b.dataset.act==='req'){reqSel();return;}engageSel(b.dataset.eff);});
-function reqSel(){const c=selC();if(!c)return;const d=live.did[c.id]||{};const cls=c.idCls||(d.id&&d.id.cls);if(!cls||d.req||c.clrReq!=null||!TYPES[cls].hostile)return;doReq(c);live.defSig='';setTimeout(()=>renderRail(true),120);}
+$('#idBody').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.disabled)return;if(b.dataset.cls){live.pick.cls=b.dataset.cls;if(isUnk(b.dataset.cls))live.pick.conf=CONF[0].p;live.sig='';renderRail();}else if(b.dataset.conf){live.pick.conf=+b.dataset.conf;live.sig='';renderRail();}else if(b.id==='commitBtn')commitId();});
+$('#defBody').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.disabled)return;if(b.dataset.act==='req'){reqSel();return;}if(b.dataset.act==='bda'){confirmKill();return;}engageSel(b.dataset.eff);});
+function reqSel(){const c=selC();if(!c)return;const d=live.did[c.id]||{};const cls=c.idCls||(d.id&&d.id.cls);if(!cls||d.req||c.clrReq!=null||!TY(cls).hostile)return;doReq(c);live.defSig='';setTimeout(()=>renderRail(true),120);}
+function confirmKill(){const c=selC();if(!c||c.state!=='neutralised'||!L.cfg.killAssess)return;const d=live.did[c.id]||{};if(d.bda||c.bdaTick!=null)return;live.did[c.id]={...d,bda:true};act({k:'bda',cid:c.id,out:'destroyed'});live.defSig='';toast(`${live.labels[c.id]||'Contact'}: kill reported${TY(c.type).payload?'; crash site marked for EOD':''}`);setTimeout(()=>renderRail(true),120);}
 function commitId(){const c=selC();if(!c||!live.pick.cls||!live.pick.conf||c.trackTick==null)return;doId(c,live.pick.cls,live.pick.conf);live.sig='';renderRail(true);}
 function engageSel(eff){const c=selC();if(!c)return;const d=live.did[c.id]||{};if(!(c.idCls||d.id))return;if(eff!=='hold'&&!availability(c,eff).ok)return;if(eff==='hold'&&(c.engs.length||c.effectAt!=null))return;doEng(c,eff);live.defSig='';setTimeout(()=>renderRail(true),120);}
 function accumulate(){if(live.pointer!=null)live.attn[live.pointer]+=DT;else{const c=selC();if(c&&c.state==='live')live.attn[sectorOf(brgOf(c.x,c.y))]+=DT*0.5;}}
@@ -294,7 +302,7 @@ function renderLearn(){
   const les=losses.filter(x=>x.loss>8).slice(0,3).map(({s,lD,lC,lF})=>{
     const Ty=TYPES[s.c.type],lab=labelOf(s.c);
     if(s.missed)return{h:`${lab === 'Missed'?'A hostile':lab} was never tracked`,p:`A ${Ty.label.toLowerCase()} came from the ${windOf(s.c.brg0)} and ${s.c.state==='leaked'?'reached the asset':'was never challenged'}.`,r:'R8'};
-    if(lC>=lD&&lC>=lF&&s.src.idCls&&s.src.idCls!==s.c.type)return{h:`${lab}: called it a ${TYPES[s.src.idCls].short.toLowerCase()}; it was a ${Ty.label.toLowerCase()}`,p:`You said ${confLabel(s.src.idConf)}. The deciding clue: ${TYPES[s.c.type].deciding}.`,r:'C1'};
+    if(lC>=lD&&lC>=lF&&s.src.idCls&&s.src.idCls!==s.c.type)return{h:`${lab}: called it a ${TY(s.src.idCls).short.toLowerCase()}; it was a ${Ty.label.toLowerCase()}`,p:`You said ${confLabel(s.src.idConf)}. The deciding clue: ${TYPES[s.c.type].deciding}.`,r:'C1'};
     if(lD>=lF)return{h:`${lab}: ${s.det.toFixed(1)} s to start the track`,p:`It was on radar for ${s.det.toFixed(1)} s before you tracked it. Full marks need under 3 s.`,r:'D1'};
     const rr=s.rules.filter(x=>x[0]==='R');return{h:`${lab}: ${s.why[0]}`,p:`Right first call for a ${Ty.label.toLowerCase()}: ${bestCall(s.c.type)}.${s.why.length>1?' '+s.why.slice(1).join('. ')+'.':''}`,r:rr[rr.length-1]||'R3'};
   });
@@ -310,7 +318,7 @@ function renderLearn(){
   $('#fpCap').innerHTML=`Biggest gain: <b>${diffs[0][0]}</b> (${diffs[0][1]>=0?'+':''}${Math.round(diffs[0][1]*100)} pts). Weakest now: <b>${weakest[0]}</b> (${Math.round(weakest[1]*100)}%). Dashed = before this drill.`;
   // audit
   $('#audit').innerHTML=`<tr><th>Track</th><th>Truth</th><th>You said</th><th>You did</th><th style="text-align:right">Detect</th><th style="text-align:right">Identify</th><th style="text-align:right">Defeat</th><th style="text-align:right">Total</th><th>Rules</th><th>Why</th></tr>`+
-    R.sc.map(s=>{const Ty=TYPES[s.c.type];const said=s.src.idCls?`${TYPES[s.src.idCls].short} · ${confLabel(s.src.idConf)}`:'—';const did=s.e0?(s.e0.eff==='hold'?'Hold':EFF[s.e0.eff].label):'—';const cl=v=>v>=75?'good':v>=50?'mid':'bad';
+    R.sc.map(s=>{const Ty=TYPES[s.c.type];const said=s.src.idCls?`${TY(s.src.idCls).short} · ${confLabel(s.src.idConf)}`:'—';const did=s.e0?(s.e0.eff==='hold'?'Hold':EFF[s.e0.eff].label):'—';const cl=v=>v>=75?'good':v>=50?'mid':'bad';
       return `<tr><td><b>${labelOf(s.c)}</b></td><td>${Ty.label}</td><td class="${s.src.idCls&&s.src.idCls!==s.c.type?'bad':''}">${said}</td><td>${did}${s.src!==s.c||s.c.areaCredit?' (area)':''}</td><td class="n">${s.D}</td><td class="n">${s.C}</td><td class="n">${s.F}</td><td class="n ${cl(s.total)}">${s.total}</td><td>${s.rules.map(r=>`<span class="chip" title="${RULES[r]}">${r}</span>`).join('')}</td><td>${s.why.join('. ')}</td></tr>`;}).join('');
   $('#integrity').innerHTML=`<span>Record: <b>${R.acts.length} decisions</b></span><span>Deterministic replay: <b class="${R.verified?'good':'bad'}">${R.verified?'verified, same score on re-run':'mismatch'}</b></span><span id="hashOut">SHA-256 chain: computing…</span>`;
   chainHash(R.acts).then(h=>{$('#hashOut').innerHTML=`SHA-256 chain: <b>${h.slice(0,10)}…${h.slice(-6)}</b> (each decision is linked to the one before)`;});
@@ -473,7 +481,9 @@ addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();
   if(e.key===' '){e.preventDefault();togglePause();return;}
   if(e.key==='Tab'){e.preventDefault();const lst=L.contacts.filter(c=>c.state==='live'&&(c.trackTick!=null||(live.did[c.id]||{}).track)).sort((a,b)=>tti(a)-tti(b));if(lst.length){const i=lst.findIndex(c=>c.id===live.sel);select(lst[(i+1)%lst.length].id);}return;}
-  const c=selC();if(!c)return;const identified=c.idCls||(live.did[c.id]||{}).id;
+  const c=selC();if(!c)return;const idc=c.idCls||((live.did[c.id]||{}).id||{}).cls;const identified=idc&&!isUnk(idc);
+  if(k==='k'){confirmKill();return;}
+  if(!identified&&!idc&&k==='u'){live.pick.cls='unknown';live.pick.conf=CONF[0].p;live.sig='';renderRail();return;}
   if(!identified){if(k>='0'&&k<='9'&&ORDER[(+k+9)%10]){live.pick.cls=ORDER[(+k+9)%10];live.sig='';renderRail();return;}const cf=CONF.find(x=>x.key.toLowerCase()===k);if(cf){live.pick.conf=cf.p;live.sig='';renderRail();return;}if(e.key==='Enter'){commitId();return;}}
   else{const ef=EFF_ORDER.find(x=>EFF[x].key.toLowerCase()===k);if(ef){engageSel(ef);return;}if(k==='c'){reqSel();return;}if(k==='h')engageSel('hold');}
 });
@@ -481,13 +491,14 @@ $('#beginBtn').onclick=()=>{if(tour.on&&TOUR[tour.i].p==='brief'){tour.i=TOUR.fi
 
 // ---- scripted trainee, used for the walkthrough video and screenshots ----
 function botActs(skipRecentSec=0){
+  if(L.cfg.killAssess)for(const c of L.contacts){const d=live.did[c.id]||{};if(c.state==='neutralised'&&c.bdaTick==null&&!d.bda&&TYPES[c.type].hostile&&c.endTick!=null&&L.tick>=c.endTick+T(1.5)){live.did[c.id]={...d,bda:true};act({k:'bda',cid:c.id,out:'destroyed'});}}
   for(const c of L.contacts){if(c.state!=='live')continue;const d=live.did[c.id]||{};
     if(c.trackTick==null&&!d.track){if(c.firstPaint!=null&&!c.area&&c.effectAt==null&&visibleBlip(L,c)&&L.tick>=c.firstPaint+T(1.5+(c.id%5)*0.9))doTrack(c);continue;}
     if(c.trackTick==null)continue;
     if(skipRecentSec&&L.tick-c.trackTick<T(skipRecentSec))continue;
     if(c.idTick==null&&!d.id){if(L.tick>=c.trackTick+T(3+(c.id%3)*1.5)){let cls=c.type,conf=[0.8,0.95,0.6][c.id%3];if(c.type==='loiter'&&c.id%3===0){cls='recon';conf=0.95;}if(c.type==='bird'&&c.id%2===1){cls='swarm';conf=0.6;}doId(c,cls,conf);}continue;}
     if(c.idTick==null||c.effectAt!=null)continue;
-    const Tb=TYPES[c.idCls];const last=c.engs[c.engs.length-1];
+    const Tb=TY(c.idCls);const last=c.engs[c.engs.length-1];
     if(!Tb.hostile){if(!c.engs.length)doEng(c,'hold');continue;}
     if(last&&L.tick<last.tick+T(4))continue;if(L.tick<c.idTick+T(2+(c.id%4)))continue;
     if(c.clrReq==null&&EFF_ORDER.some(k=>needsClearance(L,k))){if(!d.req)doReq(c);continue;}

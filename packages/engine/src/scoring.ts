@@ -1,5 +1,5 @@
 import { decisionClass, isEffective } from './config';
-import type { Contact, Engagement, Engine } from './types';
+import { UNKNOWN, type Contact, type Engagement, type Engine } from './types';
 import { avg, clamp } from './util';
 
 export interface ContactScore {
@@ -15,6 +15,7 @@ const REASON = { rfLinked: 'Radio link present', gnssOnly: 'No radio link, GNSS-
 /** After the first engagement missed, was a real (non-hold) engagement tried again? */
 const reengaged = (c: Contact) => c.engs.slice(1).some((e) => e.eff !== 'hold');
 
+const inArc = (arcs: [number, number][], b: number) => arcs.some(([a, z]) => { const x = ((b % 360) + 360) % 360; return a <= z ? x >= a && x <= z : x >= a || x <= z; });
 /** Score every contact against doctrine. Every point is traceable to a rule id in doctrine.json. */
 export function scoreRun(E: Engine): ContactScore[] {
   const out: ContactScore[] = [];
@@ -40,10 +41,11 @@ export function scoreRun(E: Engine): ContactScore[] {
     // of the drone you engaged (you correctly treated the group as one threat).
     const idSrc = !src.idCls && c.area && c.areaFrom != null ? E.contacts.find((o) => o.id === c.areaFrom) ?? src : src;
     const p = idSrc.idConf ?? 0;
-    if (idSrc.idCls) {
+    if (idSrc.idCls === UNKNOWN) Cs = I.unknown ?? 10;
+    else if (idSrc.idCls) {
       Cs = idSrc.idCls === c.type
         ? Math.round(I.correctBase + I.correctPerConfidence * p)
-        : Math.round(I.wrongPerUnconfidence * (1 - p) + (E.C.threats.threats[idSrc.idCls].hostile === Ty.hostile ? I.friendFoeBonus : 0));
+        : Math.round(I.wrongPerUnconfidence * (1 - p) + (E.C.threats.threats[idSrc.idCls]?.hostile === Ty.hostile ? I.friendFoeBonus : 0));
     }
     // Fairness note (no points): say which clue was down because of a sensor fault when it was identified.
     const av = idSrc.idAvail, notes: string[] = [];
@@ -92,6 +94,20 @@ export function scoreRun(E: Engine): ContactScore[] {
       if (E.cfg.ewRestricted && EF[e0.eff]?.ewCollateral && !e0.cleared) { const m = M.ewRestricted ?? -10; F = Math.max(0, F + m); rules.push('R11'); why.push(`${EF[e0.eff].label} in an EW-restricted area without clearance ${m}`); }
       if (e0.cleared === false) { const m = M.unauthorised ?? -40; F = Math.max(0, F + m); rules.push('R12'); why.push(`${EF[e0.eff].label} fired without clearance under ${E.cfg.roe} ROE ${m}`); }
       if (e0.miss && c.state !== 'neutralised' && !reengaged(src)) { const m = M.missNotReengaged ?? -10; F = Math.max(0, F + m); rules.push('R10'); why.push(`${EF[e0.eff].label} missed and it was not engaged again ${m}`); }
+    }
+    // R13 Weapon Control Status, R14 safe arcs: only in drills that set them.
+    const w = E.cfg.wcs;
+    if (w && e0 && e0.eff !== 'hold' && !Ty.friendly) {
+      const m = M.wcs ?? -20, idc = idSrc.idCls, posHostile = !!idc && idc !== UNKNOWN && E.C.threats.threats[idc]?.hostile;
+      if (w === 'tight' && !posHostile) { F = Math.max(0, F + m); rules.push('R13'); why.push(`Engaged under WEAPONS TIGHT without a positive hostile identification ${m}`); }
+      if (w === 'hold' && isFinite(e0.tti) && e0.tti > (M.selfDefenceSec ?? 20) && e0.cleared !== true) { F = Math.max(0, F + m); rules.push('R13'); why.push(`Engaged under WEAPONS HOLD with ${Math.round(e0.tti)} s to impact: not self-defence ${m}`); }
+      if (w === 'hold' && !isFinite(e0.tti) && e0.cleared !== true) { F = Math.max(0, F + m); rules.push('R13'); why.push(`Engaged under WEAPONS HOLD with no threat to the asset ${m}`); }
+    }
+    if (E.cfg.safeArcs && e0 && e0.brg != null && EF[e0.eff]?.collateralUrban && inArc(E.cfg.safeArcs, e0.brg)) { const m = M.safeArc ?? -20; F = Math.max(0, F + m); rules.push('R14'); why.push(`${EF[e0.eff].label} fired into a safe arc ${m}`); }
+    // R15 kill assessment: a neutralised hostile must be assessed and reported (and a payload drone's crash site marked).
+    if (E.cfg.killAssess && Ty.hostile && c.state === 'neutralised' && c.trackTick != null) {
+      const late = c.bdaTick == null || (c.bdaTick - (c.endTick ?? c.bdaTick)) * dt > (M.killAssessSec ?? 10);
+      if (late) { const m = M.killAssess ?? -5; F = Math.max(0, F + m); rules.push('R15'); why.push(`${Ty.payload ? 'Crash site not marked for EOD (it may still carry its payload)' : 'Kill not assessed and reported'} ${m}`); }
     }
     out.push({ c, src, D, C: Cs, F, Fbase, e0, total: D + Cs + F, missed: false, rules, why: [...why, ...notes], det, ...(notes.length ? { sensorDown: true } : {}) });
   }

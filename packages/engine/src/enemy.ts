@@ -60,6 +60,14 @@ export function planNext(H: SessionRecord[], C: Config = getConfig(), opts: Plan
   if (m.calib < 0.6) cfg.focus.decoy = true;
   const avg3 = avg(H.slice(-3).map((s) => s.total));
   cfg.difficulty = clamp(3 + (avg3 > 82 ? 1 : 0) - (avg3 < 55 ? 1 : 0) + Math.floor(H.length / 4), 1, 6);
+  // Control measures (own random stream, so the conditions above are unchanged): kill assessment from the second drill,
+  // and from level 3 a Weapon Control Status and sometimes a safe arc away from the sector under test.
+  const q = mulberry(seed ^ 0xadc0);
+  cfg.killAssess = true;
+  if (cfg.difficulty >= 3) {
+    const x = q(); cfg.wcs = x < 0.2 ? 'hold' : x < 0.35 ? 'free' : 'tight';
+    if (q() < 0.3) { const a = Math.round((cfg.focus.sector ?? 0) + 120 + q() * 120) % 360; cfg.safeArcs = [[a, (a + 40) % 360]]; }
+  }
   const top = C.doctrine.confidence[C.doctrine.confidence.length - 1];
   const lines: IntelLine[] = [];
   lines.push({ b: `You gave the ${windOf(cfg.focus.sector)} ${Math.max(1, Math.round(share[ng] * 100))}% of your attention`, t: ` across your last ${last.length} drills, the least of any sector.` });
@@ -71,5 +79,7 @@ export function planNext(H: SessionRecord[], C: Config = getConfig(), opts: Plan
   if (cfg.focus.loiter) tests.push(C.threats.threats[C.training.scenario.focusType].label.toLowerCase() + 's');
   tests.push(`threats from the ${windOf(cfg.focus.sector)}`);
   if (cfg.focus.decoy) tests.push('look-alike decoys');
+  if (cfg.wcs === 'hold') tests.push('WEAPONS HOLD (self-defence only)');
+  if (cfg.safeArcs) tests.push('a safe arc');
   return { cfg, lines: lines.slice(0, 3), tests, m };
 }

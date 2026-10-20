@@ -62,6 +62,6 @@ export function drawPaper(ctx: CanvasRenderingContext2D, W: number, H: number, c
   return{cx,cy,s};
 }
 export function symPath(ctx: CanvasRenderingContext2D, x: number, y: number, kind: string, sz: number) {ctx.beginPath();if(kind==='hostile'){ctx.moveTo(x,y-sz*1.25);ctx.lineTo(x+sz*1.25,y);ctx.lineTo(x,y+sz*1.25);ctx.lineTo(x-sz*1.25,y);ctx.closePath();}else if(kind==='friend'){ctx.arc(x,y,sz,0,7);}else ctx.rect(x-sz,y-sz,sz*2,sz*2);}
-export const kindOfCls=(cls: string | null | undefined)=>!cls?'unknown':TYPES[cls].friendly?'friend':TYPES[cls].hostile?'hostile':'neutral';
+export const kindOfCls=(cls: string | null | undefined)=>!cls||!TYPES[cls]?'unknown':TYPES[cls].friendly?'friend':TYPES[cls].hostile?'hostile':'neutral';
 export const symSvg=(kind: string, col: string, dashed?: boolean)=>{const d=dashed?'stroke-dasharray="3 2"':'';if(kind==='hostile')return`<svg class="sym" viewBox="0 0 20 20"><path d="M10 2 18 10 10 18 2 10Z" fill="none" stroke="${col}" stroke-width="2"/></svg>`;if(kind==='friend')return`<svg class="sym" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" fill="none" stroke="${col}" stroke-width="2"/></svg>`;return`<svg class="sym" viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" fill="none" stroke="${col}" stroke-width="2" ${d}/></svg>`;};
 

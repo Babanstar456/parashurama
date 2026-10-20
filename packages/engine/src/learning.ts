@@ -44,7 +44,7 @@ export function observe(E: Engine, sc: ContactScore[]): Observations {
     if (s.src.idCls) {
       const ok = s.src.idCls === c.type;
       o.identify.push(ok);
-      o.calib.push(ok ? (s.src.idConf ?? 0) >= certainP : (s.src.idConf ?? 1) <= likelyP);
+      if (s.src.idCls !== 'unknown') o.calib.push(ok ? (s.src.idConf ?? 0) >= certainP : (s.src.idConf ?? 1) <= likelyP);
     } else if (!s.missed) o.identify.push(false);
     if (Ty.hostile) {
       if (s.e0 && s.e0.eff !== 'hold') { o.defeat.push(s.Fbase >= 34); o.timing.push(isFinite(s.e0.tti) ? s.e0.tti >= E.C.doctrine.defeat.modifiers.lateEngagementSec : true); }
@@ -72,7 +72,7 @@ export function calStats(sc: ContactScore[], C: Config = getConfig()): CalStats 
   const cal: CalStats = {};
   for (const lv of C.doctrine.confidence) cal[lv.k] = [0, 0];
   for (const s of sc) {
-    if (!s.src.idCls || s.src !== s.c) continue;
+    if (!s.src.idCls || s.src.idCls === 'unknown' || s.src !== s.c) continue;
     const lv = C.doctrine.confidence.find((x) => Math.abs(x.p - (s.src.idConf ?? -1)) < 0.01);
     if (!lv) continue;
     cal[lv.k][0]++;

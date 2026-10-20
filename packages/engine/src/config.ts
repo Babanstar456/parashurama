@@ -10,6 +10,8 @@ export interface Threat {
   rf: string; rfOn: boolean; gnss: boolean; friendly: boolean; hostile: boolean;
   /** Civil (non-military) drone: report and monitor, never engage (R9). */
   civil?: boolean;
+  /** Carries a droppable payload: after a kill, mark the crash site for EOD (R15). */
+  payload?: boolean;
   shape: 'quad' | 'wing' | 'bird'; motion: Motion;
   hoverRangeM?: [number, number]; orbitRadiusM?: [number, number];
   behaviour: string; behaviourHover?: string; deciding: string;
@@ -25,7 +27,7 @@ export interface ConfidenceLevel { k: string; label: string; p: number; key: str
 export interface DoctrineFile {
   version: string; rules: Record<string, string>; confidence: ConfidenceLevel[];
   detection: { points: number; fullWithinSec: number; zeroAtSec: number };
-  identification: { points: number; correctBase: number; correctPerConfidence: number; wrongPerUnconfidence: number; friendFoeBonus: number };
+  identification: { points: number; correctBase: number; correctPerConfidence: number; wrongPerUnconfidence: number; friendFoeBonus: number; /** Points for declaring Unknown; missing = 10. */ unknown?: number };
   /** Optional ROE profiles; a profile missing here means no clearance is needed. */
   roe?: Partial<Record<'tight' | 'peacetime', { needsClearance: string[]; clearanceSec: number }>>;
   defeat: {
@@ -33,7 +35,9 @@ export interface DoctrineFile {
     friendlyHold: number; friendlyEngaged: number; clutterHold: number; clutterEngaged: number; hostileHeldButNeutralised: number;
     /** Optional so older doctrine files stay valid; defaults 40 / 0. */
     civilHold?: number; civilEngaged?: number;
-    modifiers: { urbanGun: number; lateEngagementSec: number; late: number; priority: number; priorityRatio: number; /** R10; missing = -10. */ missNotReengaged?: number; /** R12; missing = -40. */ unauthorised?: number; /** R11; missing = -10. */ ewRestricted?: number };
+    modifiers: { urbanGun: number; lateEngagementSec: number; late: number; priority: number; priorityRatio: number; /** R10; missing = -10. */ missNotReengaged?: number; /** R12; missing = -40. */ unauthorised?: number; /** R11; missing = -10. */ ewRestricted?: number;
+      /** R13; missing = -20. */ wcs?: number; /** WEAPONS HOLD self-defence window (s); missing = 20. */ selfDefenceSec?: number; /** R14; missing = -20. */ safeArc?: number;
+      /** R15; missing = -5. */ killAssess?: number; /** R15 time allowed (s); missing = 10. */ killAssessSec?: number };
   };
 }
 export interface TrainingFile {

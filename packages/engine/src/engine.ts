@@ -1,6 +1,6 @@
 import { acousticRange, cameraRange, getConfig, ticks, isEffective, weatherFx, type Config } from './config';
 import { buildScenario } from './scenario';
-import type { Action, Contact, DrillConfig, Engine, Spawn } from './types';
+import { UNKNOWN, type Action, type Contact, type DrillConfig, type Engine, type Spawn } from './types';
 import { clamp, hash2, mulberry, brgOf } from './util';
 
 export function createEngine(cfg: DrillConfig, C: Config = getConfig(), spawns?: Spawn[]): Engine {
@@ -123,9 +123,12 @@ function applyAction(E: Engine, a: Action): void {
   if (!c) return;
   if (a.k === 'track') { if (c.trackTick == null && c.state === 'live') c.trackTick = E.tick; return; }
   if (a.k === 'id') {
-    if (c.trackTick != null && c.idTick == null && a.cls && E.C.threats.threats[a.cls] && a.conf != null) { c.idTick = E.tick; c.idCls = a.cls; c.idConf = a.conf; c.idAvail = clueAvailability(E, c); }
+    // "Unknown" is a legitimate first answer; an Unknown can later be identified as a real class.
+    const real = !!a.cls && !!E.C.threats.threats[a.cls], unk = a.cls === UNKNOWN;
+    if (c.trackTick != null && (c.idTick == null || (c.idCls === UNKNOWN && real)) && (real || unk) && a.conf != null && c.state === 'live') { c.idTick = E.tick; c.idCls = a.cls!; c.idConf = a.conf; c.idAvail = clueAvailability(E, c); }
     return;
   }
+  if (a.k === 'bda') { if (E.cfg.killAssess && c.state === 'neutralised' && c.bdaTick == null) c.bdaTick = E.tick; return; }
   if (a.k === 'req') {
     // Request clearance to engage (ROE). Only after identification, once per contact.
     if (c.idTick != null && c.clrReq == null && c.state === 'live') {
@@ -149,7 +152,7 @@ function applyAction(E: Engine, a: Action): void {
   const hit = pk >= 1 || hash2(c.id * 131 + E.cfg.seed, E.tick) < pk;
   // Under a restrictive ROE, record whether this shot was cleared. The effect still happens; the penalty is in scoring (R12).
   const roeOn = (E.cfg.roe ?? 'free') !== 'free';
-  c.engs.push({ tick: E.tick, eff: a.eff, effective: ok, range: rng, tti: tt, priorityMiss: pm, ...(ok && !hit ? { miss: true } : {}), ...(roeOn ? { cleared: isCleared(E, c, a.eff) } : {}) });
+  c.engs.push({ tick: E.tick, eff: a.eff, effective: ok, range: rng, tti: tt, priorityMiss: pm, ...(ok && !hit ? { miss: true } : {}), ...(roeOn ? { cleared: isCleared(E, c, a.eff) } : {}), ...(E.cfg.safeArcs ? { brg: brgOf(c.x, c.y) } : {}) });
   if (ok && hit) {
     c.effectAt = E.tick + ticks(E.C, ef.delay); c.effectBy = a.eff;
     if (ef.areaRadiusM && Ty.motion === 'swarm') {
