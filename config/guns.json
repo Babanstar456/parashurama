@@ -1,0 +1,63 @@
+{
+  "version": "1.0.0",
+  "note": "Training values from public nominal figures, not equipment specifications. DSSC to confirm.",
+  "ammo": {
+    "hei": {
+      "label": "HEI-T 23 mm", "massKg": 0.188, "caliberM": 0.023, "mv": 980, "mvSd": 3, "mvPerDegC": 0.9,
+      "tracerSec": 5, "selfDestructSec": 9, "sdFailP": 0.03,
+      "cdMach": [[0, 0.16], [0.7, 0.16], [0.9, 0.2], [1.0, 0.36], [1.1, 0.4], [1.3, 0.38], [1.6, 0.34], [2.0, 0.3], [2.5, 0.27], [3.2, 0.25]]
+    },
+    "api": {
+      "label": "API-T 23 mm", "massKg": 0.19, "caliberM": 0.023, "mv": 970, "mvSd": 3, "mvPerDegC": 0.9,
+      "tracerSec": 5, "selfDestructSec": 0, "sdFailP": 0,
+      "cdMach": [[0, 0.15], [0.7, 0.15], [0.9, 0.19], [1.0, 0.34], [1.1, 0.38], [1.3, 0.36], [1.6, 0.32], [2.0, 0.29], [2.5, 0.26], [3.2, 0.24]]
+    }
+  },
+  "guns": {
+    "zu23": {
+      "label": "ZU-23-2 (towed, manual sight)", "short": "ZU-23-2", "sight": "manual",
+      "barrels": 2, "rpmPerBarrel": 1800, "beltRounds": 50, "ammo": "hei",
+      "slewDegS": { "az": 40, "el": 30 }, "elevDeg": [-10, 90], "effRangeM": 2500, "dispMil": 1.6,
+      "heatPerRound": 1, "coolPerSec": 4, "heatLimit": 220, "stoppageP": 0.004,
+      "sightFovDeg": 12
+    },
+    "zsu234": {
+      "label": "ZSU-23-4 (radar fire control)", "short": "ZSU-23-4", "sight": "radar",
+      "barrels": 4, "rpmPerBarrel": 900, "beltRounds": 500, "ammo": "hei",
+      "slewDegS": { "az": 70, "el": 60 }, "elevDeg": [-4, 85], "effRangeM": 2500, "dispMil": 1.1,
+      "heatPerRound": 1, "coolPerSec": 6, "heatLimit": 400, "stoppageP": 0.002,
+      "sightFovDeg": 12,
+      "radar": { "acquireRangeM": 6000, "lockSec": 3, "trackNoiseMil": 0.4, "faultP": 0 }
+    }
+  },
+  "targets": {
+    "hitRadiusM": { "Very small": 0.25, "Small": 0.4, "Medium": 0.9, "Large": 2.5 },
+    "hitsToKill": { "Very small": 1, "Small": 1, "Medium": 2, "Large": 4 },
+    "engageRangeM": { "Very small": 800, "Small": 1200, "Medium": 2000, "Large": 2500 }
+  },
+  "manualSight": { "speedStepMs": 5, "courseStepDeg": 15, "rangeStepM": 100 },
+  "procedure": {
+    "ackSec": 3, "loadSec": 12, "layWithinSec": 10, "firstBurstWithinSec": 25,
+    "burstMin": 5, "burstMax": 15, "safeWithinSec": 15, "stoppageClearSec": 6, "barrelChangeSec": 20,
+    "standToSec": { "white": 20, "yellow": 8, "red": 0 }, "killReportSec": 8
+  },
+  "met": { "stdTempC": 15, "stdPressureHpa": 1013.25, "latitudeDeg": 26 },
+  "orders": {
+    "note": "Placeholder words of command in standard air-defence fire-control style. Replace with the unit's exact drill wording (DSSC / AAD College).",
+    "rangeClear": "RANGE CLEAR",
+    "alert": "DETACHMENT, ALERT",
+    "target": "TARGET, bearing {brg}, range {rng}, height {hgt}, {type}",
+    "method": "SHORT BURSTS",
+    "engage": "FIRE",
+    "hold": "HOLD FIRE",
+    "cease": "CEASE FIRE",
+    "unload": "UNLOAD, MAKE SAFE",
+    "ack": "ROGER",
+    "ready": "READY",
+    "onTarget": "ON",
+    "stoppage": "STOPPAGE",
+    "reportSafe": "GUN CLEAR, {n} ROUNDS EXPENDED",
+    "killDestroyed": "TARGET DESTROYED",
+    "killNoEffect": "NO EFFECT, RE-ENGAGING"
+  }
+}

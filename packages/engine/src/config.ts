@@ -2,6 +2,7 @@ import threatsJson from '../../../config/threats.json';
 import effectorsJson from '../../../config/effectors.json';
 import doctrineJson from '../../../config/doctrine.json';
 import trainingJson from '../../../config/training.json';
+import gunsJson from '../../../config/guns.json';
 
 export type Motion = 'approachHover' | 'weave' | 'straight' | 'swarm' | 'orbit' | 'wander' | 'surveil';
 export interface Threat {
@@ -51,19 +52,43 @@ export interface TrainingFile {
 export interface WeatherFx { label: string; radar: number; camera: number; noise: number; /** Hearing-range factor; missing = 1. */ acoustic?: number; }
 /** Acoustic sensor: seconds to recognise a sound once heard, and hearing-range factors (background noise by terrain; quieter nights). */
 export interface AcousticFx { clueSec: number; urban: number; rural: number; night: number; }
-export interface Config { threats: ThreatsFile; effectors: EffectorsFile; doctrine: DoctrineFile; training: TrainingFile; }
+/** Gun detachment data (config/guns.json). Training values from public nominal figures, not equipment specifications. */
+export interface Ammo { label: string; massKg: number; caliberM: number; mv: number; mvSd: number; mvPerDegC: number; tracerSec: number; selfDestructSec: number; sdFailP: number; cdMach: [number, number][]; }
+export interface Gun {
+  label: string; short: string; sight: 'manual' | 'radar'; barrels: number; rpmPerBarrel: number; beltRounds: number; ammo: string;
+  slewDegS: { az: number; el: number }; elevDeg: [number, number]; effRangeM: number; dispMil: number;
+  heatPerRound: number; coolPerSec: number; heatLimit: number; stoppageP: number; sightFovDeg: number;
+  radar?: { acquireRangeM: number; lockSec: number; trackNoiseMil: number; faultP: number };
+}
+export interface GunsFile {
+  version: string; note?: string; ammo: Record<string, Ammo>; guns: Record<string, Gun>;
+  targets: { hitRadiusM: Record<string, number>; hitsToKill: Record<string, number>; engageRangeM?: Record<string, number> };
+  manualSight: { speedStepMs: number; courseStepDeg: number; rangeStepM: number };
+  procedure: { ackSec: number; loadSec: number; layWithinSec: number; firstBurstWithinSec: number; burstMin: number; burstMax: number; safeWithinSec: number; stoppageClearSec: number; barrelChangeSec: number;
+    /** Optional: seconds to man the gun under each Air Defence Warning (missing = 0), and to report a kill. */
+    standToSec?: Record<'white' | 'yellow' | 'red', number>; killReportSec?: number };
+  met: { stdTempC: number; stdPressureHpa: number; latitudeDeg: number };
+  /** Words of command (placeholders until the unit's exact drill wording is loaded). */
+  orders?: Record<OrderWord, string> & { note?: string };
+}
+export type OrderWord = 'rangeClear' | 'alert' | 'target' | 'method' | 'engage' | 'hold' | 'cease' | 'unload' | 'ack' | 'ready' | 'onTarget' | 'stoppage' | 'reportSafe' | 'killDestroyed' | 'killNoEffect';
+/** guns is optional so configs saved before the gun mode stay valid; use gunsOf() to read it. */
+export interface Config { threats: ThreatsFile; effectors: EffectorsFile; doctrine: DoctrineFile; training: TrainingFile; guns?: GunsFile; }
 
 export const defaultConfig: Config = {
   threats: threatsJson as unknown as ThreatsFile,
   effectors: effectorsJson as unknown as EffectorsFile,
   doctrine: doctrineJson as unknown as DoctrineFile,
   training: trainingJson as unknown as TrainingFile,
+  guns: gunsJson as unknown as GunsFile,
 };
 
 let current: Config = defaultConfig;
 export const getConfig = (): Config => current;
 /** Internal: switch the active config without validation. Use `useConfig` from validate.ts instead. */
 export const _setConfig = (c: Config): void => { current = c; };
+/** Gun data of a config, falling back to the shipped guns.json for older configs. */
+export const gunsOf = (c: Config): GunsFile => c.guns ?? (gunsJson as unknown as GunsFile);
 export const decisionClass = (t: Threat): DecisionClass => (t.rfOn ? 'rfLinked' : t.gnss ? 'gnssOnly' : 'autonomous');
 export const isEffective = (t: Threat, e: Effector): boolean => e.affects === 'all' || (e.affects === 'rf' && t.rfOn) || (e.affects === 'gnss' && t.gnss);
 const CLEAR: WeatherFx = { label: 'Clear', radar: 1, camera: 1, noise: 0 };

@@ -7,7 +7,7 @@ import trustJson from '../../../config/trust/keys.json';
  * The signature covers the canonical JSON of { meta, config }. Works in browsers and Node (globalThis.crypto.subtle).
  */
 export interface PackMeta { id: string; version: string; issuer: string; date: string; keyId?: string; }
-export interface ThreatPack { meta: PackMeta; config: Partial<Pick<Config, 'threats' | 'effectors' | 'doctrine' | 'training'>>; sig: string; }
+export interface ThreatPack { meta: PackMeta; config: Partial<Pick<Config, 'threats' | 'effectors' | 'doctrine' | 'training' | 'guns'>>; sig: string; }
 export interface TrustKey { id: string; issuer: string; jwk: JsonWebKey; }
 export type PackResult = { ok: true; keyId: string } | { ok: false; error: string };
 
@@ -37,7 +37,7 @@ export async function verifyPack(pack: unknown, keys: TrustKey[] = TRUST_KEYS): 
   if (!p || typeof p !== 'object' || !p.meta || !p.config || typeof p.sig !== 'string') return { ok: false, error: 'Not a threat pack: needs meta, config and sig' };
   for (const k of ['id', 'version', 'issuer', 'date'] as const) if (typeof p.meta[k] !== 'string' || !p.meta[k]) return { ok: false, error: `Pack meta.${k} is missing` };
   if (typeof p.config !== 'object' || !Object.keys(p.config).length) return { ok: false, error: 'Pack config is empty' };
-  if (Object.keys(p.config).some((k) => !['threats', 'effectors', 'doctrine', 'training'].includes(k))) return { ok: false, error: 'Pack config may only contain threats, effectors, doctrine and training' };
+  if (Object.keys(p.config).some((k) => !['threats', 'effectors', 'doctrine', 'training', 'guns'].includes(k))) return { ok: false, error: 'Pack config may only contain threats, effectors, doctrine, training and guns' };
   const cands = keys.filter((k) => (p.meta.keyId ? k.id === p.meta.keyId : true) && k.issuer === p.meta.issuer);
   if (!cands.length) return { ok: false, error: `No trusted key for issuer "${p.meta.issuer}"${p.meta.keyId ? ` (key ${p.meta.keyId})` : ''}` };
   let sig: Uint8Array;
