@@ -56,6 +56,11 @@ function html(): string {
         <span>Who in the troop is ready for tonight: night, swarm, faulty sensors or bad weather. You: ${certified} of ${Object.keys(m).length} skills certified.</span>
         <em>Open the board →</em>
       </button>
+      <button class="hc hcGun" id="hcGun">
+        <small>Air defence guns · ZU-23-2 / ZSU-23-4</small><b>Control Room · On Ground</b>
+        <span>Give the fire orders, or crew the gun: load, lay, set the lead and fire only on the order. Real ballistics.</span>
+        <em>Open the gun drills →</em>
+      </button>
       <button class="hc" id="hcLectures">
         <small>Self-study</small><b>Lecture library</b>
         <span>Training videos from your instructors: watch them between drills.</span>
@@ -107,6 +112,7 @@ export function showHome() {
   $$('[data-hm]').forEach((b: any) => (b.onclick = () => { closeHome(); markTourSeen(); startScenario(SCENARIOS[+b.dataset.hm]); }));
   $('#hcDemo').onclick = () => { closeHome(); hooks.showcase?.(); };
   $('#hcLectures').onclick = () => { closeHome(); markTourSeen(); hooks.openLectures?.(); };
+  $('#hcGun').onclick = () => { closeHome(); markTourSeen(); hooks.openGun?.(); };
   $('#hcUnit').onclick = () => { closeHome(); markTourSeen(); app.renderUnit(); app.setPhase('learn'); ($('.learnTabs [data-t=unit]') as HTMLElement).click(); };
   fx();
   ($('#hcAcademy') as HTMLElement).focus({ preventScroll: true }); el.scrollTop = 0;
@@ -121,8 +127,8 @@ export function initHome() {
   hooks.showHome = showHome;
   const q = new URLSearchParams(location.search);
   // Home screen; skipped for deep links (instructor panel, tests).
-  const skip = q.has('nohome') || q.has('instructor') || q.has('demo');
-  hooks.holdTour = !skip;
+  const skip = q.has('nohome') || q.has('instructor') || q.has('demo') || q.has('gun');
+  hooks.holdTour = !skip || q.has('gun');
   // Home button in the header (hidden during a drill so a drill is never abandoned by accident)
   const hb = document.createElement('button'); hb.className = 'topBtn'; hb.id = 'homeBtn'; hb.textContent = 'Home';
   hb.onclick = () => showHome(); $('#helpBtn').before(hb);
