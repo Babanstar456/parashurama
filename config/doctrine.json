@@ -1,5 +1,5 @@
 {
-  "version": "1.4.0",
+  "version": "1.5.0",
   "rules": {
     "D1": "Detection: full marks within 3 s of the first radar paint, zero at 20 s.",
     "C1": "Identification: correct = 18 + 12 × confidence; wrong = 10 × (1 − confidence), +5 if friend/foe was right.",
@@ -14,7 +14,26 @@
     "R9": "Unknown civil drone: report and monitor; do not engage.",
     "R10": "After a miss, engage again before impact.",
     "R11": "Jamming/spoofing in an EW-restricted area disrupts own and civil systems.",
-    "R12": "Kinetic or EW engagement without clearance under this ROE."
+    "R12": "Kinetic or EW engagement without clearance under this ROE.",
+    "G1": "Gun safety: fire only on an Engage order with the range clear; firing on Hold or Check fire is a critical failure.",
+    "G2": "Make ready on the fire order: acknowledge, load, safety off, then lay on the designated bearing.",
+    "G3": "Clear a stoppage with the immediate-action drill; do not fire a barrel past its heat limit.",
+    "G4": "Fire the first burst quickly after the Engage order.",
+    "G5": "Ballistic solution: manual sight set for the target's speed, course and range; radar gun fired only on a lock.",
+    "G6": "Burst accuracy: each burst is scored by how close it passes the target.",
+    "G7": "Destroy the target before it reaches the defended asset.",
+    "G8": "Burst discipline: short bursts within effective range; no ammunition wasted.",
+    "G9": "After cease fire: safety on, unload, clear the gun and account for every round.",
+    "G10": "Safe arcs: never fire into a safe arc (village, own troops, airfield approach).",
+    "G11": "Kill assessment: report the result of each engagement (destroyed, or no effect and re-engage).",
+    "F1": "Alert the detachment and indicate the target promptly once a threat is tracked.",
+    "F2": "Fire orders follow the sequence Alert, Target, Method, Executive; no executive word without the earlier parts.",
+    "F3": "Weapon Control Status: under Tight engage only identified hostiles; under Hold only in self-defence; never a friendly or civil aircraft.",
+    "F4": "Do not order fire while the target is inside a safe arc.",
+    "F5": "Engage the threat with the least time to the asset first.",
+    "F6": "Give the executive order once the target is inside the gun's effective range.",
+    "F7": "Cease fire when the target is destroyed; Hold fire at once when a friendly or civil aircraft enters the line of fire.",
+    "F8": "After the engagement: Cease fire, then Unload; record the result of every target."
   },
   "confidence": [
     { "k": "likely",    "label": "Likely",    "p": 0.6,  "key": "Q" },

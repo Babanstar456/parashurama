@@ -10,7 +10,7 @@ import { join } from 'node:path';
 
 const root = join(import.meta.dirname, '../../../config/schema');
 const ajv = new Ajv({ allErrors: true, code: { source: true, esm: true } });
-const names = ['threats', 'effectors', 'doctrine', 'training'] as const;
+const names = ['threats', 'effectors', 'doctrine', 'training', 'guns'] as const;
 for (const n of names) ajv.addSchema(JSON.parse(readFileSync(join(root, `${n}.schema.json`), 'utf8')), n);
 let code = standaloneCode(ajv, Object.fromEntries(names.map((n) => [n, n])));
 // Make the output dependency-free ES module code (Ajv emits require() for two tiny runtime helpers).

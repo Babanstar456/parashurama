@@ -12,3 +12,7 @@ export * from './integrity';
 export * from './scenarios';
 export * from './report';
 export * from './pack';
+export * from './ballistics';
+export * from './gun';
+export * from './gunai';
+export * from './gunscore';

@@ -3,7 +3,7 @@ import { _setConfig, type Config, type DecisionClass } from './config';
 
 // Kept separate from config.ts so browser bundles that never validate do not ship the schema validator.
 // Validators are pre-compiled at build time (no eval at runtime): see scripts/gen-validators.ts
-const validators = { threats: compiled.threats, effectors: compiled.effectors, doctrine: compiled.doctrine, training: compiled.training };
+const validators = { threats: compiled.threats, effectors: compiled.effectors, doctrine: compiled.doctrine, training: compiled.training, guns: compiled.guns };
 
 export interface ValidationResult { ok: boolean; errors: string[]; }
 
@@ -12,6 +12,7 @@ export function validateConfig(c: Config): ValidationResult {
   const errors: string[] = [];
   (Object.keys(validators) as (keyof typeof validators)[]).forEach((k) => {
     const v = validators[k];
+    if (k === 'guns' && c.guns === undefined) return; // optional file
     if (!v(c[k])) for (const e of v.errors ?? []) errors.push(`${k}.json ${e.instancePath || '/'} ${e.message}`);
   });
   if (errors.length) return { ok: false, errors };
@@ -60,6 +61,18 @@ export function validateConfig(c: Config): ValidationResult {
   if (T[S.swarmType] && T[S.swarmType].motion !== 'swarm') errors.push('training.json swarmType must use swarm motion');
   if (c.training.acoustic) for (const id of c.threats.order) if (T[id] && !T[id].acoustic) errors.push(`threats.json threat "${id}" needs an acoustic signature when training.json fits an acoustic sensor`);
   if (c.training.certification.developingMastery >= c.training.certification.certifiedMastery) errors.push('training.json developingMastery must be below certifiedMastery');
+  const G = c.guns;
+  if (G) {
+    for (const [id, g] of Object.entries(G.guns)) {
+      if (!G.ammo[g.ammo]) errors.push(`guns.json gun "${id}" uses unknown ammo "${g.ammo}"`);
+      if (g.elevDeg[0] >= g.elevDeg[1]) errors.push(`guns.json gun "${id}" has elevDeg min >= max`);
+      if (g.sight === 'radar' && !g.radar) errors.push(`guns.json gun "${id}" has a radar sight but no radar block`);
+    }
+    for (const [id, a] of Object.entries(G.ammo)) if (a.cdMach.some((p, i) => i > 0 && p[0] <= a.cdMach[i - 1][0])) errors.push(`guns.json ammo "${id}" cdMach Mach numbers must increase`);
+    for (const size of Object.keys(c.threats.echoRcs)) if (!(size in G.targets.hitRadiusM) || !(size in G.targets.hitsToKill)) errors.push(`guns.json targets need hitRadiusM and hitsToKill for echo size "${size}"`);
+    if (G.procedure.burstMin > G.procedure.burstMax) errors.push('guns.json procedure burstMin must not exceed burstMax');
+    for (const r of ['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9', 'G10', 'G11', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']) if (!c.doctrine.rules[r]) errors.push(`doctrine.json needs rule ${r} for the gun detachment mode`);
+  }
   return { ok: errors.length === 0, errors };
 }
 
