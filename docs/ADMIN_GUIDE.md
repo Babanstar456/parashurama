@@ -21,7 +21,15 @@ Copy `apps/web/dist-single/index.html` to the laptop and open it in Chrome or Ed
    - the same security headers as the unit server
 4. Every push to `main` then deploys automatically.
 
-The Vercel copy runs in offline mode: history stays in each browser, there is no sign-in, and there are no LAN crew drills. For a unit, use the unit server below. To try the build locally, run `node scripts/vercel-build.mjs` and serve `vercel-out/`.
+The Vercel copy runs in offline mode: history stays in each browser, there is no sign-in, and there are no LAN crew drills. For a unit, use the unit server below.
+
+The unit server is deliberately not deployed as a Vercel service. Vercel functions have no persistent disk and keep no state between requests, so:
+- the SQLite database would be lost on every cold start;
+- the in-memory crew rooms would split across instances;
+- event streams are cut at the function time limit;
+- uploads are capped at 4.5 MB.
+
+Running it there would mean moving to a hosted database, blob storage and a shared message channel, which gives up the offline unit-network design. If that is ever needed, the routing would be `web` (Vite) at `/` and `server` (Fastify) at `/api/`, with no bindings, because only the browser calls the API. To try the build locally, run `node scripts/vercel-build.mjs` and serve `vercel-out/`.
 
 ## 2. Unit server with Docker (recommended)
 
