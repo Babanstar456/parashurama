@@ -27,7 +27,8 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
 - `npm run ci`: typecheck, check:generated, validate:config, tests, build, build:single.
 - `npm run e2e`: Playwright. Set `PW_CHROMIUM_PATH` if a local Chromium is needed.
 - `npm run dev` runs the web app only (offline). `npm run build && npm run server` runs it with the unit server on :8080.
-- **Updating `docs/index.html`** (served by Vercel, root `docs/`): run `npm run release:docs`. It builds the single file, drops the manifest and icon links, and writes the SHA-256 to `docs/RELEASE.txt`.
+- **Vercel:** `vercel.json` at the repo root builds from source (`node scripts/vercel-build.mjs` → `vercel-out/`); the Vercel project's Root Directory must be the repo root. It also serves `docs/index.html` as `/offline.html`.
+- **Updating `docs/index.html`** (the one-file offline copy, also on GitHub Pages): run `npm run release:docs`. It builds the single file, drops the manifest and icon links, and writes the SHA-256 to `docs/RELEASE.txt`.
 - **Supply chain:** run `npm run audit:prod` (CI fails on high or critical) and `npm run sbom && npm run notices`. Licence: Apache-2.0 (`LICENSE`, `NOTICE`).
 - **Capacity checks:** `npm run loadtest` (unit server, many trainees; `--url` for a real server), `npm run crewload` (LAN crew drills at the real clock) and `npm run fps` (frame rate per view, visible browser; needs `npm run build:single`).
 - `apps/web/index.html` is the Vite **source** entry page (it loads `/src/main.ts`). Never overwrite it with a built bundle.

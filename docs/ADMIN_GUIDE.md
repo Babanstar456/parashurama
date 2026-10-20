@@ -9,6 +9,20 @@ npm ci && npm run build:single
 ```
 Copy `apps/web/dist-single/index.html` to the laptop and open it in Chrome or Edge. Fonts are embedded and nothing uses the network. Drill history stays in that browser.
 
+## 1b. Public demo on Vercel (no server)
+
+1. Import the GitHub repository in Vercel.
+2. In **Settings → Build & Deployment**, set **Root Directory** to the repository root (leave it empty, not `docs`) and **Framework** to *Other*.
+3. `vercel.json` supplies the rest:
+   - install: `npm ci`
+   - build: `node scripts/vercel-build.mjs`
+   - output: `vercel-out/`
+   - Node 22 (from `engines`)
+   - the same security headers as the unit server
+4. Every push to `main` then deploys automatically.
+
+The Vercel copy runs in offline mode: history stays in each browser, there is no sign-in, and there are no LAN crew drills. For a unit, use the unit server below. To try the build locally, run `node scripts/vercel-build.mjs` and serve `vercel-out/`.
+
 ## 2. Unit server with Docker (recommended)
 
 Requires Docker with Compose on a small PC on the unit network.

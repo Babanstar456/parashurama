@@ -4,7 +4,11 @@ AI counter-drone decision trainer. SIH 2026 · PS SIH26247 (Ministry of Defence 
 
 Trainees detect, identify and defeat drone and swarm threats on a laptop. A guided **Academy** teaches complete beginners with a coach that explains every clue and decision. Scored drills grade every decision against doctrine and explain it, an **expert ghost** replays the same drill perfectly, a learning model tracks each skill, and an **enemy AI** builds the next drill around each trainee's weaknesses. A **unit server** verifies every drill independently and gives commanders a readiness board.
 
-**Live prototype:** `docs/index.html` is the whole app in one offline file; it is served by GitHub Pages (Settings → Pages → branch `main`, folder `/docs`).
+**Live prototype:**
+- **Vercel:** builds the app from source on every push, using `vercel.json` and `scripts/vercel-build.mjs`. The app is installable and works offline after the first visit.
+  - It also publishes `/comparison.html`, `/threat-library.html`, the guides under `/guides/`, and `/offline.html`, the one-file copy checked against `RELEASE.txt`.
+  - Vercel runs the app in offline mode: no sign-in and no LAN crew drills. Those need the unit server.
+- **GitHub Pages:** can still serve `docs/` (Settings → Pages → branch `main`, folder `/docs`).
 
 ## Who reads what
 
