@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   angDiff, detectable, detectRangeM, dirOf, fcsOf, fly, getConfig, losOf, mulberry, targetPos, weatherFx,
   type AimSolution, type GunEngine, type GunTarget, type Vec3,
@@ -29,6 +30,7 @@ export interface FieldView {
   /** The visible target nearest the middle of the view (for the report key). */ centreTarget: (E: GunEngine) => number | null;
   /** Point the view (demo and test automation). */ look: (az: number, el: number, binoculars?: boolean, sight?: boolean) => void;
   /** Thermal sight: white-hot / black-hot. */ polarity: () => void;
+  /** Renderer statistics of the last frame (performance checks). */ info: () => { calls: number; triangles: number; ms: number };
   dispose: () => void;
 }
 
@@ -126,7 +128,7 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = night ? 0.9 : wx === 'clear' ? 0.75 : 0.85;
-  renderer.shadowMap.enabled = !lite; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = !lite; renderer.shadowMap.type = THREE.PCFShadowMap;
   const cv = renderer.domElement; cv.className = 'fdGl';
   const hud = document.createElement('canvas'); hud.className = 'fdHud';
   const tip = document.createElement('div'); tip.className = 'fdTip';
@@ -142,7 +144,7 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
   const sunDir = new THREE.Vector3(-0.45, night ? 0.6 : 0.8, -0.4).normalize();
   const sun = new THREE.DirectionalLight(night ? 0x7f93b8 : 0xfff0d8, night ? 0.25 : wx === 'clear' ? 2.6 : 0.9);
   sun.position.copy(sunDir).multiplyScalar(80); sun.castShadow = !lite;
-  sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -25, right: 25, top: 25, bottom: -25, near: 1, far: 200 }); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
+  sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -25, right: 25, top: 25, bottom: -25, near: 1, far: 200 }); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
   scene.add(sun, sun.target);
   if (!sky) scene.add(new THREE.HemisphereLight(0xdfe9f2, 0x5b5a48, 0.8));
   // Haze from the drill's visibility (the engine's visual range for a medium target).
@@ -197,20 +199,48 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
       (c as THREE.Mesh).material = wallTex[key];
     }
   });
-  /** Place many copies of one env root as instanced meshes (one per sub-mesh). */
-  const instance = (name: string, mats: THREE.Matrix4[], shadows = true) => {
+  /** One env root's parts merged into one geometry per material (a few draw calls instead of dozens). */
+  const mergedCache = new Map<string, { geo: THREE.BufferGeometry; mat: THREE.Material }[]>();
+  const merged = (name: string) => {
+    if (mergedCache.has(name)) return mergedCache.get(name)!;
     const src = env?.getObjectByName(name);
-    if (!src || !mats.length) return false;
+    if (!src) return [];
     fixMaterials(src); src.updateMatrixWorld(true);
-    const inv = new THREE.Matrix4().copy(src.matrixWorld).invert();
+    const inv = new THREE.Matrix4().copy(src.matrixWorld).invert(), groups = new Map<THREE.Material, THREE.BufferGeometry[]>();
     src.traverse((c) => {
-      const mesh = c as THREE.Mesh; if (!mesh.isMesh) return;
-      const local = new THREE.Matrix4().multiplyMatrices(inv, mesh.matrixWorld);
-      const im = new THREE.InstancedMesh(mesh.geometry, mesh.material, mats.length);
-      mats.forEach((m, i) => im.setMatrixAt(i, new THREE.Matrix4().multiplyMatrices(m, local)));
-      im.castShadow = shadows; im.receiveShadow = true; im.frustumCulled = false; scene.add(im);
+      const m = c as THREE.Mesh; if (!m.isMesh) return;
+      const g = m.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));
+      for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
+      if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+      const mat = m.material as THREE.Material; (groups.get(mat) ?? groups.set(mat, []).get(mat)!).push(g.index ? g.toNonIndexed() : g);
     });
+    const out = [...groups].map(([mat, gs]) => ({ mat, geo: (gs.length > 1 ? mergeGeometries(gs, false) : gs[0]) ?? gs[0] }));
+    mergedCache.set(name, out); return out;
+  };
+  /** Place copies as instanced meshes, split into 8 compass sectors so what is behind you is not drawn. */
+  const SECTORS = 8;
+  const addInstances = (parts: { geo: THREE.BufferGeometry; mat: THREE.Material }[], mats: THREE.Matrix4[], shadows = false) => {
+    if (!parts.length || !mats.length) return false;
+    const bins: THREE.Matrix4[][] = Array.from({ length: SECTORS }, () => []);
+    for (const m of mats) { const x = m.elements[12], z = m.elements[14], near = Math.hypot(x, z) < 30; bins[near ? 0 : Math.floor(((Math.atan2(x, -z) / (2 * Math.PI) + 1) % 1) * SECTORS)].push(m); }
+    for (const bin of bins) {
+      if (!bin.length) continue;
+      for (const { geo, mat } of parts) {
+        const im = new THREE.InstancedMesh(geo, mat, bin.length);
+        bin.forEach((m, k) => im.setMatrixAt(k, m));
+        im.computeBoundingSphere(); im.castShadow = shadows; im.receiveShadow = true; scene.add(im);
+      }
+    }
     return true;
+  };
+  const instance = (name: string, mats: THREE.Matrix4[], shadows = false) => addInstances(merged(name), mats, shadows);
+  /** Distant buildings: a plain plastered block of the same size (windows are not visible at that range anyway). */
+  const blockOf = (name: string) => {
+    const src = env?.getObjectByName(name); if (!src) return [];
+    const box = new THREE.Box3().setFromObject(src), sz = box.getSize(new THREE.Vector3());
+    const g = new THREE.BoxGeometry(sz.x * 0.97, sz.y * 0.82, sz.z * 0.97).translate(0, sz.y * 0.41, 0);
+    const wall = merged(name).find((p) => p.mat.name.startsWith('wall_'))?.mat ?? new THREE.MeshStandardMaterial({ color: 0xb9b3a4 });
+    return [{ geo: g, mat: wall }];
   };
   const place = (x: number, z: number, s = 1, ry = rng() * Math.PI * 2) => new THREE.Matrix4().compose(new THREE.Vector3(x, heightAt(x, z), z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry), new THREE.Vector3(s, s, s));
   // Sandbag berm: three courses in a ring with a gap at the rear for the crew.
@@ -222,7 +252,7 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
         bags.push(new THREE.Matrix4().compose(new THREE.Vector3(Math.sin(a) * pitR, course * 0.16, Math.cos(a) * pitR), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a + Math.PI / 2), new THREE.Vector3(1, 1, 1)));
       }
     }
-    instance('sandbag', bags); }
+    instance('sandbag', bags, true); }
   // Terrain dressing.
   const blocked = (x: number, z: number, r: number) => Math.hypot(x, z) < r;
   const MASK = (d: number) => (d < 4600 ? 1.2 + 0.026 * d : 200);
@@ -238,7 +268,12 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
       const k = fit[Math.floor(rng() * fit.length)];
       (by[k] ??= []).push(place(gx, gz, 1, Math.round(rng() * 4) * Math.PI / 2)); i++;
     }
-    for (const [k, m] of Object.entries(by)) instance(k, m, Math.hypot(...[m[0].elements[12], m[0].elements[14]]) < 400);
+    // Full models within 450 m, plain blocks beyond.
+    const NEAR = lite ? 300 : 450;
+    for (const [k, m] of Object.entries(by)) {
+      const d = (x: THREE.Matrix4) => Math.hypot(x.elements[12], x.elements[14]);
+      instance(k, m.filter((x) => d(x) < NEAR)); addInstances(blockOf(k), m.filter((x) => d(x) >= NEAR));
+    }
     // Roads (asphalt) on the street grid, and the open maidan the gun stands in.
     const road = pbr('worn_asphalt', 1); (road.map ?? { repeat: null }).repeat?.set(2, 600); road.normalMap?.repeat.set(2, 600); road.roughnessMap?.repeat.set(2, 600);
     for (let i = -24; i <= 24; i++) {
@@ -248,27 +283,30 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
     const maidan = new THREE.Mesh(new THREE.CircleGeometry(165, 48).rotateX(-Math.PI / 2), pbr('sparse_grass', 60)); maidan.position.y = 0.035; maidan.receiveShadow = true; scene.add(maidan);
   }
   { // Trees: near ones as models, far ones as photographed impostor sprites.
-    const near: Record<string, THREE.Matrix4[]> = { tree_a: [], tree_b: [], tree_c: [] }, far: THREE.Vector3[] = [], farK: number[] = [];
+    const near: Record<string, THREE.Matrix4[]> = { tree_a: [], tree_b: [], tree_c: [] }, far: THREE.Vector3[] = [], farK: number[] = [], farS: number[] = [];
     const NT = urban ? (lite ? 120 : 260) : lite ? 700 : 1600;
     for (let i = 0; i < NT; i++) {
       const a = rng() * Math.PI * 2, d = 40 + Math.pow(rng(), 0.6) * 4800, x = Math.sin(a) * d, z = Math.cos(a) * d;
       if (blocked(x, z, pitR + 25) || (urban && d < 170)) continue;
       const k = ['tree_a', 'tree_b', 'tree_c'][Math.floor(rng() * 3)], hk = k === 'tree_b' ? 12 : k === 'tree_a' ? 9 : 7;
       const s = Math.min(1.2, Math.max(0.5, (MASK(d) + 3) / hk)) * (0.8 + rng() * 0.3);
-      if (d < (lite ? 500 : 900)) near[k].push(place(x, z, s)); else { far.push(new THREE.Vector3(x, heightAt(x, z), z).setY(heightAt(x, z) + hk * s * 0.5)); farK.push(['tree_a', 'tree_b', 'tree_c'].indexOf(k) + s * 10); }
+      if (d < (lite ? 500 : 900)) near[k].push(place(x, z, s)); else { far.push(new THREE.Vector3(x, heightAt(x, z), z).setY(heightAt(x, z) + hk * s * 0.5)); farK.push(['tree_a', 'tree_b', 'tree_c'].indexOf(k)); farS.push(s); }
     }
     for (const [k, m] of Object.entries(near)) instance(k, m);
-    const imp = ['tree_a', 'tree_b', 'tree_c'].map((k) => tex(`models/${k}.png`));
-    if (imp[0]) imp.forEach((t, j) => {
-      const pts = far.filter((_, i) => Math.floor(farK[i]) === j);
-      if (!pts.length) return;
-      const sprite = new THREE.SpriteMaterial({ map: t!, alphaTest: 0.5, fog: true });
-      for (const p of pts) { const s = new THREE.Sprite(sprite); const hk = j === 1 ? 13.1 : j === 0 ? 9.8 : 7.6; s.position.copy(p); s.scale.set(hk, hk, 1); scene.add(s); }
+    // Far trees: two crossed quads with the photographed tree (one instanced mesh per type and sector).
+    const H = [9.8, 13.1, 7.6];
+    ['tree_a', 'tree_b', 'tree_c'].forEach((k, j) => {
+      const t = tex(`models/${k}.png`); if (!t) return;
+      const q1 = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0), q2 = q1.clone().rotateY(Math.PI / 2);
+      const geo = mergeGeometries([q1, q2], false)!;
+      const mat = new THREE.MeshBasicMaterial({ map: t, alphaTest: 0.5, side: THREE.DoubleSide });
+      const mats = far.map((p, i) => ({ p, i })).filter(({ i }) => farK[i] === j).map(({ p, i }) => new THREE.Matrix4().compose(new THREE.Vector3(p.x, p.y - H[j] * farS[i] * 0.5, p.z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rng() * Math.PI), new THREE.Vector3(H[j] * farS[i], H[j] * farS[i], H[j] * farS[i])));
+      addInstances([{ geo, mat }], mats);
     });
     // Scrub and rocks.
     const bushes: THREE.Matrix4[] = [], rocks: THREE.Matrix4[] = [];
-    for (let i = 0; i < (lite ? 250 : 600); i++) { const a = rng() * 6.28, d = pitR + 6 + Math.pow(rng(), 1.5) * 900, x = Math.sin(a) * d, z = Math.cos(a) * d; if (urban && d > 160) continue; (rng() < 0.75 ? bushes : rocks).push(place(x, z, 0.5 + rng() * 0.8)); }
-    instance('bush_r', bushes, false); instance('rock_r', rocks, false);
+    for (let i = 0; i < (lite ? 180 : 380); i++) { const a = rng() * 6.28, d = pitR + 6 + Math.pow(rng(), 1.5) * 900, x = Math.sin(a) * d, z = Math.cos(a) * d; if (urban && d > 160) continue; (rng() < 0.75 ? bushes : rocks).push(place(x, z, 0.5 + rng() * 0.8)); }
+    instance('bush_r', bushes); instance('rock_r', rocks);
   }
   // Props at the gun position (Poly Haven CC0): ammunition, jerrycans, the radio set.
   const props: [string, number, number, number][] = [['wooden_military_crate', -2.8, 2.6, 0.3], ['wooden_military_crate', -3.4, 2.0, 1.2], ['ammo_box', -2.2, 3.1, 0.1], ['ammo_box', -2.0, 3.4, 0.4],
@@ -668,6 +706,7 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
     c.fillStyle = heat > 0.9 ? '#FF5C61' : heat > 0.6 ? '#F2C94C' : '#9fe0a8'; c.fillRect(w - 146 * dp, h - (40 + lines.length * 24) * dp, 120 * dp * heat, 8 * dp);
   }
 
+  let lastFrameMs = 0;
   const frame: FieldView['frame'] = (E, sol, frac, marks) => {
     const now = performance.now();
     if (E.tick !== lastTick) { prevAz = curAz; prevEl = curEl; lastTick = E.tick; }
@@ -694,6 +733,7 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
       renderer.render(tiScene, tiCam);
     } else renderer.render(scene, camera);
     drawHud(E, sol, t, marks);
+    lastFrameMs = performance.now() - now;
   };
   void barrels;
   return {
@@ -702,6 +742,7 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
     mode: () => mode,
     zoom: () => { if (mode === 'gun' && ads && thermalSight) tiNarrow = !tiNarrow; else if (mode === 'gun' && !ads) binos = !binos; },
     polarity: () => { blackHot = !blackHot; },
+    info: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, ms: lastFrameMs }),
     rates: (E, sol) => {
       if (mode !== 'gun' || !locked || fcsLocked(E)) return null;
       // Barrel = aim + lead on a manual sight (the sight looks behind the barrel by the lead angle).
