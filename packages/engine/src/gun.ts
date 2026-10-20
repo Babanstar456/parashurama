@@ -1,4 +1,4 @@
-import { closestApproach, angDiff, dirOf, gauss, losOf, muzzleVelocity, solveAim, type AimSolution, type Met, type Vec3 } from './ballistics';
+import { closestApproach, angDiff, dirOf, fly, gauss, losOf, muzzleVelocity, solveAim, type AimSolution, type Met, type Vec3 } from './ballistics';
 import { getConfig, gunsOf, type Config, type Gun, type GunsFile } from './config';
 import type { Terrain, TimeOfDay, Weather } from './types';
 import { clamp, hash2, mulberry } from './util';
@@ -13,13 +13,13 @@ import { clamp, hash2, mulberry } from './util';
 export type Seat = 'cr' | 'gun';
 /** Fire orders in the fixed sequence Alert → Indicate (target) → Method → Executive (engage). Cease fire = stop firing,
  *  keep tracking; Hold fire = emergency stop on everything (US/NATO usage; Indian wording to be confirmed). */
-export type OrderKind = 'rangeClear' | 'alert' | 'target' | 'method' | 'engage' | 'cease' | 'hold' | 'unload';
+export type OrderKind = 'rangeClear' | 'alert' | 'target' | 'method' | 'engage' | 'cease' | 'hold' | 'unload' | 'rangeGreen';
 /** Weapon Control Status (NATO terms): hold = fire only in self-defence or on direct order; tight = only positively identified hostiles; free = anything not identified friendly. */
 export type Wcs = 'hold' | 'tight' | 'free';
 /** Air Defence Warning (NATO terms): sets how long the crew needs to be at the gun. */
 export type Adw = 'white' | 'yellow' | 'red';
 export type KillOutcome = 'destroyed' | 'noEffect';
-export type GunActionKind = 'order' | 'ack' | 'post' | 'kill' | 'load' | 'safety' | 'lay' | 'slew' | 'trig' | 'sight' | 'lock' | 'clear' | 'barrel' | 'unload' | 'report';
+export type GunActionKind = 'order' | 'check' | 'uxo' | 'rstep' | 'ack' | 'post' | 'kill' | 'load' | 'safety' | 'lay' | 'slew' | 'trig' | 'sight' | 'lock' | 'clear' | 'barrel' | 'unload' | 'report';
 export interface GunAction {
   tick: number; seat: Seat; k: GunActionKind;
   /** order */ o?: OrderKind; cid?: number;
@@ -28,6 +28,7 @@ export interface GunAction {
   /** manual sight settings: target speed (m/s), course angle (deg, + = moving right), range (m) */ spd?: number; crs?: number; rng?: number;
   /** report: rounds expended */ n?: number;
   /** kill assessment */ out?: KillOutcome;
+  /** live-fire check item id; unexploded round index found */ item?: string; i?: number;
 }
 export interface GunSpawn { type: string; t: number; brg: number; dist: number; alt: number; passM: number; }
 export interface GunDrillConfig {
@@ -37,6 +38,8 @@ export interface GunDrillConfig {
   wcs?: Wcs; adw?: Adw;
   /** Safe arcs: [from, to] bearings in degrees (clockwise) the gun must never fire into. */
   safeArcs?: [number, number][];
+  /** Practice drill with no targets: 'reload' = timed reloads only. */
+  practice?: 'reload';
 }
 export type TargetState = 'pending' | 'live' | 'destroyed' | 'leaked' | 'gone';
 export interface GunTarget {
@@ -51,7 +54,8 @@ export interface GunEvent { tick: number; k: string; cid?: number; n?: number; o
 export interface OrderRec { tick: number; o: OrderKind; cid: number | null; ackTick: number | null; }
 export interface GunState {
   posted: boolean; az: number; el: number; rAz: number; rEl: number; layCid: number | null; laidTick: number | null;
-  loaded: boolean; safety: boolean; trig: boolean; ready: number; reserve: number; busy: 'post' | 'load' | 'clear' | 'barrel' | 'unload' | null; busyUntil: number;
+  loaded: boolean; safety: boolean; trig: boolean; ready: number; reserve: number; busy: 'post' | 'load' | 'rstep' | 'clear' | 'barrel' | 'unload' | null;
+  /** Reload drill: index of the next step. */ rIdx: number; busyUntil: number;
   stoppage: boolean; heat: number; overheatRounds: number; sight: { spd: number; crs: number; rng: number } | null; sightTick: number | null;
   lockCid: number | null; lockStart: number | null; acc: number; fired: number; unloaded: boolean; reported: number | null; reportTick: number | null;
 }
@@ -60,6 +64,10 @@ export interface GunEngine {
   spawns: GunSpawn[]; next: number; targets: GunTarget[]; g: GunState;
   /** Tick a friendly/civil aircraft came within 5° of the line of fire while firing was cleared (null when clear). */
   nhIn: number | null;
+  /** Live-fire procedure: check item → tick done; unexploded rounds located; RANGE GREEN tick. */
+  checks: Record<string, number>; uxoFound: number[]; rangeGreenTick: number | null;
+  /** Every reload: start and end ticks, and steps done out of order. */
+  reloads: { start: number; end: number | null; errors: number; steps: boolean }[];
   orders: OrderRec[]; rangeClear: boolean; cleared: number | null; ceased: boolean; held: boolean; unloadOrdered: boolean; kills: { tick: number; cid: number; out: KillOutcome }[];
   rounds: Round[]; bursts: Burst[]; pending: { tick: number; cid: number }[]; ev: GunEvent[]; fcs: AimSolution | null;
 }
@@ -88,6 +96,7 @@ export const targetVel = (T: GunTarget, t: number, dt: number, win = 2): Vec3 =>
 
 /** Procedural gun drill: targets from the threat library, difficulty sets numbers, speeds and crossing distances. */
 export function buildGunScenario(cfg: GunDrillConfig, C: Config = getConfig()): GunSpawn[] {
+  if (cfg.practice) return [];
   const r = mulberry(cfg.seed * 7 + 1301), T = C.threats.threats;
   const pool = ['fpv', 'recon', 'aiStrike', 'dropper', 'loiter', 'fibre'].filter((k) => T[k]);
   const n = clamp(1 + Math.floor(cfg.difficulty / 2), 1, 4), out: GunSpawn[] = [];
@@ -116,10 +125,10 @@ export function createGun(cfg: GunDrillConfig, C: Config = getConfig(), spawns?:
   if (!gun) throw new Error(`Unknown gun "${cfg.gun}"`);
   return {
     C, G, gun, cfg, tick: 0, dt: C.training.sim.dt, spawns: spawns ?? buildGunScenario(cfg, C), next: 0, targets: [],
-    g: { posted: (cfg.adw ?? 'red') === 'red', az: 0, el: 5, rAz: 0, rEl: 0, layCid: null, laidTick: null, loaded: false, safety: true, trig: false, ready: 0, reserve: cfg.issueRounds,
+    g: { rIdx: 0, posted: (cfg.adw ?? 'red') === 'red', az: 0, el: 5, rAz: 0, rEl: 0, layCid: null, laidTick: null, loaded: false, safety: true, trig: false, ready: 0, reserve: cfg.issueRounds,
       busy: null, busyUntil: 0, stoppage: false, heat: 0, overheatRounds: 0, sight: null, sightTick: null, lockCid: null, lockStart: null, acc: 0, fired: 0,
       unloaded: false, reported: null, reportTick: null },
-    nhIn: null, orders: [], rangeClear: false, cleared: null, ceased: false, held: false, unloadOrdered: false, kills: [], rounds: [], bursts: [], pending: [], ev: [], fcs: null,
+    nhIn: null, checks: {}, uxoFound: [], rangeGreenTick: null, reloads: [], orders: [], rangeClear: false, cleared: null, ceased: false, held: false, unloadOrdered: false, kills: [], rounds: [], bursts: [], pending: [], ev: [], fcs: null,
   };
 }
 
@@ -175,17 +184,29 @@ function order(E: GunEngine, a: GunAction): void {
   else if (o === 'hold') { E.cleared = null; E.held = true; }
   else if (o === 'cease') { E.cleared = null; E.ceased = true; }
   else if (o === 'unload') E.unloadOrdered = true;
+  else if (o === 'rangeGreen' && E.rangeGreenTick == null) E.rangeGreenTick = E.tick;
 }
 
 function apply(E: GunEngine, a: GunAction): void {
   const g = E.g, P = E.G.procedure;
   if (a.k === 'order' && a.seat === 'cr' && a.o) return order(E, a);
+  const lfx = E.G.lfx;
+  if (a.k === 'check' && lfx && a.item && E.checks[a.item] == null && (a.seat === 'gun' ? lfx.gunChecks : lfx.rangeChecks).some((c) => c.id === a.item)) { E.checks[a.item] = E.tick; E.ev.push({ tick: E.tick, k: 'check', text: a.item }); return; }
+  if (a.k === 'uxo' && a.seat === 'cr' && a.i != null && unexploded(E).some((r) => r.i === a.i) && !E.uxoFound.includes(a.i)) { E.uxoFound.push(a.i); E.ev.push({ tick: E.tick, k: 'uxoFound', n: a.i }); return; }
   if (a.seat !== 'gun') return;
   switch (a.k) {
     case 'ack': { const r = [...E.orders].reverse().find((x) => x.ackTick == null); if (r) { r.ackTick = E.tick; E.ev.push({ tick: E.tick, k: 'ack', o: r.o }); } return; }
     case 'post': if (!g.posted && !g.busy) { g.busy = 'post'; g.busyUntil = E.tick + sec(E, P.standToSec?.[E.cfg.adw ?? 'red'] ?? 0); } return;
     case 'kill': if (a.cid != null && a.out) { E.kills.push({ tick: E.tick, cid: a.cid, out: a.out }); E.ev.push({ tick: E.tick, k: 'killReport', cid: a.cid, out: a.out }); } return;
-    case 'load': if (g.posted && !g.busy && !g.loaded && g.reserve > 0) { g.busy = 'load'; g.busyUntil = E.tick + sec(E, P.loadSec); E.ev.push({ tick: E.tick, k: 'loading' }); } return;
+    case 'load': if (g.posted && !g.busy && !g.loaded && g.reserve > 0 && g.rIdx === 0) { g.busy = 'load'; g.busyUntil = E.tick + sec(E, P.loadSec); E.reloads.push({ start: E.tick, end: null, errors: 0, steps: false }); E.ev.push({ tick: E.tick, k: 'loading' }); } return;
+    case 'rstep': {
+      const R = E.gun.reload;
+      if (!R || !g.posted || g.busy || g.loaded || g.reserve <= 0 || !a.item) return;
+      if (g.rIdx === 0 && (!E.reloads.length || E.reloads[E.reloads.length - 1].end != null)) { E.reloads.push({ start: E.tick, end: null, errors: 0, steps: true }); E.ev.push({ tick: E.tick, k: 'loading' }); }
+      const cur = E.reloads[E.reloads.length - 1];
+      if (R[g.rIdx].id !== a.item) { cur.errors++; E.ev.push({ tick: E.tick, k: 'reloadError', text: a.item }); return; }
+      g.busy = 'rstep'; g.busyUntil = E.tick + sec(E, R[g.rIdx].sec); return;
+    }
     case 'safety': g.safety = !!a.on; if (g.safety) g.trig = false; E.ev.push({ tick: E.tick, k: g.safety ? 'safetyOn' : 'safetyOff' }); return;
     case 'lay': if (tgt(E, a.cid)) { g.layCid = a.cid!; g.laidTick = null; } return;
     case 'slew': g.rAz = clamp(a.az ?? 0, -1, 1); g.rEl = clamp(a.el ?? 0, -1, 1); g.layCid = null; return;
@@ -263,8 +284,10 @@ export function stepGun(E: GunEngine, acts: GunAction[]): void {
   while (E.next < E.spawns.length && E.spawns[E.next].t <= t) spawn(E, E.spawns[E.next++]);
   // Busy jobs finish.
   if (g.busy && E.tick >= g.busyUntil) {
+    const loadUp = () => { const n = Math.min(g.reserve, gun.beltRounds * gun.barrels); g.reserve -= n; g.ready += n; g.loaded = true; g.unloaded = false; E.ev.push({ tick: E.tick, k: 'loaded' }); const r = E.reloads[E.reloads.length - 1]; if (r && r.end == null) r.end = E.tick; };
     if (g.busy === 'post') { g.posted = true; E.ev.push({ tick: E.tick, k: 'posted' }); }
-    else if (g.busy === 'load') { const n = Math.min(g.reserve, gun.beltRounds * gun.barrels); g.reserve -= n; g.ready += n; g.loaded = true; E.ev.push({ tick: E.tick, k: 'loaded' }); }
+    else if (g.busy === 'load') loadUp();
+    else if (g.busy === 'rstep') { E.ev.push({ tick: E.tick, k: 'rstep', text: gun.reload![g.rIdx].id }); if (++g.rIdx >= gun.reload!.length) { g.rIdx = 0; loadUp(); } }
     else if (g.busy === 'clear') { g.stoppage = false; E.ev.push({ tick: E.tick, k: 'cleared' }); }
     else if (g.busy === 'barrel') { g.heat = 0; E.ev.push({ tick: E.tick, k: 'barrelChanged' }); }
     else if (g.busy === 'unload') { g.reserve += g.ready; g.ready = 0; g.loaded = false; g.unloaded = true; E.ev.push({ tick: E.tick, k: 'unloaded' }); }
@@ -305,24 +328,35 @@ export function stepGun(E: GunEngine, acts: GunAction[]): void {
   E.tick++;
 }
 
-export const gunMaxTicks = (E: GunEngine): number => sec(E, E.cfg.maxSec ?? 180);
+/** Engagement time limit, plus up to 90 s for making safe and the range sweep once UNLOAD is ordered. */
+/** Reloads in a reload practice drill. */
+export const RELOAD_REPS = 3;
+export const gunMaxTicks = (E: GunEngine): number => sec(E, E.cfg.maxSec ?? 180) + (E.unloadOrdered ? sec(E, 90) : 0);
 /** Range at which to open fire on this target: the size-based engagement range, capped by the gun's effective range. */
 export const engageRange = (E: GunEngine, T: GunTarget): number => Math.min(E.gun.effRangeM, E.G.targets.engageRangeM?.[E.C.threats.threats[T.type].echo] ?? E.gun.effRangeM);
 /** Drill over: every target resolved, cease fire given, and the gun unloaded and reported (or time is up). */
 export function gunDone(E: GunEngine): boolean {
   if (E.tick >= gunMaxTicks(E)) return true;
+  if (E.cfg.practice === 'reload') return E.reloads.filter((r) => r.end != null).length >= RELOAD_REPS;
   const resolved = E.next >= E.spawns.length && E.targets.every((t) => !t.hostile || t.state !== 'live');
-  return resolved && E.ceased && E.g.reportTick != null;
+  return resolved && E.ceased && E.g.reportTick != null && (!E.G.lfx || E.rangeGreenTick != null);
+}
+/** Unexploded rounds: rounds whose self-destruct failed and that did not hit a target. */
+export const unexploded = (E: GunEngine): Round[] => E.rounds.filter((r) => r.dud && !r.hit);
+/** Where an unexploded round came down (flown to the ground; coarse step, for the range sweep only). */
+export function dudPoint(E: GunEngine, r: Round): Vec3 {
+  let last: Vec3 = [0, 0, 0];
+  fly(E.G.ammo[E.gun.ammo], { az: r.az, el: r.el, mv: r.mv }, E.cfg.met, { dt: 0.05, tMax: 90 }, (_t, p) => { last = [p[0], p[1], p[2]]; return p[2] < -5; });
+  return last;
 }
 
 export interface GunRunOptions { actions?: GunAction[]; policies?: ((E: GunEngine) => GunAction[])[]; until?: number; stopWhenDone?: boolean; spawns?: GunSpawn[]; }
 /** Re-run a gun drill from its config and action log (and/or policies). Pure and deterministic. */
 export function runGun(cfg: GunDrillConfig, o: GunRunOptions = {}, C: Config = getConfig()): GunEngine {
   const E = createGun(cfg, C, o.spawns);
-  const until = o.until ?? gunMaxTicks(E);
   const by = new Map<number, GunAction[]>();
   for (const a of o.actions ?? []) { const l = by.get(a.tick) ?? []; l.push(a); by.set(a.tick, l); }
-  while (E.tick < until) {
+  while (E.tick < (o.until ?? gunMaxTicks(E))) {
     const acts = (by.get(E.tick) ?? []).concat(...(o.policies ?? []).map((p) => p(E).map((a) => ({ ...a, tick: E.tick }))));
     stepGun(E, acts);
     if (o.stopWhenDone && gunDone(E)) break;

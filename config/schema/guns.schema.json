@@ -7,7 +7,8 @@
   "definitions": {
     "pos": { "type": "number", "exclusiveMinimum": 0 },
     "nn": { "type": "number", "minimum": 0 },
-    "sizeMap": { "type": "object", "additionalProperties": { "type": "number", "exclusiveMinimum": 0 } }
+    "sizeMap": { "type": "object", "additionalProperties": { "type": "number", "exclusiveMinimum": 0 } },
+    "check": { "type": "object", "additionalProperties": false, "required": ["id", "label"], "properties": { "id": { "type": "string", "pattern": "^[A-Za-z0-9]+$" }, "label": { "type": "string", "minLength": 1 } } }
   },
   "properties": {
     "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
@@ -36,6 +37,8 @@
           "heatPerRound": { "$ref": "#/definitions/nn" }, "coolPerSec": { "$ref": "#/definitions/nn" }, "heatLimit": { "$ref": "#/definitions/pos" },
           "stoppageP": { "type": "number", "minimum": 0, "maximum": 0.2 },
           "sightFovDeg": { "type": "number", "minimum": 2, "maximum": 60 },
+          "reload": { "type": "array", "minItems": 1, "description": "Optional reload drill, in order (training values). Missing = one-step load taking procedure.loadSec.",
+            "items": { "type": "object", "additionalProperties": false, "required": ["id", "label", "sec"], "properties": { "id": { "type": "string", "pattern": "^[A-Za-z0-9]+$" }, "label": { "type": "string", "minLength": 1 }, "sec": { "$ref": "#/definitions/nn" } } } },
           "radar": { "type": "object", "additionalProperties": false, "required": ["acquireRangeM", "lockSec", "trackNoiseMil", "faultP"],
             "properties": { "acquireRangeM": { "$ref": "#/definitions/pos" }, "lockSec": { "$ref": "#/definitions/nn" }, "trackNoiseMil": { "$ref": "#/definitions/nn" }, "faultP": { "type": "number", "minimum": 0, "maximum": 1 } } } } } },
     "targets": { "type": "object", "additionalProperties": false, "required": ["hitRadiusM", "hitsToKill"],
@@ -53,8 +56,15 @@
         "killReportSec": { "$ref": "#/definitions/pos" } } },
     "met": { "type": "object", "additionalProperties": false, "required": ["stdTempC", "stdPressureHpa", "latitudeDeg"],
       "properties": { "stdTempC": { "type": "number", "minimum": -50, "maximum": 60 }, "stdPressureHpa": { "type": "number", "minimum": 500, "maximum": 1100 }, "latitudeDeg": { "type": "number", "minimum": -90, "maximum": 90 } } },
+    "lfx": { "type": "object", "additionalProperties": false, "required": ["gunChecks", "rangeChecks", "checkSec", "uxoSearchSec"],
+      "description": "Optional live-fire drill procedure. Missing = no pre-firing checks or range sweep (drills before v0.7).",
+      "properties": {
+        "note": { "type": "string" },
+        "gunChecks": { "type": "array", "items": { "$ref": "#/definitions/check" } },
+        "rangeChecks": { "type": "array", "items": { "$ref": "#/definitions/check" } },
+        "checkSec": { "$ref": "#/definitions/nn" }, "uxoSearchSec": { "$ref": "#/definitions/nn" } } },
     "orders": { "type": "object", "additionalProperties": false, "description": "Words of command shown and spoken in the drill. Optional; missing = built-in placeholders.",
       "required": ["rangeClear", "alert", "target", "method", "engage", "hold", "cease", "unload", "ack", "ready", "onTarget", "stoppage", "reportSafe"],
-      "properties": { "note": { "type": "string" }, "rangeClear": { "type": "string", "minLength": 1 }, "target": { "type": "string", "minLength": 1 }, "method": { "type": "string", "minLength": 1 }, "engage": { "type": "string", "minLength": 1 }, "hold": { "type": "string", "minLength": 1 }, "alert": { "type": "string", "minLength": 1 }, "cease": { "type": "string", "minLength": 1 }, "unload": { "type": "string", "minLength": 1 }, "ack": { "type": "string", "minLength": 1 }, "ready": { "type": "string", "minLength": 1 }, "onTarget": { "type": "string", "minLength": 1 }, "stoppage": { "type": "string", "minLength": 1 }, "reportSafe": { "type": "string", "minLength": 1 }, "killDestroyed": { "type": "string", "minLength": 1 }, "killNoEffect": { "type": "string", "minLength": 1 } } }
+      "properties": { "note": { "type": "string" }, "rangeClear": { "type": "string", "minLength": 1 }, "target": { "type": "string", "minLength": 1 }, "method": { "type": "string", "minLength": 1 }, "engage": { "type": "string", "minLength": 1 }, "hold": { "type": "string", "minLength": 1 }, "alert": { "type": "string", "minLength": 1 }, "cease": { "type": "string", "minLength": 1 }, "unload": { "type": "string", "minLength": 1 }, "ack": { "type": "string", "minLength": 1 }, "ready": { "type": "string", "minLength": 1 }, "onTarget": { "type": "string", "minLength": 1 }, "stoppage": { "type": "string", "minLength": 1 }, "reportSafe": { "type": "string", "minLength": 1 }, "killDestroyed": { "type": "string", "minLength": 1 }, "killNoEffect": { "type": "string", "minLength": 1 }, "rangeGreen": { "type": "string", "minLength": 1 } } }
   }
 }

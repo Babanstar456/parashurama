@@ -1,5 +1,5 @@
 import { angDiff, losOf } from './ballistics';
-import { authorised, engageRange, inSafeArc, sightSolution, targetPos, targetVel, targetOnLine, type GunAction, type GunEngine, type GunTarget, type OrderKind } from './gun';
+import { authorised, engageRange, inSafeArc, unexploded, sightSolution, targetPos, targetVel, targetOnLine, type GunAction, type GunEngine, type GunTarget, type OrderKind } from './gun';
 import { clamp } from './util';
 
 /**
@@ -36,7 +36,20 @@ export function nonHostileInLine(E: GunEngine, maxDeg = 5): GunTarget | undefine
 /** Expert control room: Range clear, Alert, Target, Method, Fire in sequence, by time to impact; Cease, Hold and Unload on time. */
 export function controlRoomAI(E: GunEngine): GunAction[] {
   const o = (k: OrderKind, cid?: number): GunAction[] => [{ tick: E.tick, seat: 'cr', k: 'order', o: k, ...(cid != null ? { cid } : {}) }];
-  if (!E.rangeClear) return o('rangeClear');
+  const lfx = E.G.lfx, every = lfx ? sec(E, lfx.checkSec) : 1, lastCheck = Math.max(-every, ...Object.values(E.checks));
+  if (!E.rangeClear) {
+    // Range safety checks first (live-fire procedure), one at a time, then RANGE CLEAR.
+    const todo = lfx?.rangeChecks.find((c) => E.checks[c.id] == null);
+    if (todo) return E.tick - lastCheck >= every ? [{ tick: E.tick, seat: 'cr', k: 'check', item: todo.id }] : [];
+    return o('rangeClear');
+  }
+  // End of the drill: once the gun is clear, sweep the range for unexploded rounds, then RANGE GREEN.
+  if (lfx && E.unloadOrdered && E.g.reportTick != null && E.rangeGreenTick == null && !E.targets.some((t) => t.hostile && t.state === 'live')) {
+    const left = unexploded(E).find((r) => !E.uxoFound.includes(r.i));
+    const lastFound = Math.max(E.g.reportTick, ...E.ev.filter((e) => e.k === 'uxoFound').map((e) => e.tick));
+    if (left) return E.tick - lastFound >= sec(E, lfx.uxoSearchSec) ? [{ tick: E.tick, seat: 'cr', k: 'uxo', i: left.i }] : [];
+    return o('rangeGreen');
+  }
   const hostiles = E.targets.filter((T) => T.state === 'live' && T.hostile).sort((a, b) => gunTti(E, a) - gunTti(E, b));
   const cleared = E.cleared != null ? E.targets.find((T) => T.id === E.cleared) : undefined;
   // Emergency: a friendly or civil aircraft in the line of fire while cleared to fire.
@@ -77,6 +90,16 @@ export function gunCrewAI(E: GunEngine, skill: CrewSkill = { ackSec: 1 }): GunAc
   const a = (x: Omit<GunAction, 'tick' | 'seat'>) => out.push({ tick: E.tick, seat: 'gun', ...x } as GunAction);
   const un = E.orders.find((x) => x.ackTick == null);
   if (un && E.tick - un.tick >= sec(E, skill.ackSec)) a({ k: 'ack' });
+  // Pre-firing checks on the gun (live-fire procedure), one at a time, before loading. Not part of reload practice.
+  const lfx = E.cfg.practice ? undefined : E.G.lfx;
+  const todo = lfx?.gunChecks.find((c) => E.checks[c.id] == null);
+  if (todo) { const last = Math.max(-999, ...lfx!.gunChecks.map((c) => E.checks[c.id] ?? -999)); if (E.tick - last >= sec(E, lfx!.checkSec)) a({ k: 'check', item: todo.id }); return out; }
+  if (E.cfg.practice === 'reload') {
+    // Reload practice: reload, then unload, and again.
+    if (g.busy) return out;
+    if (g.loaded) a({ k: 'unload' }); else if (gun.reload) a({ k: 'rstep', item: gun.reload[g.rIdx].id }); else a({ k: 'load' });
+    return out;
+  }
   if (!E.orders.length) return out;
   if (!g.posted) { if (!g.busy) a({ k: 'post' }); return out; }
   // Make safe at the end.
@@ -87,7 +110,7 @@ export function gunCrewAI(E: GunEngine, skill: CrewSkill = { ackSec: 1 }): GunAc
     else if (!g.busy && g.reportTick == null) a({ k: 'report', n: E.cfg.issueRounds - g.reserve - g.ready });
     return out;
   }
-  if (!g.loaded && !g.busy && g.reserve > 0) a({ k: 'load' });
+  if (!g.loaded && !g.busy && g.reserve > 0) a(gun.reload ? { k: 'rstep', item: gun.reload[g.rIdx].id } : { k: 'load' });
   if (g.stoppage && !g.busy) { if (g.trig) a({ k: 'trig', on: false }); a({ k: 'clear' }); return out; }
   // Kill assessment.
   for (const T of E.targets) if (T.state === 'destroyed' && !E.kills.some((k) => k.cid === T.id) && E.tick - (T.endTick ?? 0) >= sec(E, 1)) a({ k: 'kill', cid: T.id, out: 'destroyed' });

@@ -1,6 +1,6 @@
 import { angDiff, losOf } from './ballistics';
 import { getConfig, type Config } from './config';
-import { engageRange, inSafeArc, targetPos, targetVel, type GunDrillConfig, type GunEngine, type GunTarget, type OrderKind } from './gun';
+import { engageRange, inSafeArc, targetPos, targetVel, unexploded, type GunDrillConfig, type GunEngine, type GunTarget, type OrderKind } from './gun';
 import { SELF_DEFENCE_SEC } from './gunai';
 import { bkt, type Observations } from './learning';
 import { clamp } from './util';
@@ -72,7 +72,7 @@ export function scoreGround(E: GunEngine): GunScore {
   });
   const layC = avgOr(layItems);
   if (layC < 0.99) w2.push(radar ? 'Slow to lock the radar on the indicated target' : 'Slow to lay on the indicated target');
-  const g2 = part('G2', 'Make ready', 8, (3 * ackC + postC + 2 * loadC + 2 * layC) / 8, w2);
+  const g2 = part('G2', 'Make ready', 6, (3 * ackC + postC + 2 * loadC + 2 * layC) / 8, w2);
   // G3 Stoppages and barrel heat.
   const w3: string[] = [];
   const stops = ev('stoppage').map((s) => { const c = E.ev.find((e) => e.k === 'cleared' && e.tick > s.tick); return c ? lin(S(E, c.tick - s.tick), P.stoppageClearSec + 2, P.stoppageClearSec * 4) : 0; });
@@ -130,7 +130,8 @@ export function scoreGround(E: GunEngine): GunScore {
     if (b.rounds > bmax) w8.push(`Long burst of ${b.rounds} rounds (limit ${bmax})`);
     if (b.cid != null && b.maxRangeM > gun.effRangeM) w8.push(`Fired at ${Math.round(b.maxRangeM)} m, beyond the effective range of ${gun.effRangeM} m`);
   }
-  const g8 = part('G8', 'Burst discipline', 10, 1 - w8.length * 0.2, w8);
+  const g8 = part('G8', 'Burst discipline', 8, 1 - w8.length * 0.2, w8);
+  const g12 = reloadPart(E);
   // G9 Make safe and account.
   const w9: string[] = [], un = E.orders.find((o) => o.o === 'unload');
   let c9 = 1;
@@ -165,8 +166,32 @@ export function scoreGround(E: GunEngine): GunScore {
     if (b.safeArc) { p10 -= 20; d10.push(`Fired into a safe arc at bearing ${Math.round(b.cid != null ? E.g.az : 0)}° −20`); }
   }
   const deductions = [{ rule: 'G1', label: 'Fire discipline: clearance', max: 0, pts: p1, why: d1 }, { rule: 'G10', label: 'Safe arcs', max: 0, pts: p10, why: d10 }];
-  return finish('ground', E, [g2, g3, g4, g5, g6, g7, g8, g9, g11], deductions);
+  // L1 live-fire: gun checks done before loading.
+  const lfx = E.G.lfx;
+  if (lfx) {
+    const loadAt = E.ev.find((e) => e.k === 'loading')?.tick ?? Infinity;
+    const miss = lfx.gunChecks.filter((c) => E.checks[c.id] == null || E.checks[c.id] > loadAt);
+    deductions.push({ rule: 'L1', label: 'Pre-firing gun checks', max: 0, pts: -4 * miss.length || 0, why: miss.map((c) => `Not done before loading: ${c.label} −4`) });
+  }
+  return finish('ground', E, [g2, g3, g4, g5, g6, g7, g8, g9, g11, g12], deductions);
 }
+
+/** G12 reload drill: each reload against the time standard (sum of the step times), with steps out of order costing credit. */
+export function reloadPart(E: GunEngine, max = 4): GunPart {
+  const R = E.gun.reload, std = R ? R.reduce((s, x) => s + x.sec, 0) : E.G.procedure.loadSec, w: string[] = [];
+  const done = E.reloads.filter((r) => r.end != null);
+  const items = done.map((r, i) => {
+    const t = S(E, r.end! - r.start), c = Math.max(0, lin(t, std * 1.25, std * 3) - 0.25 * r.errors);
+    if (r.errors) w.push(`Reload ${i + 1}: ${r.errors} step${r.errors > 1 ? 's' : ''} out of order`);
+    if (t > std * 1.25) w.push(`Reload ${i + 1} took ${fmt(t)} (standard ${fmt(std)})`);
+    return c;
+  });
+  const open = E.reloads.find((r) => r.end == null);
+  if (open && open.errors) w.push(`An unfinished reload had ${open.errors} step(s) out of order`);
+  return part('G12', 'Reload drill', max, items.length ? avgOr(items) - (open?.errors ? 0.25 : 0) : 0, items.length ? w : ['The gun was never loaded']);
+}
+/** Reload practice (no targets): the score is the reload drill alone, out of 100. */
+export function scoreReload(E: GunEngine): GunScore { return finish('ground', E, [reloadPart(E, 100)], []); }
 
 /** Control Room game: the fire-control officer's orders (F1–F8, plus G7 for the result). */
 export function scoreControl(E: GunEngine): GunScore {
@@ -256,18 +281,31 @@ export function scoreControl(E: GunEngine): GunScore {
     if ((E.cfg.wcs ?? 'tight') === 'hold' && ttiAt(E, T, e.tick) > SELF_DEFENCE_SEC) { p3 -= 20; d3.push(`Ordered fire under WEAPONS HOLD with ${fmt(ttiAt(E, T, e.tick))} to impact (not self-defence) −20`); }
     if (inSafeArc(E.cfg, losOf(targetPos(T, e.tick * E.dt, E.dt)).az)) { p4 -= 20; d4.push(`Ordered fire on target ${T.id} inside a safe arc −20`); }
   }
-  return finish('control', E, [f1, f2, f5, f6, f7, f8, g7], [{ rule: 'F3', label: 'Weapon Control Status', max: 0, pts: p3, why: d3 }, { rule: 'F4', label: 'Safe arcs', max: 0, pts: p4, why: d4 }]);
+  const ded = [{ rule: 'F3', label: 'Weapon Control Status', max: 0, pts: p3, why: d3 }, { rule: 'F4', label: 'Safe arcs', max: 0, pts: p4, why: d4 }];
+  const lfx = E.G.lfx;
+  if (lfx) {
+    // L2: range safety checks before RANGE CLEAR. L3: every unexploded round located before RANGE GREEN.
+    const rc = O.find((o) => o.o === 'rangeClear')?.tick ?? Infinity;
+    const miss = lfx.rangeChecks.filter((c) => E.checks[c.id] == null || E.checks[c.id] > rc);
+    ded.push({ rule: 'L2', label: 'Range safety checks', max: 0, pts: -4 * miss.length || 0, why: miss.map((c) => `Not done before RANGE CLEAR: ${c.label} −4`) });
+    const ux = unexploded(E), lost = ux.filter((r) => !E.uxoFound.includes(r.i)).length;
+    const w3: string[] = [];
+    if (E.rangeGreenTick == null) w3.push('RANGE GREEN never declared −5');
+    if (lost) w3.push(`${lost} unexploded round(s) not located ${E.rangeGreenTick != null ? 'before RANGE GREEN' : ''} −${5 * lost}`);
+    ded.push({ rule: 'L3', label: 'Range sweep (UXO)', max: 0, pts: -(E.rangeGreenTick == null ? 5 : 0) - 5 * lost || 0, why: w3 });
+  }
+  return finish('control', E, [f1, f2, f5, f6, f7, f8, g7], ded);
 }
 
 /** Skills tracked for the gun games (separate from the radar drill's SKILLS, so existing mastery is unchanged). */
 export const GUN_SKILLS: [string, string, GunGame][] = [
   ['gReady', 'Make ready', 'ground'], ['gReact', 'Reaction', 'ground'], ['gLead', 'Ballistic solution', 'ground'], ['gAcc', 'Burst accuracy', 'ground'],
-  ['gDisc', 'Fire discipline', 'ground'], ['gSafe', 'Make safe and report', 'ground'],
+  ['gDisc', 'Fire discipline', 'ground'], ['gSafe', 'Make safe and report', 'ground'], ['gReload', 'Reload drill', 'ground'],
   ['fOrders', 'Alert, indicate, sequence', 'control'], ['fWcs', 'WCS and safe arcs', 'control'], ['fPriority', 'Priority and range', 'control'], ['fClose', 'Cease, hold, close', 'control'],
 ];
 const SKILL_RULES: Record<string, string[]> = {
-  gReady: ['G2'], gReact: ['G4'], gLead: ['G5'], gAcc: ['G6'], gDisc: ['G1', 'G8', 'G10'], gSafe: ['G3', 'G9', 'G11'],
-  fOrders: ['F1', 'F2'], fWcs: ['F3', 'F4'], fPriority: ['F5', 'F6'], fClose: ['F7', 'F8'],
+  gReady: ['G2'], gReact: ['G4'], gLead: ['G5'], gAcc: ['G6'], gDisc: ['G1', 'G8', 'G10'], gSafe: ['G3', 'G9', 'G11', 'L1'], gReload: ['G12'],
+  fOrders: ['F1', 'F2', 'L2'], fWcs: ['F3', 'F4'], fPriority: ['F5', 'F6'], fClose: ['F7', 'F8', 'L3'],
 };
 /** One observation per skill per drill: right if every part of it earned at least 75% and no deduction hit it. */
 export function observeGun(sc: GunScore): Observations {

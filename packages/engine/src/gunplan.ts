@@ -15,6 +15,7 @@ const WHY: Record<string, string> = {
   gAcc: 'Burst accuracy needs work: the manual sight, so you must set the lead yourself.',
   gDisc: 'Fire discipline: a safe arc and a friendly or civil aircraft to test your clearance and arcs.',
   gSafe: 'Making safe and reporting: stoppages are on, so expect the immediate-action drill.',
+  gReload: 'Reloading was slow or out of order: a manual gun with short belts and more targets, so you will reload under pressure.',
   fOrders: 'Alert and fire-order sequence: the detachment starts stood down, so alert it first.',
   fWcs: 'Weapon Control Status: WEAPONS HOLD with safe arcs.',
   fPriority: 'Priority and range: more targets at once.',
@@ -31,12 +32,12 @@ export function planGun(H: GunRecord[], game: GunGame, C: Config = getConfig()):
   let gun = r() < 0.5 ? 'zu23' : 'zsu234', adw: Adw = 'red', wcs: Wcs = 'tight', safeArcs: [number, number][] | undefined, stoppages = r() < 0.6;
   const time = r() < 0.3 ? 'night' : 'day', terrain = r() < 0.5 ? 'urban' : 'rural';
   if (focus === 'gReady' || focus === 'fOrders') adw = r() < 0.5 ? 'yellow' : 'white';
-  if (focus === 'gLead' || focus === 'gAcc') gun = 'zu23';
+  if (focus === 'gLead' || focus === 'gAcc' || focus === 'gReload') gun = 'zu23';
   if (focus === 'gDisc' || focus === 'fWcs') { const a = Math.floor(r() * 360); safeArcs = [[a, (a + 50) % 360]]; }
   if (focus === 'fWcs') wcs = 'hold';
   if (focus === 'gSafe') stoppages = true;
   const cfg = defaultGunCfg({
-    seed, gun, difficulty: focus === 'fPriority' || focus === 'gReact' ? clamp(difficulty + 1, 1, 6) : focus === 'gDisc' || focus === 'fClose' ? Math.max(3, difficulty) : difficulty,
+    seed, gun, difficulty: focus === 'fPriority' || focus === 'gReact' || focus === 'gReload' ? clamp(difficulty + 1, 1, 6) : focus === 'gDisc' || focus === 'fClose' ? Math.max(3, difficulty) : difficulty,
     time, terrain, adw, wcs, stoppages, ...(safeArcs ? { safeArcs } : {}),
     met: { tempC: Math.round(10 + r() * 32), pressureHpa: Math.round(985 + r() * 35), wind: [Math.round((r() - 0.5) * 16), Math.round((r() - 0.5) * 16), 0], latitudeDeg: 26 },
   });

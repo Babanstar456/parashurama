@@ -26,6 +26,7 @@
     "G9": "After cease fire: safety on, unload, clear the gun and account for every round.",
     "G10": "Safe arcs: never fire into a safe arc (village, own troops, airfield approach).",
     "G11": "Kill assessment: report the result of each engagement (destroyed, or no effect and re-engage).",
+    "G12": "Reload drill: every step in the right order, within the time standard.",
     "F1": "Alert the detachment and indicate the target promptly once a threat is tracked.",
     "F2": "Fire orders follow the sequence Alert, Target, Method, Executive; no executive word without the earlier parts.",
     "F3": "Weapon Control Status: under Tight engage only identified hostiles; under Hold only in self-defence; never a friendly or civil aircraft.",
@@ -33,7 +34,10 @@
     "F5": "Engage the threat with the least time to the asset first.",
     "F6": "Give the executive order once the target is inside the gun's effective range.",
     "F7": "Cease fire when the target is destroyed; Hold fire at once when a friendly or civil aircraft enters the line of fire.",
-    "F8": "After the engagement: Cease fire, then Unload; record the result of every target."
+    "F8": "After the engagement: Cease fire, then Unload; record the result of every target.",
+    "L1": "Live fire: complete the gun's pre-firing checks before loading.",
+    "L2": "Live fire: complete the range safety checks before RANGE CLEAR.",
+    "L3": "Live fire: locate every unexploded round before declaring RANGE GREEN."
   },
   "confidence": [
     { "k": "likely",    "label": "Likely",    "p": 0.6,  "key": "Q" },

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   controlRoomAI, createGun, defaultConfig, defaultGunCfg, driveGun, gunCrewAI, gunMastery, gunsOf, observeGun, runGun, scoreControl, scoreGround,
-  stepGun, validateConfig, type Config, type GunAction, type GunDrillConfig, type GunEngine, type GunRecord,
+  scoreReload, stepGun, unexploded, validateConfig, type Config, type GunAction, type GunDrillConfig, type GunEngine, type GunRecord,
 } from '../src';
 
 const crew = (E: GunEngine) => gunCrewAI(E);
@@ -127,5 +127,39 @@ describe('gun skills and evidence', () => {
     const zu = row('zu23'), zsu = row('zsu234');
     expect(zsu.kills).toBeGreaterThanOrEqual(zu.kills);
     console.log(`EVIDENCE gun expert crews, 10 drills each: ZU-23-2 manual sight ${zu.kills}/${zu.hostiles} destroyed, ${zu.perKill} rounds per kill, average ${zu.avg}; ZSU-23-4 radar ${zsu.kills}/${zsu.hostiles}, ${zsu.perKill} rounds per kill, average ${zsu.avg}`);
+  });
+});
+
+describe('reload drill (G12) and live-fire procedure (L1–L3)', () => {
+  it('reload steps must go in order; a step out of order is counted and costs credit', () => {
+    const E = createGun(defaultGunCfg({ seed: 51 }));
+    const R = E.gun.reload!;
+    stepGun(E, [{ tick: 0, seat: 'gun', k: 'rstep', item: R[1].id }]); // wrong first step
+    expect(E.reloads[0].errors).toBe(1);
+    expect(E.g.busy).toBeNull();
+  });
+  it('reload practice: the expert does three reloads to the standard; a fumbling trainee scores less', () => {
+    const cfg = defaultGunCfg({ seed: 52, practice: 'reload' });
+    const { E } = play(cfg, [crew]);
+    expect(E.reloads.filter((r) => r.end != null).length).toBe(3);
+    const good = scoreReload(E).total;
+    expect(good).toBeGreaterThanOrEqual(90);
+    // Fumbler: tries the last step first on every reload.
+    const fumble = tweak((x, acts) => (x.g.rIdx === 0 && !x.g.busy && !x.g.loaded && x.tick % 7 === 0 ? [{ tick: x.tick, seat: 'gun', k: 'rstep', item: x.gun.reload!.at(-1)!.id }, ...acts] : acts));
+    const bad = scoreReload(play(cfg, [fumble]).E).total;
+    expect(bad).toBeLessThan(good);
+    console.log(`EVIDENCE reload drill (3 reloads, ZU-23-2): expert ${good}, steps out of order ${bad}`);
+  });
+  it('L1/L2/L3: skipping the gun checks, the range checks or the UXO sweep costs points', () => {
+    const cfg = defaultGunCfg({ seed: 53, difficulty: 3 });
+    const noGunChecks = tweak((_x, acts) => acts.filter((a) => a.k !== 'check'));
+    const noRange = (x: GunEngine) => controlRoomAI(x).filter((a) => a.k !== 'check' && a.k !== 'uxo');
+    const E = play(cfg, [noRange, noGunChecks]).E;
+    const ded = (r: string, s: ReturnType<typeof scoreGround>) => s.deductions.find((d) => d.rule === r)!.pts;
+    expect(ded('L1', scoreGround(E))).toBeLessThan(0);
+    expect(ded('L2', scoreControl(E))).toBeLessThan(0);
+    if (unexploded(E).length) expect(ded('L3', scoreControl(E))).toBeLessThan(0);
+    const ok = play(cfg).E;
+    expect(ded('L1', scoreGround(ok))).toBe(0); expect(ded('L2', scoreControl(ok))).toBe(0); expect(ded('L3', scoreControl(ok))).toBe(0);
   });
 });

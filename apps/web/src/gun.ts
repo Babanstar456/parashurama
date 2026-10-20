@@ -4,7 +4,8 @@
 // Runs at a fixed 10 Hz tick (deterministic, replayable); draws in 2D canvas so it runs on any laptop without a GPU.
 import {
   angDiff, controlRoomAI, createGun, dirOf, fly, getConfig, GUN_SKILLS, gunCrewAI, gunDone, gunMastery, gunMaxTicks, gunsOf, gunTti, inSafeArc,
-  losOf, muzzleVelocity, observeGun, planGun, runGun, scoreControl, scoreGround, sightSolution, stepGun, targetOnLine, targetPos, engageRange,
+  losOf, muzzleVelocity, observeGun, planGun, runGun, scoreControl, scoreGround, scoreReload, sightSolution, stepGun, targetOnLine, targetPos, engageRange,
+  dudPoint, mulberry, unexploded, RELOAD_REPS,
   type GunAction, type GunDrillConfig, type GunEngine, type GunGame, type GunRecord, type GunScore, type GunTarget, type OrderKind, type Vec3,
 } from '@parashurama/engine';
 import { app, hooks } from './app';
@@ -25,6 +26,8 @@ interface Live {
   sel: number | null; tracers: Map<number, { t0: number; pts: Vec3[] }>; radio: Radio[]; seenO: number; seenE: number;
   keys: Set<string>; rates: [number, number]; drag: { x: number; y: number; ax: number; ay: number } | null;
   sight: { spd: number; crs: number; rng: number }; sol: any; plan: ReturnType<typeof planGun>;
+  /** Reload step buttons in a shuffled order (keys 1…n), so the order has to be known, not read. */ rOrder: number[];
+  duds: Map<number, Vec3>;
 }
 let L: Live | null = null;
 let open = false;
@@ -33,7 +36,7 @@ let open = false;
 const W = () => ({
   rangeClear: 'RANGE CLEAR', alert: 'DETACHMENT, ALERT', target: 'TARGET, bearing {brg}, range {rng}, height {hgt}, {type}', method: 'SHORT BURSTS', engage: 'FIRE',
   hold: 'HOLD FIRE', cease: 'CEASE FIRE', unload: 'UNLOAD, MAKE SAFE', ack: 'ROGER', ready: 'READY', onTarget: 'ON', stoppage: 'STOPPAGE',
-  reportSafe: 'GUN CLEAR, {n} ROUNDS EXPENDED', killDestroyed: 'TARGET DESTROYED', killNoEffect: 'NO EFFECT, RE-ENGAGING', ...(gunsOf(getConfig()).orders ?? {}),
+  reportSafe: 'GUN CLEAR, {n} ROUNDS EXPENDED', killDestroyed: 'TARGET DESTROYED', killNoEffect: 'NO EFFECT, RE-ENGAGING', rangeGreen: 'RANGE GREEN', ...(gunsOf(getConfig()).orders ?? {}),
 } as Record<string, string>);
 function orderText(E: GunEngine, o: OrderKind, cid: number | null): string {
   const w = W()[o] ?? o.toUpperCase();
@@ -65,11 +68,15 @@ function pumpRadio() {
     else if (e.k === 'unauthorisedBurst') radio('SYS', 'Burst fired without clearance');
     else if (e.k === 'safeArcBurst') radio('SYS', 'Burst fired into a safe arc');
     else if (e.k === 'nonHostileInLine') radio('SYS', 'Friendly or civil aircraft near the line of fire');
+    else if (e.k === 'check') { const c = [...(E.G.lfx?.gunChecks ?? []), ...(E.G.lfx?.rangeChecks ?? [])].find((x) => x.id === e.text); radio('SYS', `Checked: ${c?.label ?? e.text}`); }
+    else if (e.k === 'uxoFound') radio('SYS', 'Unexploded round located and marked for EOD');
+    else if (e.k === 'reloadError') radio('SYS', `Reload step out of order: ${E.gun.reload?.find((x) => x.id === e.text)?.label ?? e.text}`);
   }
 }
 
 // ---------- lobby ----------
 function lobby() {
+  stop();
   const m = gunMastery(H);
   const card = (g: GunGame, title: string, sub: string, body: string) => {
     const p = planGun(H, g), mine = H.filter((h) => h.game === g), last = mine[mine.length - 1];
@@ -86,10 +93,13 @@ function lobby() {
       ${card('control', 'Control Room', 'Fire-control officer', 'Pick the most urgent threat, give Alert → Target → Method → FIRE, respect Weapon Control Status and safe arcs, call Cease and Hold fire, close with Unload.')}
       ${card('ground', 'On Ground', 'Gun detachment', 'Acknowledge, man the gun, load, lay on the indicated target, set speed, course and range on the sight (or lock the radar), fire short bursts on FIRE only, report, unload.')}
     </div>
+    <div class="gnPractice"><b>Reload drill</b><span>Timed practice: ${RELOAD_REPS} reloads against the time standard, every step in the right order. The step buttons are shuffled, so you must know the drill.</span>
+      <button class="smallBtn" data-practice="zu23">ZU-23-2 →</button><button class="smallBtn" data-practice="zsu234">ZSU-23-4 →</button></div>
     <p class="gnNote">Words of command are placeholders until your unit's exact drill wording is loaded (config <code>guns.json</code>). Weapon Control Status and Air Defence Warning use NATO terms. Gun, ammunition and ballistic figures are training values, not equipment specifications.</p>
   </div>`;
   $('#gnClose').onclick = closeGun;
   document.querySelectorAll<HTMLElement>('#gunApp [data-game]').forEach((b) => (b.onclick = () => start(b.dataset.game as GunGame)));
+  document.querySelectorAll<HTMLElement>('#gunApp [data-practice]').forEach((b) => (b.onclick = () => startReload(b.dataset.practice!)));
   (document.querySelector('#gunApp [data-game]') as HTMLElement)?.focus();
 }
 
@@ -99,13 +109,17 @@ export function start(game: GunGame, cfg?: GunDrillConfig) {
   const plan = planGun(H, game);
   const c = cfg ?? plan.cfg, E = createGun(c);
   L = { game, E, log: [], q: [], acc: 0, last: performance.now(), raf: 0, done: false, sel: null, tracers: new Map(), radio: [], seenO: 0, seenE: 0,
-    keys: new Set(), rates: [0, 0], drag: null, sight: { spd: 20, crs: 0, rng: 1000 }, sol: null, plan };
+    keys: new Set(), rates: [0, 0], drag: null, sight: { spd: 20, crs: 0, rng: 1000 }, sol: null, plan, rOrder: [], duds: new Map() };
+  { const n = E.gun.reload?.length ?? 0, r = mulberry(c.seed + 77), o = [...Array(n).keys()];
+    for (let i = n - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; }
+    if (n > 1 && o.every((v, i) => v === i)) o.reverse(); L.rOrder = o; }
   const G = E.gun, cfgTxt = `${G.label} · ${c.time === 'night' ? 'Night' : 'Day'} · ${c.terrain} · ${c.met.tempC} °C, ${c.met.pressureHpa} hPa, wind ${Math.round(Math.hypot(c.met.wind[0], c.met.wind[1]))} m/s`;
   const measures = `<b>WCS</b> ${(c.wcs ?? 'tight').toUpperCase()} · <b>ADW</b> ${(c.adw ?? 'red').toUpperCase()}${c.safeArcs?.length ? ` · <b>Safe arc</b> ${c.safeArcs.map(([a, b]) => `${pad3(a)}–${pad3(b)}°`).join(', ')}` : ''}`;
   $('#gunApp').innerHTML = `<div class="gnDrill ${game}">
-    <div class="gnBar"><b>${game === 'control' ? 'CONTROL ROOM' : 'ON GROUND'}</b><span>${esc(cfgTxt)}</span><span class="gnMeasures">${measures}</span><span class="gnClock num" id="gnClock">0:00</span><button class="smallBtn" id="gnQuit">End drill</button></div>
+    <div class="gnBar"><b>${c.practice ? 'RELOAD DRILL' : game === 'control' ? 'CONTROL ROOM' : 'ON GROUND'}</b><span>${esc(cfgTxt)}</span><span class="gnMeasures">${measures}</span><span class="gnClock num" id="gnClock">0:00</span><button class="smallBtn" id="gnQuit">End drill</button></div>
     <div class="gnMain"><canvas id="gnView" aria-label="${game === 'control' ? 'Air picture' : 'Gun sight'}"></canvas>${game === 'ground' && G.sight === 'radar' ? '<canvas id="gnScope" aria-label="Fire-control radar"></canvas>' : ''}</div>
     <aside class="gnSide">
+      <div class="gnBox" id="gnProc"></div>
       <div class="gnBox" id="gnPanel"></div>
       <div class="gnBox gnRadioBox"><h4>Radio net</h4><div class="gnRadio" id="gnRadio"></div></div>
     </aside></div>`;
@@ -118,11 +132,17 @@ export function start(game: GunGame, cfg?: GunDrillConfig) {
   } else {
     view.onclick = (e) => { const id = pickBlip(e); if (id != null) { L!.sel = id; renderPanel(); } };
   }
-  radio('SYS', game === 'control' ? 'You are the fire-control officer. Start with RANGE CLEAR when the range is safe.' : `You are the ${G.short} detachment. Wait for orders; acknowledge with K.`);
+  radio('SYS', c.practice ? `Reload drill on the ${G.short}: ${RELOAD_REPS} reloads. Load, then Unload (U), and again. Keys 1–${G.reload?.length ?? 1} are the step buttons as shown.`
+    : game === 'control' ? 'You are the fire-control officer. Do the range safety checks, then RANGE CLEAR.' : `You are the ${G.short} detachment. Do the gun checks, then wait for orders; acknowledge with K.`);
   renderPanel();
   L.raf = requestAnimationFrame(loop);
 }
 function stop() { if (L) cancelAnimationFrame(L.raf); L = null; }
+/** Reload drill: no targets, the AI control room is silent; three timed reloads. */
+export function startReload(gun: string) {
+  const p = planGun(H, 'ground');
+  start('ground', { ...p.cfg, gun, practice: 'reload', issueRounds: 2000, adw: 'red', safeArcs: undefined });
+}
 /** Trainee input becomes a time-stamped action on the next tick. */
 function act(a: Omit<GunAction, 'tick' | 'seat'>) { if (!L || L.done) return; L.q.push({ ...(a as any), tick: L.E.tick, seat: L.game === 'control' ? 'cr' : 'gun' }); }
 function tick() {
@@ -136,7 +156,7 @@ function tick() {
     if (az !== L!.rates[0] || el !== L!.rates[1]) { L!.rates = [az, el]; act({ k: 'slew', az: +az.toFixed(3), el: +el.toFixed(3) }); }
   }
   const mine = L!.q.map((a) => ({ ...a, tick: E.tick })); L!.q = [];
-  const ai = (L!.game === 'control' ? gunCrewAI(E, { ackSec: 1.5 }) : controlRoomAI(E)).map((a) => ({ ...a, tick: E.tick }));
+  const ai = (L!.game === 'control' ? gunCrewAI(E, { ackSec: 1.5 }) : E.cfg.practice ? [] : controlRoomAI(E)).map((a) => ({ ...a, tick: E.tick }));
   const acts = [...mine, ...ai];
   L!.log.push(...acts); stepGun(E, acts);
   if (L!.game === 'ground' && E.gun.sight === 'manual') L!.sol = sightSolution(E, L!.sol); else L!.sol = E.fcs;
@@ -154,9 +174,68 @@ function loop(now: number) {
   L.raf = requestAnimationFrame(loop);
 }
 
+// ---------- procedure tracker: every step in order, ticked when done ----------
+interface Step { label: string; done: boolean; check?: string; key?: string; }
+function procedureSteps(E: GunEngine, game: GunGame): Step[] {
+  const g = E.g, lfx = E.G.lfx, O = E.orders, last = (k: OrderKind) => [...O].reverse().find((o) => o.o === k);
+  const after = (k: OrderKind, t?: number) => O.some((o) => o.o === k && o.tick >= (t ?? -1));
+  const tOrd = last('target'), eOrd = last('engage'), steps: Step[] = [];
+  if (game === 'control') {
+    for (const c of lfx?.rangeChecks ?? []) steps.push({ label: c.label, done: E.checks[c.id] != null, check: c.id });
+    steps.push({ label: 'RANGE CLEAR', done: E.rangeClear, key: 'R' });
+    if ((E.cfg.adw ?? 'red') !== 'red') steps.push({ label: 'ALERT the detachment', done: after('alert'), key: 'A' });
+    steps.push({ label: 'TARGET: indicate the most urgent track', done: !!tOrd, key: 'T' });
+    steps.push({ label: 'METHOD', done: !!tOrd && after('method', tOrd.tick), key: 'M' });
+    steps.push({ label: 'FIRE (executive order)', done: !!tOrd && !!eOrd && eOrd.tick >= tOrd.tick, key: 'F' });
+    steps.push({ label: 'CEASE FIRE when the target is down', done: !!eOrd && after('cease', eOrd.tick), key: 'C' });
+    steps.push({ label: 'UNLOAD at the end', done: E.unloadOrdered, key: 'U' });
+    if (lfx) {
+      const ux = unexploded(E), found = ux.filter((r) => E.uxoFound.includes(r.i)).length;
+      steps.push({ label: `Locate unexploded rounds${E.unloadOrdered ? ` (${found}/${ux.length})` : ''}`, done: E.unloadOrdered && found === ux.length });
+      steps.push({ label: 'RANGE GREEN', done: E.rangeGreenTick != null, key: 'G' });
+    }
+    return steps;
+  }
+  const R = E.gun.reload;
+  if (!E.cfg.practice) for (const c of lfx?.gunChecks ?? []) steps.push({ label: c.label, done: E.checks[c.id] != null, check: c.id });
+  if (E.cfg.practice) {
+    const n = E.reloads.filter((r) => r.end != null).length;
+    for (let i = 0; i < RELOAD_REPS; i++) steps.push({ label: `Reload ${i + 1} (then Unload)`, done: n > i });
+    return steps;
+  }
+  steps.push({ label: 'RANGE CLEAR received', done: E.rangeClear });
+  if ((E.cfg.adw ?? 'red') !== 'red') steps.push({ label: 'Man the gun', done: g.posted, key: 'P' });
+  steps.push({ label: 'Acknowledge every order', done: O.length > 0 && O.every((o) => o.ackTick != null), key: 'K' });
+  if (R) R.forEach((r, i) => steps.push({ label: `Load: ${r.label}`, done: g.loaded || g.rIdx > i || E.reloads.some((x) => x.end != null) }));
+  else steps.push({ label: 'Load', done: g.loaded || E.reloads.some((x) => x.end != null), key: 'R' });
+  const radar = E.gun.sight === 'radar' && !E.cfg.radarFault;
+  steps.push({ label: radar ? 'Radar lock on the indicated target' : 'Lay on the indicated target', done: !!tOrd && E.ev.some((e) => (e.k === 'laid' || e.k === 'lock') && e.tick >= tOrd.tick), key: radar ? 'Q' : 'L' });
+  if (!radar) steps.push({ label: 'Set speed, course and range on the sight', done: !!tOrd && g.sightTick != null && g.sightTick >= tOrd.tick });
+  steps.push({ label: 'FIRE received', done: !!eOrd });
+  steps.push({ label: 'Safety off, short bursts on the target', done: !!eOrd && E.bursts.some((b) => b.start >= eOrd.tick && b.authorised), key: 'Space' });
+  const down = E.targets.filter((t) => t.state === 'destroyed');
+  steps.push({ label: 'Report the kill', done: down.length > 0 && down.every((t) => E.kills.some((k) => k.cid === t.id)), key: 'X' });
+  steps.push({ label: 'CEASE FIRE: safety on', done: E.ceased && g.safety });
+  steps.push({ label: 'Unload and make safe', done: g.unloaded, key: 'U' });
+  steps.push({ label: 'Report rounds expended', done: g.reportTick != null, key: 'N' });
+  if (lfx) steps.push({ label: 'RANGE GREEN', done: E.rangeGreenTick != null });
+  return steps;
+}
+function renderProcedure() {
+  const E = L!.E, steps = procedureSteps(E, L!.game), at = steps.findIndex((x) => !x.done);
+  const done = steps.filter((x) => x.done).length;
+  $('#gnProc').innerHTML = `<h4>Procedure <small>${done}/${steps.length}</small></h4><ol class="gnProc">${steps.map((x, i) => {
+    const cls = x.done ? 'ok' : i === at ? 'now' : '';
+    const body = !x.done && x.check ? `<button data-check="${x.check}">${esc(x.label)}</button>` : `<span>${esc(x.label)}</span>`;
+    return `<li class="${cls}"><i>${x.done ? '✓' : i === at ? '▶' : '○'}</i>${body}${x.key && !x.done ? `<kbd>${x.key}</kbd>` : ''}</li>`;
+  }).join('')}</ol>`;
+  document.querySelectorAll<HTMLElement>('#gnProc [data-check]').forEach((b) => (b.onclick = () => act({ k: 'check', item: b.dataset.check! })));
+}
+
 // ---------- side panel ----------
 function renderPanel() {
   if (!L) return;
+  renderProcedure();
   const E = L.E, g = E.g, G = E.gun;
   ($('#gnClock') as HTMLElement).textContent = `${Math.floor(E.tick * E.dt / 60)}:${String(Math.floor(E.tick * E.dt) % 60).padStart(2, '0')}`;
   const rr = $('#gnRadio') as HTMLElement;
@@ -175,7 +254,10 @@ function renderPanel() {
     const tracks = E.targets.filter((t) => t.state === 'live').sort((a, b) => gunTti(E, a) - gunTti(E, b));
     if (L.sel != null && !tracks.some((t) => t.id === L!.sel)) L.sel = null;
     const T = getConfig().threats.threats;
-    $('#gnPanel').innerHTML = `<h4>Tracks <small>(by time to the asset)</small></h4>
+    const lfx = E.G.lfx, ux = lfx && E.unloadOrdered ? unexploded(E) : [], uxLeft = ux.filter((r) => !E.uxoFound.includes(r.i)).length;
+    const procedure = E.unloadOrdered && lfx && E.rangeGreenTick == null ? `<h4>Range sweep</h4><p class="gnInd">${ux.length ? `${ux.length} round(s) failed to self-destruct. Click each <b style="color:#FF5C61">✕</b> on the map to locate it for EOD (${ux.length - uxLeft} of ${ux.length} found).` : 'No unexploded rounds reported.'} Then declare <b>RANGE GREEN</b>.</p>
+        <button class="gnO" data-o="rangeGreen">Range green<kbd>G</kbd></button>` : '';
+    $('#gnPanel').innerHTML = `${procedure}<h4>Tracks <small>(by time to the asset)</small></h4>
       <table class="gnTracks"><tr><th>#</th><th>Type</th><th>Brg</th><th>Rng</th><th>Hgt</th><th>TTI</th></tr>
       ${tracks.map((t) => { const p = targetPos(t, E.tick * E.dt, E.dt), l = losOf(p), tt = gunTti(E, t), arc = inSafeArc(E.cfg, l.az);
         return `<tr data-cid="${t.id}" class="${t.id === L!.sel ? 'sel' : ''} ${t.hostile ? 'h' : T[t.type].friendly ? 'f' : 'n'}"><td>${t.id}</td><td>${esc(T[t.type].short)}${arc ? ' ⛔' : ''}</td><td>${pad3(l.az)}</td><td>${(l.range / 1000).toFixed(1)}</td><td>${Math.round(p[2])}</td><td>${isFinite(tt) ? Math.round(tt) + ' s' : '—'}</td></tr>`; }).join('') || '<tr><td colspan="6" class="empty">No tracks</td></tr>'}</table>
@@ -186,24 +268,30 @@ function renderPanel() {
       </div><h4>Gun</h4>${status}`;
     document.querySelectorAll<HTMLElement>('#gnPanel [data-cid]').forEach((r) => (r.onclick = () => { L!.sel = +r.dataset.cid!; renderPanel(); }));
     document.querySelectorAll<HTMLElement>('#gnPanel [data-o]').forEach((b) => (b.onclick = () => giveOrder(b.dataset.o as OrderKind)));
+    document.querySelectorAll<HTMLElement>('#gnPanel [data-check]').forEach((b) => (b.onclick = () => act({ k: 'check', item: b.dataset.check! })));
   } else {
     const des = [...E.orders].reverse().find((o) => o.o === 'target');
     const radar = G.sight === 'radar' && !E.cfg.radarFault;
-    $('#gnPanel').innerHTML = `<h4>${esc(G.short)} ${radar ? '· radar fire control' : '· manual sight'}</h4>${status}
-      <p class="gnInd">${des ? `Indicated: ${esc(orderText(E, 'target', des.cid))} <small>(at ${Math.round(des.tick * E.dt)} s)</small>` : 'No target indicated yet.'}</p>
-      ${radar ? `<p class="gnInd">Radar: ${g.lockCid != null ? `locked on ${g.lockCid}${g.lockStart != null && E.tick - g.lockStart < Math.round((G.radar?.lockSec ?? 0) / E.dt) ? ' (settling…)' : ''}` : 'search'}</p>`
+    const R = G.reload, cur = E.reloads[E.reloads.length - 1];
+    const reload = R ? `<h4>${g.loaded ? 'Loaded' : 'Reload'} <small>${g.loaded ? '' : `${g.rIdx} of ${R.length} steps done${g.busy === 'rstep' ? ' · working…' : ''}${cur && cur.end == null && cur.errors ? ` · ${cur.errors} out of order` : ''}`}</small></h4>
+      <div class="gnReload">${L.rOrder.map((ix, k) => `<button data-r="${R[ix].id}" ${g.loaded || g.busy ? 'disabled' : ''} class="${ix < g.rIdx ? 'done' : ''}">${esc(R[ix].label)}<kbd>${k + 1}</kbd></button>`).join('')}</div>` : '';
+    $('#gnPanel').innerHTML = `<h4>${esc(G.short)} ${E.cfg.practice ? `· reload drill ${E.reloads.filter((r) => r.end != null).length}/${RELOAD_REPS}` : radar ? '· radar fire control' : '· manual sight'}</h4>${status}${reload}
+      ${E.cfg.practice ? "" : `<p class="gnInd">${des ? `Indicated: ${esc(orderText(E, 'target', des.cid))} <small>(at ${Math.round(des.tick * E.dt)} s)</small>` : 'No target indicated yet.'}</p>`}
+      ${E.cfg.practice ? `<div class="gnKeys"><button data-g="unload">Unload<kbd>U</kbd></button></div><p class="gnHelp">Do each step in order with keys 1–${R?.length ?? 1} as shown above. The buttons are shuffled on purpose. Time standard: ${(R ?? []).reduce((a, x) => a + x.sec, 0).toFixed(1)} s per reload.</p>` : `${radar ? `<p class="gnInd">Radar: ${g.lockCid != null ? `locked on ${g.lockCid}${g.lockStart != null && E.tick - g.lockStart < Math.round((G.radar?.lockSec ?? 0) / E.dt) ? ' (settling…)' : ''}` : 'search'}</p>`
         : `<div class="gnSight"><h4>Sight settings</h4>
         <label>Speed <button data-s="spd:-">−</button><b>${L.sight.spd} m/s</b><button data-s="spd:+">+</button><kbd>[ ]</kbd></label>
         <label>Course <button data-s="crs:-">−</button><b>${L.sight.crs > 0 ? '+' : ''}${L.sight.crs}°</b><button data-s="crs:+">+</button><kbd>; '</kbd></label>
         <label>Range <button data-s="rng:-">−</button><b>${L.sight.rng} m</b><button data-s="rng:+">+</button><kbd>, .</kbd></label>
         <small>Course: 0° = coming straight at you; + = crossing to the right.</small></div>`}
       <div class="gnKeys">
-        <button data-g="ack">Acknowledge<kbd>K</kbd></button><button data-g="post">Man gun<kbd>P</kbd></button><button data-g="load">Load<kbd>R</kbd></button>
+        <button data-g="ack">Acknowledge<kbd>K</kbd></button><button data-g="post">Man gun<kbd>P</kbd></button>${G.reload ? '' : '<button data-g="load">Load<kbd>R</kbd></button>'}
         <button data-g="safety">Safety<kbd>F</kbd></button>${radar ? '<button data-g="lock">Radar lock<kbd>Q</kbd></button>' : '<button data-g="lay">Lay on target<kbd>L</kbd></button>'}
         <button data-g="clear">Clear stoppage<kbd>C</kbd></button><button data-g="barrel">Change barrel<kbd>B</kbd></button><button data-g="kill">Report kill<kbd>X</kbd></button>
         <button data-g="unload">Unload<kbd>U</kbd></button><button data-g="report">Report rounds<kbd>N</kbd></button>
-      </div><p class="gnHelp">Traverse/elevate: arrows or WASD (Shift = fine) or drag on the sight. Fire: hold <kbd>Space</kbd>, short bursts, only on FIRE.</p>`;
+      </div><p class="gnHelp">Traverse/elevate: arrows or WASD (Shift = fine) or drag on the sight. Fire: hold <kbd>Space</kbd>, short bursts, only on FIRE.</p>`}`;
     document.querySelectorAll<HTMLElement>('#gnPanel [data-g]').forEach((b) => (b.onclick = () => gunKey(b.dataset.g!)));
+    document.querySelectorAll<HTMLElement>('#gnPanel [data-check]').forEach((b) => (b.onclick = () => act({ k: 'check', item: b.dataset.check! })));
+    document.querySelectorAll<HTMLElement>('#gnPanel [data-r]').forEach((b) => (b.onclick = () => act({ k: 'rstep', item: b.dataset.r! })));
     document.querySelectorAll<HTMLElement>('#gnPanel [data-s]').forEach((b) => (b.onclick = () => { const [f, d] = b.dataset.s!.split(':'); nudgeSight(f as any, d === '+' ? 1 : -1); }));
   }
 }
@@ -227,7 +315,7 @@ function gunKey(k: string) {
   switch (k) {
     case 'ack': act({ k: 'ack' }); break;
     case 'post': act({ k: 'post' }); break;
-    case 'load': act({ k: 'load' }); break;
+    case 'load': if (E.gun.reload) toast('Use the reload steps (keys 1–' + E.gun.reload.length + ')'); else act({ k: 'load' }); break;
     case 'safety': act({ k: 'safety', on: !g.safety }); break;
     case 'lay': if (des?.cid != null) act({ k: 'lay', cid: des.cid }); else toast('No target indicated'); break;
     case 'lock': { const T = des?.cid != null ? des.cid : targetOnLine(E, 6)?.id; if (T != null) act({ k: 'lock', cid: T }); else toast('Nothing to lock'); break; }
@@ -245,8 +333,16 @@ function pickBlip(e: MouseEvent): number | null {
   const x = (e.clientX - r.left) * devicePixelRatio, y = (e.clientY - r.top) * devicePixelRatio;
   let best: number | null = null, bd = 24 * devicePixelRatio;
   for (const T of E.targets) if (T.state === 'live') { const p = targetPos(T, E.tick * E.dt, E.dt), d = Math.hypot(cx + p[0] * s - x, cy - p[1] * s - y); if (d < bd) { bd = d; best = T.id; } }
+  if (E.unloadOrdered && E.G.lfx) for (const r of unexploded(E)) {
+    if (E.uxoFound.includes(r.i)) continue;
+    const p = dud(r), d = Math.hypot(cx + p[0] * s - x, cy - p[1] * s - y);
+    if (d < 18 * devicePixelRatio) { act({ k: 'uxo', i: r.i }); return null; }
+  }
   return best;
 }
+
+/** Landing point of an unexploded round (cached). */
+function dud(r: any): Vec3 { let p = L!.duds.get(r.i); if (!p) { p = dudPoint(L!.E, r); L!.duds.set(r.i, p); } return p; }
 
 // ---------- drawing ----------
 function fit(cv: HTMLCanvasElement) { const w = cv.clientWidth * devicePixelRatio, h = cv.clientHeight * devicePixelRatio; if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } return cv.getContext('2d')!; }
@@ -288,6 +384,12 @@ function drawPPI(cv: HTMLCanvasElement, maxM: number, big: boolean) {
     if (!big && E.g.lockCid === t.id) { ctx.strokeStyle = COL.amber; ctx.strokeRect(x - 7 * dp, y - 7 * dp, 14 * dp, 14 * dp); }
   }
   if (!big) { ctx.fillStyle = COL.dim; ctx.fillText('FIRE-CONTROL RADAR', 6 * dp, 14 * dp); }
+  if (big && E.unloadOrdered && E.G.lfx) for (const r of unexploded(E)) {
+    const p = dud(r), x = cx + p[0] * s, y = cy - p[1] * s, found = E.uxoFound.includes(r.i);
+    ctx.strokeStyle = found ? COL.n : COL.h; ctx.lineWidth = 2 * dp;
+    if (found) { ctx.beginPath(); ctx.arc(x, y, 6 * dp, 0, 7); ctx.stroke(); }
+    else { ctx.beginPath(); ctx.moveTo(x - 6 * dp, y - 6 * dp); ctx.lineTo(x + 6 * dp, y + 6 * dp); ctx.moveTo(x + 6 * dp, y - 6 * dp); ctx.lineTo(x - 6 * dp, y + 6 * dp); ctx.stroke(); }
+  }
 }
 /** Optical sight: what the layer sees. Crosshair = where the sight points; the barrel is offset by the lead. */
 function drawSight() {
@@ -375,18 +477,18 @@ function drawSight() {
 function finish(quit: boolean) {
   if (!L || L.done) return;
   L.done = true; cancelAnimationFrame(L.raf);
-  const E = L.E, game = L.game, sc: GunScore = game === 'ground' ? scoreGround(E) : scoreControl(E);
+  const E = L.E, game = L.game, score = (x: GunEngine) => (x.cfg.practice ? scoreReload(x) : game === 'ground' ? scoreGround(x) : scoreControl(x)), sc: GunScore = score(E);
   // Verify: replay the log from the seed; the score must match.
-  const R = runGun(E.cfg, { actions: L.log, until: E.tick }), sc2 = game === 'ground' ? scoreGround(R) : scoreControl(R), verified = sc2.total === sc.total;
+  const R = runGun(E.cfg, { actions: L.log, until: E.tick }), sc2 = score(R), verified = sc2.total === sc.total;
   // Expert ghost: the doctrine-perfect seat on the same drill.
-  const ghost = runGun(E.cfg, { policies: [controlRoomAI, (x) => gunCrewAI(x)], stopWhenDone: true }), gsc = game === 'ground' ? scoreGround(ghost) : scoreControl(ghost);
+  const ghost = runGun(E.cfg, { policies: [controlRoomAI, (x) => gunCrewAI(x)], stopWhenDone: true }), gsc = score(ghost);
   const rec: GunRecord & { log?: GunAction[]; verified?: boolean } = { n: H.filter((h) => h.game === game).length + 1, date: Date.now(), game, cfg: E.cfg, total: sc.total, obs: observeGun(sc), metrics: sc.metrics, rules: sc.rules, endTick: E.tick, verified };
   if (!quit || E.tick > 100) { H.push(rec); save(); hooks.syncGunDrill?.({ ...rec, log: L.log }); }
   const pass = sc.total >= getConfig().training.certification.passMark, RULES = getConfig().doctrine.rules;
   const bursts = E.bursts.filter((b) => b.cid != null);
   const maxMiss = 12;
   $('#gunApp').innerHTML = `<div class="gnDebrief">
-    <div class="gnHead"><h2>${game === 'control' ? 'Control Room' : 'On Ground'} · debrief</h2><button class="smallBtn" id="gnLobby">All gun drills</button><button class="smallBtn solid" id="gnNext">Next drill →</button></div>
+    <div class="gnHead"><h2>${E.cfg.practice ? 'Reload drill' : game === 'control' ? 'Control Room' : 'On Ground'} · debrief</h2><button class="smallBtn" id="gnLobby">All gun drills</button><button class="smallBtn solid" id="gnNext">Next drill →</button></div>
     <div class="gnScore ${pass ? 'pass' : 'fail'}"><b class="num">${sc.total}</b><span>${pass ? 'PASS' : 'NOT YET'} · pass mark ${getConfig().training.certification.passMark}</span>
       <small>${verified ? 'Verified: same score when re-run from the log.' : 'Re-run did not match.'} Expert on the same drill: ${gsc.total}.</small></div>
     <div class="gnMetrics">
@@ -403,7 +505,7 @@ function finish(quit: boolean) {
         <div class="gnBursts">${bursts.map((b) => `<i class="${b.hits ? 'hit' : b.authorised ? '' : 'bad'}" style="height:${Math.max(4, 100 - Math.min(maxMiss, b.bestMiss) / maxMiss * 100)}%" title="Target ${b.cid}: ${isFinite(b.bestMiss) ? b.bestMiss.toFixed(1) + ' m' : 'no pass'}, ${b.rounds} rounds${b.authorised ? '' : ', NOT CLEARED'}"></i>`).join('')}</div>` : ''}
       <h4>Radio net</h4><div class="gnRadio gnLog">${L.radio.map((r) => `<p class="${r.who}"><i>${Math.floor(r.t / 60)}:${String(Math.floor(r.t) % 60).padStart(2, '0')}</i><b>${r.who}</b>${esc(r.text)}</p>`).join('')}</div>
     </div></div></div>`;
-  $('#gnLobby').onclick = lobby; $('#gnNext').onclick = () => start(game);
+  $('#gnLobby').onclick = lobby; $('#gnNext').onclick = () => (E.cfg.practice ? startReload(E.cfg.gun) : start(game));
 }
 
 // ---------- open / close / keys ----------
@@ -414,7 +516,7 @@ export function openGun(game?: GunGame) {
   if (game) start(game); else lobby();
 }
 export function closeGun() { stop(); open = false; $('#gunApp')?.classList.remove('on'); document.body.classList.remove('gunOn'); hooks.showHome?.(); }
-const ORDER_KEYS: Record<string, OrderKind> = { r: 'rangeClear', a: 'alert', t: 'target', m: 'method', f: 'engage', c: 'cease', h: 'hold', u: 'unload' };
+const ORDER_KEYS: Record<string, OrderKind> = { r: 'rangeClear', a: 'alert', t: 'target', m: 'method', f: 'engage', c: 'cease', h: 'hold', u: 'unload', g: 'rangeGreen' };
 const GUN_KEYS: Record<string, string> = { k: 'ack', p: 'post', r: 'load', f: 'safety', l: 'lay', q: 'lock', c: 'clear', b: 'barrel', x: 'kill', u: 'unload', n: 'report' };
 export function initGun() {
   hooks.openGun = openGun;
@@ -429,6 +531,7 @@ export function initGun() {
     if (k === ' ') { e.preventDefault(); if (!e.repeat) act({ k: 'trig', on: true }); return; }
     if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'w', 'a', 's', 'd', 'shift'].includes(k)) { e.preventDefault(); L.keys.add(k); return; }
     if (e.repeat) return;
+    if (/^[1-9]$/.test(k) && L.E.gun.reload) { const ix = L.rOrder[+k - 1]; if (ix != null) act({ k: 'rstep', item: L.E.gun.reload[ix].id }); return; }
     if (k === '[' || k === ']') nudgeSight('spd', k === ']' ? 1 : -1);
     else if (k === ';' || k === "'") nudgeSight('crs', k === "'" ? 1 : -1);
     else if (k === ',' || k === '.') nudgeSight('rng', k === '.' ? 1 : -1);
@@ -442,7 +545,7 @@ export function initGun() {
   }, true);
   // Test and automation handle: let the AI play the trainee's seat to the end.
   (window as any).PARA_GUN = {
-    open: openGun, start, state: () => L && { tick: L.E.tick, done: L.done, game: L.game },
+    open: openGun, start, startReload, state: () => L && { tick: L.E.tick, done: L.done, game: L.game },
     autoplay: () => { if (!L) return; const E = L.E, me = L.game === 'control' ? controlRoomAI : (x: GunEngine) => gunCrewAI(x);
       while (!L.done && E.tick < gunMaxTicks(E)) { L.q.push(...me(E)); tick(); } if (!L.done) finish(false); },
     history: () => H,
