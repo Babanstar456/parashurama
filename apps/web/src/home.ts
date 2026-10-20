@@ -62,8 +62,8 @@ function html(): string {
         <em>Open the gun drills →</em>
       </button>
       <button class="hc" id="hcLectures">
-        <small>Self-study</small><b>Lecture library</b>
-        <span>Training videos from your instructors: watch them between drills.</span>
+        <small>Self-study · by course</small><b>Classroom library</b>
+        <span>Videos and notes from your instructors: Control Room, On Ground, UAV GCS, live-fire safety and more.</span>
         <em>Open the library →</em>
       </button>
     </div>

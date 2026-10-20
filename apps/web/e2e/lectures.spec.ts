@@ -31,6 +31,20 @@ test.describe('Lecture library (offline: stored in this browser)', () => {
     await expect(page.locator('.lecEmpty')).toBeVisible();
   });
 
+  test('notes: a text précis is added under a course and shown in the library', async ({ page }) => {
+    await page.goto('/?reset');
+    await page.click('#hcLectures');
+    await page.setInputFiles('#lecFile', { name: 'manual-lead.txt', mimeType: 'text/plain', buffer: Buffer.from('ZU-23-2 manual lead: set speed, course and range.') });
+    await page.fill('#lecTitle', 'Manual lead précis');
+    await page.selectOption('#lecTopic', 'On Ground (gun)');
+    await page.click('#lecSave');
+    await expect(page.locator('#lecMsg')).toContainText('Lecture added');
+    const item = page.locator('.lecItem').first();
+    await expect(item).toContainText('On Ground (gun) · Text notes');
+    await item.locator('.lecPlay').click();
+    await expect(page.locator('#lecPlayer .lecText')).toContainText('set speed, course and range');
+  });
+
   test('typing in the library does not trigger drill shortcuts', async ({ page }) => {
     await page.goto('/?reset');
     await page.click('#hcLectures'); // the brief is underneath: Enter there would begin a drill

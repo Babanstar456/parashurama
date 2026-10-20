@@ -668,3 +668,6 @@ body.gunOn{overflow:hidden}
 .ucMain canvas{min-height:0}
 .gnKeys button.fire{border-color:var(--nh);color:#fff;background:rgba(255,92,97,.18);font-weight:700}
 @media (max-width:900px){.ucMain{grid-template-columns:1fr;grid-template-rows:1fr 1fr}}
+.lecImg{display:block;max-width:100%;max-height:60vh;margin:0 auto;border-radius:6px;background:#000}
+.lecPdf{padding:18px;border:1px dashed var(--rule);border-radius:6px;text-align:center}
+.lecText{max-height:55vh;overflow:auto;white-space:pre-wrap;background:var(--card2);border:1px solid var(--rule);border-radius:6px;padding:12px;font:14px/1.5 var(--body)}
