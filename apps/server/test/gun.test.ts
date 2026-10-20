@@ -4,7 +4,7 @@ import { request, type IncomingMessage } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { controlRoomAI, createGun, defaultGunCfg, driveGun, gunCrewAI, runGun, scoreControl, scoreGround, stepGun, type GunAction, type GunEngine } from '@parashurama/engine';
+import { controlRoomAI, createGun, defaultGunCfg, driveGun, gunCrewAI, runGun, scoreControl, scoreField, scoreGround, stepGun, type GunAction, type GunEngine } from '@parashurama/engine';
 import { buildApp } from '../src/app';
 import { createUser } from '../src/auth';
 
@@ -60,6 +60,16 @@ describe('gun drills on the unit server', () => {
     expect(row.actions.startsWith('v1:')).toBe(true); expect(row.record.startsWith('v1:')).toBe(true);
     const mine = (await call('GET', '/api/gun/drills/mine', 'gnr-01')).json().drills;
     expect(mine.at(-1)).toMatchObject({ game: 'ground', total, n: 1 });
+  });
+  it('re-runs a solo 3D field drill (L70, swarm, night) and stores it as game field', async () => {
+    const cfg = defaultGunCfg({ seed: 779, gun: 'l70', difficulty: 4, selfId: true, swarm: true, time: 'night', weather: 'fog' }), E = createGun(cfg);
+    const log = driveGun(E, [controlRoomAI, (x) => gunCrewAI(x)]), total = scoreField(E).total;
+    expect(log.some((a) => a.k === 'ident')).toBe(true);
+    const r = await call('POST', '/api/gun/drills', 'gnr-01', { game: 'field', cfg, actions: log, endTick: E.tick, clientTotal: total });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ total, verified: true, flags: [] });
+    const mine = (await call('GET', '/api/gun/drills/mine', 'gnr-01')).json().drills;
+    expect(mine.at(-1)).toMatchObject({ game: 'field', total, cfg: { selfId: true, swarm: true, gun: 'l70' } });
   });
   it('ignores forged orders from the "AI" seat: the server replays the control room itself', async () => {
     const cfg = defaultGunCfg({ seed: 778, difficulty: 2 }), E = createGun(cfg);

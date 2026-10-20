@@ -1,5 +1,5 @@
 {
-  "version": "1.5.0",
+  "version": "1.6.0",
   "rules": {
     "D1": "Detection: full marks within 3 s of the first radar paint, zero at 20 s.",
     "C1": "Identification: correct = 18 + 12 × confidence; wrong = 10 × (1 − confidence), +5 if friend/foe was right.",
@@ -41,6 +41,9 @@
     "L1": "Live fire: complete the gun's pre-firing checks before loading.",
     "L2": "Live fire: complete the range safety checks before RANGE CLEAR.",
     "L3": "Live fire: locate every unexploded round before declaring RANGE GREEN.",
+    "V1": "Field drill: report every air contact quickly once it can be seen (or held on the gun's own radar or thermal sight).",
+    "V2": "Field drill: identify each contact correctly (type, and hostile or not); say unknown rather than guess.",
+    "V3": "Field drill: engage every hostile you identify; never fire on a friendly aircraft, a civil drone or a bird.",
     "U1": "UAV: complete the pre-flight checks before asking for take-off clearance.",
     "U2": "UAV: take off only with clearance from range control.",
     "U3": "UAV: stay inside the safe corridor and geofence.",

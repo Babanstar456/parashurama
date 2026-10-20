@@ -1,0 +1,24 @@
+Assets from Poly Haven (https://polyhaven.com) and ambientCG (https://ambientcg.com), licensed CC0 1.0 (public domain). No attribution is required; listed for traceability.
+
+hdri/day.hdr  ←  kloofendal_48d_partly_cloudy_puresky (2k)
+hdri/overcast.hdr  ←  kloofendal_overcast_puresky (2k)
+hdri/fog.hdr  ←  kloofendal_misty_morning_puresky (1k)
+hdri/dust.hdr  ←  mud_road_puresky (1k)
+hdri/night.hdr  ←  kloppenheim_02_puresky (2k)
+tex/red_laterite_soil_stones/  ←  red_laterite_soil_stones
+tex/dry_ground_01/  ←  dry_ground_01
+tex/sparse_grass/  ←  sparse_grass
+tex/worn_asphalt/  ←  worn_asphalt
+tex/concrete_pavement/  ←  concrete_pavement
+tex/plastered_wall_03/  ←  plastered_wall_03
+tex/excavated_soil_wall/  ←  excavated_soil_wall
+tex/rough_concrete/  ←  rough_concrete
+models/concrete_road_barrier/  ←  concrete_road_barrier
+models/wooden_military_crate/  ←  wooden_military_crate
+models/ammo_box/  ←  ammo_box
+models/metal_jerrycan_green/  ←  metal_jerrycan_green
+models/vintage_radio_transceiver/  ←  vintage_radio_transceiver
+tools/blender/src-assets/models/shrub_01/  ←  shrub_01
+tools/blender/src-assets/models/shrub_02/  ←  shrub_02
+tools/blender/src-assets/models/boulder_01/  ←  boulder_01
+tools/blender/src-assets/tex/leafset/  ←  ambientCG LeafSet013 (https://ambientcg.com, CC0 1.0)

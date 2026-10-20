@@ -4,7 +4,7 @@
 // Runs at a fixed 10 Hz tick (deterministic, replayable); draws in 2D canvas so it runs on any laptop without a GPU.
 import {
   angDiff, controlRoomAI, createGun, dirOf, fly, getConfig, GUN_SKILLS, gunCrewAI, gunDone, gunMastery, gunMaxTicks, gunsOf, gunTti, inSafeArc,
-  losOf, muzzleVelocity, observeGun, planGun, runGun, scoreControl, scoreGround, scoreReload, sightSolution, stepGun, targetOnLine, targetPos, engageRange,
+  losOf, muzzleVelocity, observeGun, planGun, runGun, scoreControl, scoreField, scoreGround, scoreReload, identOf, sightSolution, stepGun, targetOnLine, targetPos, engageRange,
   dudPoint, mulberry, unexploded, RELOAD_REPS,
   type GunAction, type GunDrillConfig, type GunEngine, type GunGame, type GunRecord, type GunScore, type GunTarget, type OrderKind, type Vec3,
 } from '@parashurama/engine';
@@ -12,6 +12,7 @@ import { app, hooks } from './app';
 import { $ } from './dom';
 import { toast } from './toast';
 import { initGcs, startGcs, stopGcs } from './gcs';
+import { hasWebGL, mountField, type FieldView } from './field3d';
 
 const KEY = 'parashurama.gunH';
 const D2R = Math.PI / 180;
@@ -31,6 +32,9 @@ interface Live {
   duds: Map<number, Vec3>;
   /** LAN crew drill: the server runs the clock; this client mirrors it from the event stream. */
   crew?: { code: string; seat: 'cr' | 'gun' | null; out: any[]; flush: any; scores?: Record<string, number> };
+  /** Field drill (3D): the view, and the friendly-check replies the trainee asked for. */
+  fv?: FieldView | null; iff?: Map<number, string>;
+  /** Field drill: the loader has been ordered to load and runs the loading drill to the end. */ autoLoad?: boolean;
 }
 let L: Live | null = null;
 let open = false;
@@ -109,6 +113,8 @@ function lobby() {
   $('#gunApp').innerHTML = `<div class="gnLobby">
     <div class="gnHead"><h2>Air defence gun drills</h2><button class="smallBtn" id="gnClose">Close</button></div>
     <p class="gnLead">The same engagement from two seats. In the <b>Control Room</b> you give the fire orders. <b>On Ground</b> you are the detachment on a ZU-23-2 or ZSU-23-4: load, lay, set the lead and fire, only on the order.</p>
+    <div class="gnCards gnField">${card('field', '3D field firing', 'Gun detachment · ZU-23-2 · ZSU-23-4 · L70', 'Search the sky, report every contact, identify it (drone type, friend, civil or bird), then lay, lead and fire on clearance. Day and night, thermal sight, weather, sensor faults, swarms, urban and rural.')}
+      <span class="gnPick">Pick the gun: ${['zu23', 'zsu234', 'l70'].filter((k) => gunsOf(getConfig()).guns[k]).map((k) => `<button class="smallBtn" data-fgun="${k}">${esc(gunsOf(getConfig()).guns[k].short)} →</button>`).join('')}</span></div>
     <div class="gnCards">
       ${card('control', 'Control Room', 'Fire-control officer', 'Pick the most urgent threat, give Alert → Target → Method → FIRE, respect Weapon Control Status and safe arcs, call Cease and Hold fire, close with Unload.')}
       ${card('ground', 'On Ground', 'Gun detachment', 'Acknowledge, man the gun, load, lay on the indicated target, set speed, course and range on the sight (or lock the radar), fire short bursts on FIRE only, report, unload.')}
@@ -123,6 +129,7 @@ function lobby() {
   </div>`;
   $('#gnClose').onclick = closeGun;
   document.querySelectorAll<HTMLElement>('#gunApp [data-game]').forEach((b) => (b.onclick = () => start(b.dataset.game as GunGame)));
+  document.querySelectorAll<HTMLElement>('#gunApp [data-fgun]').forEach((b) => (b.onclick = () => { const p = planGun(H, 'field'); start('field', { ...p.cfg, gun: b.dataset.fgun!, ...(b.dataset.fgun === 'zu23' ? { time: 'day' as const } : {}) }); }));
   document.querySelectorAll<HTMLElement>('#gunApp [data-practice]').forEach((b) => (b.onclick = () => startReload(b.dataset.practice!)));
   const uav = document.getElementById('gnUav'); if (uav) uav.onclick = () => { stop(); startGcs(lobby); };
   (document.querySelector('#gunApp [data-game]') as HTMLElement)?.focus();
@@ -211,16 +218,23 @@ export function start(game: GunGame, cfg?: GunDrillConfig, crew?: { code: string
   const G = E.gun, cfgTxt = `${G.label} · ${c.time === 'night' ? 'Night' : 'Day'} · ${c.terrain} · ${c.met.tempC} °C, ${c.met.pressureHpa} hPa, wind ${Math.round(Math.hypot(c.met.wind[0], c.met.wind[1]))} m/s`;
   const measures = `<b>WCS</b> ${(c.wcs ?? 'tight').toUpperCase()} · <b>ADW</b> ${(c.adw ?? 'red').toUpperCase()}${c.safeArcs?.length ? ` · <b>Safe arc</b> ${c.safeArcs.map(([a, b]) => `${pad3(a)}–${pad3(b)}°`).join(', ')}` : ''}`;
   $('#gunApp').innerHTML = `<div class="gnDrill ${game}">
-    <div class="gnBar"><b>${c.practice ? 'RELOAD DRILL' : game === 'control' ? 'CONTROL ROOM' : 'ON GROUND'}</b><span>${esc(cfgTxt)}</span><span class="gnMeasures">${measures}</span>${crew ? `<span class="gnCrewTag">CREW ${esc(crew.code)} · ${crew.seat === 'cr' ? 'Control Room seat' : crew.seat === 'gun' ? 'Gun seat' : 'watching'}</span>` : ''}<span class="gnClock num" id="gnClock">0:00</span><button class="smallBtn" id="gnQuit">End drill</button></div>
-    <div class="gnMain"><canvas id="gnView" aria-label="${game === 'control' ? 'Air picture' : 'Gun sight'}"></canvas>${game === 'ground' && G.sight === 'radar' ? '<canvas id="gnScope" aria-label="Fire-control radar"></canvas>' : ''}</div>
+    <div class="gnBar"><b>${c.practice ? 'RELOAD DRILL' : game === 'control' ? 'CONTROL ROOM' : game === 'field' ? '3D FIELD FIRING' : 'ON GROUND'}</b>${game === 'field' ? `<span class="gnMeasures">${c.weather && c.weather !== 'clear' ? esc(c.weather.toUpperCase()) + ' · ' : ''}${c.radarFault ? `<b style="color:#FF5C61">${G.sight === 'eo' ? 'THERMAL SIGHT FAILED' : 'RADAR FAILED'}</b> · ` : ''}click the view to take the gun · <b>right mouse</b> sight · <b>Z</b> binoculars · <b>E</b> report · <b>V</b> outside</span>` : ''}<span>${esc(cfgTxt)}</span><span class="gnMeasures">${measures}</span>${crew ? `<span class="gnCrewTag">CREW ${esc(crew.code)} · ${crew.seat === 'cr' ? 'Control Room seat' : crew.seat === 'gun' ? 'Gun seat' : 'watching'}</span>` : ''}<span class="gnClock num" id="gnClock">0:00</span><button class="smallBtn" id="gnQuit">End drill</button></div>
+    <div class="gnMain" id="gnMain">${game === 'field' ? '' : `<canvas id="gnView" aria-label="${game === 'control' ? 'Air picture' : 'Gun sight'}"></canvas>`}${game === 'ground' && G.sight === 'radar' ? '<canvas id="gnScope" aria-label="Fire-control radar"></canvas>' : ''}</div>
     <aside class="gnSide">
-      <div class="gnBox" id="gnProc"></div>
+      ${game === 'field' ? '<div class="gnBox" id="gnId"></div>' : ''}<div class="gnBox" id="gnProc"></div>
       <div class="gnBox" id="gnPanel"></div>
       <div class="gnBox gnRadioBox"><h4>Radio net</h4><div class="gnRadio" id="gnRadio"></div></div>
     </aside></div>`;
   $('#gnQuit').onclick = () => (L?.crew ? (L.crew.seat ? api(`/api/crews/${L.crew.code}/end`, {}).catch((e) => toast(e.message)) : (closeFeed(), lobby())) : finish(true));
   const view = $('#gnView') as HTMLCanvasElement;
-  if (game === 'ground') {
+  if (game === 'field') {
+    L.iff = new Map();
+    const live = L;
+    void mountField($('#gnMain') as HTMLElement, E, {
+      pick: (cid) => { if (!L) return; if (E.spots[cid] == null) act({ k: 'spot', cid }); L.sel = cid; renderPanel(); },
+      joystick: (r) => { if (!L) return; L.drag = r ? { x: r[0] * 160, y: -r[1] * 160, ax: 0, ay: 0 } : null; },
+    }, isLiteMode()).then((fv) => { if (L === live && !live.done) live.fv = fv; else fv.dispose(); });
+  } else if (game === 'ground') {
     view.onpointerdown = (e) => { view.setPointerCapture(e.pointerId); L!.drag = { x: e.clientX, y: e.clientY, ax: e.clientX, ay: e.clientY }; };
     view.onpointermove = (e) => { if (L?.drag) { L.drag.x = e.clientX; L.drag.y = e.clientY; } };
     view.onpointerup = () => { if (L) L.drag = null; };
@@ -228,12 +242,14 @@ export function start(game: GunGame, cfg?: GunDrillConfig, crew?: { code: string
     view.onclick = (e) => { const id = pickBlip(e); if (id != null) { L!.sel = id; renderPanel(); } };
   }
   if (crew) radio('SYS', `Crew drill ${crew.code} on the unit server. ${crew.seat === 'cr' ? 'You have the Control Room; the gun is crewed by your partner or the AI.' : crew.seat === 'gun' ? 'You have the gun; orders come from your partner or the AI.' : 'You are watching.'}`);
+  else if (game === 'field') radio('SYS', `You are the ${G.short} detachment. Gun checks first. Then search the sky (drag to look, Z for binoculars), click each drone to report it and identify it with keys 1–0. The control room clears fire only on what you report as hostile.`);
   else radio('SYS', c.practice ? `Reload drill on the ${G.short}: ${RELOAD_REPS} reloads. Load, then Unload (U), and again. Keys 1–${G.reload?.length ?? 1} are the step buttons as shown.`
     : game === 'control' ? 'You are the fire-control officer. Do the range safety checks, then RANGE CLEAR.' : `You are the ${G.short} detachment. Do the gun checks, then wait for orders; acknowledge with K.`);
   renderPanel();
   L.raf = requestAnimationFrame(loop);
 }
-function stop() { if (L) cancelAnimationFrame(L.raf); L = null; }
+function stop() { if (L) { cancelAnimationFrame(L.raf); L.fv?.dispose(); L.fv = null; } L = null; }
+const isLiteMode = () => !!app.DB.settings?.lite || new URLSearchParams(location.search).has('lite');
 /** Reload drill: no targets, the AI control room is silent; three timed reloads. */
 export function startReload(gun: string) {
   const p = planGun(H, 'ground');
@@ -253,11 +269,14 @@ function act(a: Omit<GunAction, 'tick' | 'seat'>) {
 }
 /** Handwheels: keys or mouse drag → slew rates; only changes are sent. */
 function handwheels() {
-  if (!L || L.game !== 'ground') return;
+  if (!L || L.game === 'control') return;
   const k = L.keys, fine = k.has('shift') ? 0.2 : 1;
   let az = ((k.has('arrowright') || k.has('d')) ? 1 : 0) - ((k.has('arrowleft') || k.has('a')) ? 1 : 0), el = ((k.has('arrowup') || k.has('w')) ? 1 : 0) - ((k.has('arrowdown') || k.has('s')) ? 1 : 0);
   az *= fine; el *= fine;
   if (L.drag) { az = Math.max(-1, Math.min(1, (L.drag.x - L.drag.ax) / 160)); el = Math.max(-1, Math.min(1, -(L.drag.y - L.drag.ay) / 160)); }
+  // Field drill: the mouse aims and the handwheel rates bring the gun onto the aim (keys still override).
+  const mouse = L.game === 'field' && !az && !el ? L.fv?.rates(L.E, L.sol) : null;
+  if (mouse) [az, el] = mouse;
   if (az !== L.rates[0] || el !== L.rates[1]) { L.rates = [az, el]; act({ k: 'slew', az: +az.toFixed(3), el: +el.toFixed(3) }); }
 }
 /** One tick from the server's stream: apply exactly what the server applied. */
@@ -267,17 +286,23 @@ function crewTick(t: number, acts: GunAction[]) {
   if (t < E.tick) return; // already have it
   if (t > E.tick) { resync(); return; } // missed ticks: reconnect and rebuild from the full log
   L.log.push(...acts); stepGun(E, acts);
-  if (L.game === 'ground' && E.gun.sight === 'manual') L.sol = sightSolution(E, L.sol); else L.sol = E.fcs;
+  if (L.game !== 'control' && E.gun.sight === 'manual') L.sol = sightSolution(E, L.sol); else L.sol = E.fcs;
   pumpRadio();
 }
 function tick() {
   const E = L!.E;
   handwheels();
+  // Field drill: the loader works through the loading drill after the LOAD order (R).
+  if (L!.autoLoad) {
+    const g = E.g, R = E.gun.reload;
+    if (g.loaded || g.reserve <= 0) L!.autoLoad = false;
+    else if (!g.busy && g.posted && !L!.q.some((a) => a.k === 'rstep' || a.k === 'load')) act(R ? { k: 'rstep', item: R[g.rIdx].id } : { k: 'load' });
+  }
   const mine = L!.q.map((a) => ({ ...a, tick: E.tick })); L!.q = [];
   const ai = (L!.game === 'control' ? gunCrewAI(E, { ackSec: 1.5 }) : E.cfg.practice ? [] : controlRoomAI(E)).map((a) => ({ ...a, tick: E.tick }));
   const acts = [...mine, ...ai];
   L!.log.push(...acts); stepGun(E, acts);
-  if (L!.game === 'ground' && E.gun.sight === 'manual') L!.sol = sightSolution(E, L!.sol); else L!.sol = E.fcs;
+  if (L!.game !== 'control' && E.gun.sight === 'manual') L!.sol = sightSolution(E, L!.sol); else L!.sol = E.fcs;
   pumpRadio();
   if (gunDone(E)) finish(false);
 }
@@ -325,10 +350,16 @@ function procedureSteps(E: GunEngine, game: GunGame): Step[] {
   steps.push({ label: 'RANGE CLEAR received', done: E.rangeClear });
   if ((E.cfg.adw ?? 'red') !== 'red') steps.push({ label: 'Man the gun', done: g.posted, key: 'P' });
   steps.push({ label: 'Acknowledge every order', done: O.length > 0 && O.every((o) => o.ackTick != null), key: 'K' });
-  if (R) R.forEach((r, i) => steps.push({ label: `Load: ${r.label}`, done: g.loaded || g.rIdx > i || E.reloads.some((x) => x.end != null) }));
+  if (R) R.forEach((r, i) => steps.push({ label: `Load: ${r.label}`, done: g.loaded || g.rIdx > i || E.reloads.some((x) => x.end != null), ...(game === 'field' ? { key: 'R' } : {}) }));
   else steps.push({ label: 'Load', done: g.loaded || E.reloads.some((x) => x.end != null), key: 'R' });
-  const radar = E.gun.sight === 'radar' && !E.cfg.radarFault;
-  steps.push({ label: radar ? 'Radar lock on the indicated target' : 'Lay on the indicated target', done: !!tOrd && E.ev.some((e) => (e.k === 'laid' || e.k === 'lock') && e.tick >= tOrd.tick), key: radar ? 'Q' : 'L' });
+  if (game === 'field') {
+    const seen = E.targets.filter((t) => E.seen[t.id] != null);
+    steps.push({ label: `Search: report every contact${seen.length ? ` (${seen.filter((t) => E.spots[t.id] != null).length}/${seen.length})` : ''}`, done: seen.length > 0 && seen.every((t) => E.spots[t.id] != null), key: 'click / E' });
+    const sp = E.targets.filter((t) => E.spots[t.id] != null);
+    steps.push({ label: `Identify every reported contact${sp.length ? ` (${sp.filter((t) => identOf(E, t.id) != null).length}/${sp.length})` : ''}`, done: sp.length > 0 && sp.every((t) => identOf(E, t.id) != null), key: '1–0' });
+  }
+  const radar = E.gun.sight !== 'manual' && !E.cfg.radarFault;
+  steps.push({ label: radar ? (E.gun.sight === 'eo' ? 'Thermal track on the target' : 'Radar lock on the indicated target') : 'Lay on the indicated target', done: !!tOrd && E.ev.some((e) => (e.k === 'laid' || e.k === 'lock') && e.tick >= tOrd.tick), key: radar ? 'Q' : 'L' });
   if (!radar) steps.push({ label: 'Set speed, course and range on the sight', done: !!tOrd && g.sightTick != null && g.sightTick >= tOrd.tick });
   steps.push({ label: 'FIRE received', done: !!eOrd });
   steps.push({ label: 'Safety off, short bursts on the target', done: !!eOrd && E.bursts.some((b) => b.start >= eOrd.tick && b.authorised), key: 'Space' });
@@ -369,6 +400,7 @@ function renderPanel() {
     ${g.busy === 'barrel' ? '<span class="warn">Changing barrel…</span>' : ''}${g.busy === 'post' ? '<span class="warn">Manning…</span>' : ''}${g.busy === 'unload' ? '<span class="warn">Unloading…</span>' : ''}
     <span class="gnHeat"><em style="width:${Math.min(100, Math.round(g.heat / G.heatLimit * 100))}%"></em>Barrel heat</span>
     <span class="${E.held ? 'hot' : E.cleared != null ? 'ok' : ''}">${E.held ? 'HOLD FIRE' : E.cleared != null ? `Cleared: target ${E.cleared}` : 'Not cleared'}</span></div>`;
+  if (L.game === 'field') renderIdBox();
   if (L.game === 'control') {
     const tracks = E.targets.filter((t) => t.state === 'live').sort((a, b) => gunTti(E, a) - gunTti(E, b));
     if (L.sel != null && !tracks.some((t) => t.id === L!.sel)) L.sel = null;
@@ -390,13 +422,13 @@ function renderPanel() {
     document.querySelectorAll<HTMLElement>('#gnPanel [data-check]').forEach((b) => (b.onclick = () => act({ k: 'check', item: b.dataset.check! })));
   } else {
     const des = [...E.orders].reverse().find((o) => o.o === 'target');
-    const radar = G.sight === 'radar' && !E.cfg.radarFault;
+    const radar = G.sight !== 'manual' && !E.cfg.radarFault;
     const R = G.reload, cur = E.reloads[E.reloads.length - 1];
     const reload = R ? `<h4>${g.loaded ? 'Loaded' : 'Reload'} <small>${g.loaded ? '' : `${g.rIdx} of ${R.length} steps done${g.busy === 'rstep' ? ' · working…' : ''}${cur && cur.end == null && cur.errors ? ` · ${cur.errors} out of order` : ''}`}</small></h4>
       <div class="gnReload">${L.rOrder.map((ix, k) => `<button data-r="${R[ix].id}" ${g.loaded || g.busy ? 'disabled' : ''} class="${ix < g.rIdx ? 'done' : ''}">${esc(R[ix].label)}<kbd>${k + 1}</kbd></button>`).join('')}</div>` : '';
-    $('#gnPanel').innerHTML = `<h4>${esc(G.short)} ${E.cfg.practice ? `· reload drill ${E.reloads.filter((r) => r.end != null).length}/${RELOAD_REPS}` : radar ? '· radar fire control' : '· manual sight'}</h4>${status}${reload}
+    $('#gnPanel').innerHTML = `<h4>${esc(G.short)} ${E.cfg.practice ? `· reload drill ${E.reloads.filter((r) => r.end != null).length}/${RELOAD_REPS}` : radar ? (G.sight === 'eo' ? '· thermal sight, EO fire control' : '· radar fire control') : '· manual sight'}</h4>${status}${reload}
       ${E.cfg.practice ? "" : `<p class="gnInd">${des ? `Indicated: ${esc(orderText(E, 'target', des.cid))} <small>(at ${Math.round(des.tick * E.dt)} s)</small>` : 'No target indicated yet.'}</p>`}
-      ${E.cfg.practice ? `<div class="gnKeys"><button data-g="unload">Unload<kbd>U</kbd></button></div><p class="gnHelp">Do each step in order with keys 1–${R?.length ?? 1} as shown above. The buttons are shuffled on purpose. Time standard: ${(R ?? []).reduce((a, x) => a + x.sec, 0).toFixed(1)} s per reload.</p>` : `${radar ? `<p class="gnInd">Radar: ${g.lockCid != null ? `locked on ${g.lockCid}${g.lockStart != null && E.tick - g.lockStart < Math.round((G.radar?.lockSec ?? 0) / E.dt) ? ' (settling…)' : ''}` : 'search'}</p>`
+      ${E.cfg.practice ? `<div class="gnKeys"><button data-g="unload">Unload<kbd>U</kbd></button></div><p class="gnHelp">Do each step in order with keys 1–${R?.length ?? 1} as shown above. The buttons are shuffled on purpose. Time standard: ${(R ?? []).reduce((a, x) => a + x.sec, 0).toFixed(1)} s per reload.</p>` : `${radar ? `<p class="gnInd">${G.sight === 'eo' ? 'Thermal tracker' : 'Radar'}: ${g.lockCid != null ? `locked on ${g.lockCid}${g.lockStart != null && E.tick - g.lockStart < Math.round(((G.sight === 'eo' ? G.eo : G.radar)?.lockSec ?? 0) / E.dt) ? ' (settling…)' : ''}` : 'search'}</p>`
         : `<div class="gnSight"><h4>Sight settings</h4>
         <label>Speed <button data-s="spd:-">−</button><b>${L.sight.spd} m/s</b><button data-s="spd:+">+</button><kbd>[ ]</kbd></label>
         <label>Course <button data-s="crs:-">−</button><b>${L.sight.crs > 0 ? '+' : ''}${L.sight.crs}°</b><button data-s="crs:+">+</button><kbd>; '</kbd></label>
@@ -404,7 +436,7 @@ function renderPanel() {
         <small>Course: 0° = coming straight at you; + = crossing to the right.</small></div>`}
       <div class="gnKeys">
         <button data-g="ack">Acknowledge<kbd>K</kbd></button><button data-g="post">Man gun<kbd>P</kbd></button>${G.reload ? '' : '<button data-g="load">Load<kbd>R</kbd></button>'}
-        <button data-g="safety">Safety<kbd>F</kbd></button>${radar ? '<button data-g="lock">Radar lock<kbd>Q</kbd></button>' : '<button data-g="lay">Lay on target<kbd>L</kbd></button>'}
+        <button data-g="safety">Safety<kbd>F</kbd></button>${radar ? `<button data-g="lock">${G.sight === 'eo' ? 'Track' : 'Radar lock'}<kbd>Q</kbd></button>` :'<button data-g="lay">Lay on target<kbd>L</kbd></button>'}
         <button data-g="clear">Clear stoppage<kbd>C</kbd></button><button data-g="barrel">Change barrel<kbd>B</kbd></button><button data-g="kill">Report kill<kbd>X</kbd></button>
         <button data-g="unload">Unload<kbd>U</kbd></button><button data-g="report">Report rounds<kbd>N</kbd></button>
       </div><p class="gnHelp">Traverse/elevate: arrows or WASD (Shift = fine) or drag on the sight. Fire: hold <kbd>Space</kbd>, short bursts, only on FIRE.</p>`}`;
@@ -413,6 +445,38 @@ function renderPanel() {
     document.querySelectorAll<HTMLElement>('#gnPanel [data-r]').forEach((b) => (b.onclick = () => act({ k: 'rstep', item: b.dataset.r! })));
     document.querySelectorAll<HTMLElement>('#gnPanel [data-s]').forEach((b) => (b.onclick = () => { const [f, d] = b.dataset.s!.split(':'); nudgeSight(f as any, d === '+' ? 1 : -1); }));
   }
+}
+/** Field drill: the selected contact's clues and the identification keys (1–9, 0 for the first ten types; the rest by click). */
+function renderIdBox() {
+  const E = L!.E, T = getConfig().threats.threats, order = getConfig().threats.order, el = $('#gnId') as HTMLElement | null;
+  if (!el) return;
+  const spotted = E.targets.filter((t) => t.state === 'live' && E.spots[t.id] != null);
+  // Keep a selection whose report is still queued for the next tick; drop it once the contact is gone.
+  if (L!.sel != null && !E.targets.some((t) => t.id === L!.sel && t.state === 'live')) L!.sel = null;
+  const list = spotted.map((t) => { const id = identOf(E, t.id); return `<button data-sel="${t.id}" class="${t.id === L!.sel ? 'sel' : ''}">${t.id} · ${id ? (id === 'unknown' ? 'unknown' : esc(T[id]?.short ?? id)) : '<i>not identified</i>'}</button>`; }).join('') || '<span class="gnNote">No contacts reported. Search the sky and click a drone.</span>';
+  let clue = '';
+  const S = L!.sel != null ? E.targets.find((t) => t.id === L!.sel) : undefined;
+  if (S) {
+    const t = E.tick * E.dt, p = targetPos(S, t, E.dt), l = losOf(p), q = targetPos(S, t - 2, E.dt), spd = Math.hypot(p[0] - q[0], p[1] - q[1]) / 2;
+    const closing = Math.hypot(q[0], q[1]) - Math.hypot(p[0], p[1]) > 1.5 * 2, ty = T[S.type], fcs = E.gun.sight !== 'manual' && !E.cfg.radarFault;
+    const near = ty.acoustic && l.range <= ty.acoustic.rangeM;
+    clue = `<div class="gnClue"><b>Contact ${S.id}</b> · bearing ${pad3(l.az)}° · ${fcs ? `range ${Math.round(l.range)} m` : `range about ${Math.round(l.range / 100) * 100} m`} · height about ${Math.round(p[2] / 10) * 10} m · speed about ${Math.round(spd / 5) * 5} m/s · ${spd < 2 ? 'hovering' : closing ? 'closing on the position' : 'crossing or opening'}
+      ${near ? `<br>Sound: ${esc(ty.acoustic!.sig)}` : ''}${l.range < 3000 ? `<br>RF detector (control room): ${esc(ty.rf ?? 'nothing heard')}` : ''}
+      <br>Friendly check: ${L!.iff!.get(S.id) ?? '<button data-iff="1">Interrogate <kbd>I</kbd></button>'}</div>
+      <div class="gnIdKeys">${order.map((k, i) => `<button data-id="${k}" class="${identOf(E, S.id) === k ? 'on' : ''} ${T[k].hostile ? 'h' : T[k].friendly ? 'f' : 'n'}">${esc(T[k].short)}${i < 10 ? `<kbd>${(i + 1) % 10}</kbd>` : ''}</button>`).join('')}<button data-id="unknown" class="${identOf(E, S.id) === 'unknown' ? 'on' : ''}">Unknown<kbd>/</kbd></button></div>`;
+  }
+  el.innerHTML = `<h4>Contacts <small>click a drone to report it · Tab to cycle</small></h4><div class="gnContacts">${list}</div>${clue}`;
+  el.querySelectorAll<HTMLElement>('[data-sel]').forEach((b) => (b.onclick = () => { L!.sel = +b.dataset.sel!; renderPanel(); }));
+  el.querySelectorAll<HTMLElement>('[data-id]').forEach((b) => (b.onclick = () => identify(b.dataset.id!)));
+  el.querySelector<HTMLElement>('[data-iff]')?.addEventListener('click', friendCheck);
+}
+function identify(cls: string) { if (!L || L.sel == null) { toast('Select a contact first'); return; } act({ k: 'ident', cid: L.sel, cls }); setTimeout(renderPanel, 150); }
+/** Friendly check (IFF): own-force aircraft reply; anything else stays silent. A clue only; never changes the score. */
+function friendCheck() {
+  if (!L || L.sel == null) return;
+  const S = L.E.targets.find((t) => t.id === L!.sel); if (!S) return;
+  L.iff!.set(S.id, 'interrogating…'); renderPanel();
+  setTimeout(() => { if (!L) return; L.iff!.set(S.id, getConfig().threats.threats[S.type].friendly ? '<b style="color:#5DA9FF">FRIEND · valid reply</b>' : 'no reply'); renderPanel(); }, 1200);
 }
 function giveOrder(o: OrderKind) {
   if (!L) return;
@@ -434,10 +498,16 @@ function gunKey(k: string) {
   switch (k) {
     case 'ack': act({ k: 'ack' }); break;
     case 'post': act({ k: 'post' }); break;
-    case 'load': if (E.gun.reload) toast('Use the reload steps (keys 1–' + E.gun.reload.length + ')'); else act({ k: 'load' }); break;
+    case 'load':
+      if (L.game === 'field') { if (!g.loaded && !L.autoLoad) { L.autoLoad = true; radio('GUN', E.gun.reload?.length === 1 ? 'LOADER: CLIP ON' : 'LOADING'); } }
+      else if (E.gun.reload) toast('Use the reload steps (keys 1–' + E.gun.reload.length + ')'); else act({ k: 'load' });
+      break;
     case 'safety': act({ k: 'safety', on: !g.safety }); break;
-    case 'lay': if (des?.cid != null) act({ k: 'lay', cid: des.cid }); else toast('No target indicated'); break;
-    case 'lock': { const T = des?.cid != null ? des.cid : targetOnLine(E, 6)?.id; if (T != null) act({ k: 'lock', cid: T }); else toast('Nothing to lock'); break; }
+    case 'lay': { const c = L.game === 'field' && L.sel != null ? L.sel : des?.cid; if (c != null) act({ k: 'lay', cid: c }); else toast('No target indicated'); break; }
+    case 'lock': {
+      // Field drill: track whatever is in the middle of the view (reporting it too); identification can come after.
+      if (L.game === 'field' && L.sel == null) { const c = L.fv?.centreTarget(E); if (c != null) { if (E.spots[c] == null) act({ k: 'spot', cid: c }); L.sel = c; } }
+      const T = L.game === 'field' && L.sel != null ? L.sel : des?.cid != null ? des.cid : targetOnLine(E, 6)?.id; if (T != null) act({ k: 'lock', cid: T }); else toast('Nothing to lock'); break; }
     case 'clear': act({ k: 'clear' }); break;
     case 'barrel': act({ k: 'barrel' }); break;
     case 'unload': act({ k: 'unload' }); break;
@@ -470,6 +540,7 @@ const COL = { h: '#FF5C61', f: '#5DA9FF', n: '#6FCF97', grid: 'rgba(63,167,150,0
 function kindCol(T: GunTarget) { const ty = getConfig().threats.threats[T.type]; return T.hostile ? COL.h : ty.friendly ? COL.f : COL.n; }
 function draw() {
   if (!L) return;
+  if (L.game === 'field') { const des = [...L.E.orders].reverse().find((o) => o.o === 'target'); L.fv?.frame(L.E, L.sol, L.acc / (L.E.dt * 1000), { selected: L.sel, ident: (cid) => identOf(L!.E, cid), indicated: des?.cid ?? null }); return; }
   if (L.game === 'control') drawPPI($('#gnView') as HTMLCanvasElement, 4000, true);
   else { drawSight(); const sc = $('#gnScope') as HTMLCanvasElement | null; if (sc) drawPPI(sc, 6000, false); }
 }
@@ -596,7 +667,8 @@ function drawSight() {
 function finish(quit: boolean) {
   if (!L || L.done) return;
   L.done = true; cancelAnimationFrame(L.raf);
-  const E = L.E, game = L.game, score = (x: GunEngine) => (x.cfg.practice ? scoreReload(x) : game === 'ground' ? scoreGround(x) : scoreControl(x)), sc: GunScore = score(E);
+  const E = L.E, game = L.game, score = (x: GunEngine) => (x.cfg.practice ? scoreReload(x) : game === 'ground' ? scoreGround(x) : game === 'field' ? scoreField(x) : scoreControl(x)), sc: GunScore = score(E);
+  L.fv?.dispose(); L.fv = null;
   // Verify: replay the log from the seed; the score must match.
   const R = runGun(E.cfg, { actions: L.log, until: E.tick }), sc2 = score(R), verified = sc2.total === sc.total;
   // Expert ghost: the doctrine-perfect seat on the same drill.
@@ -613,7 +685,7 @@ function finish(quit: boolean) {
   const bursts = E.bursts.filter((b) => b.cid != null);
   const maxMiss = 12;
   $('#gunApp').innerHTML = `<div class="gnDebrief">
-    <div class="gnHead"><h2>${E.cfg.practice ? 'Reload drill' : game === 'control' ? 'Control Room' : 'On Ground'} · debrief</h2><button class="smallBtn" id="gnLobby">All gun drills</button><button class="smallBtn solid" id="gnNext">Next drill →</button></div>
+    <div class="gnHead"><h2>${E.cfg.practice ? 'Reload drill' : game === 'control' ? 'Control Room' : game === 'field' ? '3D field firing' : 'On Ground'} · debrief</h2><button class="smallBtn" id="gnLobby">All gun drills</button><button class="smallBtn solid" id="gnNext">Next drill →</button></div>
     <div class="gnScore ${pass ? 'pass' : 'fail'}"><b class="num">${sc.total}</b><span>${pass ? 'PASS' : 'NOT YET'} · pass mark ${getConfig().training.certification.passMark}</span>
       <small>${verified ? 'Verified: same score when re-run from the log.' : 'Re-run did not match.'} Expert on the same drill: ${gsc.total}.${crew?.scores ? ` Crew ${esc(crew.code)} on the unit server: Control Room ${crew.scores.cr}, Gun ${crew.scores.gun}${crew.scores[crew.seat ?? 'cr'] === sc.total ? ' (matches)' : ''}.` : ''}</small></div>
     <div class="gnMetrics">
@@ -626,7 +698,7 @@ function finish(quit: boolean) {
       <table class="gnParts">${sc.parts.map((p) => `<tr><td><span class="rule" title="${esc(RULES[p.rule] ?? '')}">${p.rule}</span></td><td>${esc(p.label)}</td><td class="num">${p.pts}/${p.max}</td><td>${p.why.map(esc).join('<br>')}</td></tr>`).join('')}
       ${sc.deductions.filter((d) => d.pts).map((d) => `<tr class="ded"><td><span class="rule" title="${esc(RULES[d.rule] ?? '')}">${d.rule}</span></td><td>${esc(d.label)}</td><td class="num">${d.pts}</td><td>${d.why.map(esc).join('<br>')}</td></tr>`).join('')}</table>
     </div><div>
-      ${game === 'ground' && bursts.length ? `<h4>Burst accuracy <small>(closest pass to the target, m; green = hit)</small></h4>
+      ${game !== 'control' && bursts.length ? `<h4>Burst accuracy <small>(closest pass to the target, m; green = hit)</small></h4>
         <div class="gnBursts">${bursts.map((b) => `<i class="${b.hits ? 'hit' : b.authorised ? '' : 'bad'}" style="height:${Math.max(4, 100 - Math.min(maxMiss, b.bestMiss) / maxMiss * 100)}%" title="Target ${b.cid}: ${isFinite(b.bestMiss) ? b.bestMiss.toFixed(1) + ' m' : 'no pass'}, ${b.rounds} rounds${b.authorised ? '' : ', NOT CLEARED'}"></i>`).join('')}</div>` : ''}
       <h4>Radio net</h4><div class="gnRadio gnLog">${L.radio.map((r) => `<p class="${r.who}"><i>${Math.floor(r.t / 60)}:${String(Math.floor(r.t) % 60).padStart(2, '0')}</i><b>${r.who}</b>${esc(r.text)}</p>`).join('')}</div>
     </div></div></div>`;
@@ -652,13 +724,25 @@ export function initGun() {
     e.stopPropagation();
     if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
     const k = e.key.toLowerCase();
-    if (k === 'escape') { if (L && !L.done) finish(true); else closeGun(); return; }
+    if (k === 'escape') { if (L?.game === 'field' && !L.done) return; /* Esc releases the mouse; End drill ends it */ if (L && !L.done) finish(true); else closeGun(); return; }
     if (!L || L.done) return;
     if (L.game === 'control') { if (ORDER_KEYS[k] && !e.repeat) { e.preventDefault(); giveOrder(ORDER_KEYS[k]); } return; }
+    if (L.game === 'field' && !e.repeat) {
+      const F = L.fv, order = getConfig().threats.order;
+      if (e.shiftKey && /^Digit[1-9]$/.test(e.code) && L.E.gun.reload) { e.preventDefault(); const ix = L.rOrder[+e.code.slice(5) - 1]; if (ix != null) act({ k: 'rstep', item: L.E.gun.reload[ix].id }); return; }
+      if (!e.shiftKey && /^[0-9]$/.test(k)) { e.preventDefault(); const i = k === '0' ? 9 : +k - 1; if (order[i]) identify(order[i]); return; }
+      if (k === '/') { e.preventDefault(); identify('unknown'); return; }
+      if (k === 'v' && F) { F.setMode(F.mode() === 'gun' ? 'ext' : 'gun'); return; }
+      if (k === 'z' && F) { F.zoom(); return; }
+      if (k === 't' && F) { F.polarity(); return; }
+      if (k === 'i') { friendCheck(); return; }
+      if (k === 'e' && F) { const c = F.centreTarget(L.E); if (c != null) { if (L.E.spots[c] == null) act({ k: 'spot', cid: c }); L.sel = c; renderPanel(); } else toast('Nothing in the middle of the view'); return; }
+      if (k === 'tab') { e.preventDefault(); const sp = L.E.targets.filter((t) => t.state === 'live' && L!.E.spots[t.id] != null); if (sp.length) { const i = sp.findIndex((t) => t.id === L!.sel); L.sel = sp[(i + 1) % sp.length].id; renderPanel(); } return; }
+    }
     if (k === ' ') { e.preventDefault(); if (!e.repeat) act({ k: 'trig', on: true }); return; }
     if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'w', 'a', 's', 'd', 'shift'].includes(k)) { e.preventDefault(); L.keys.add(k); return; }
     if (e.repeat) return;
-    if (/^[1-9]$/.test(k) && L.E.gun.reload) { const ix = L.rOrder[+k - 1]; if (ix != null) act({ k: 'rstep', item: L.E.gun.reload[ix].id }); return; }
+    if (L.game !== 'field' && /^[1-9]$/.test(k) && L.E.gun.reload) { const ix = L.rOrder[+k - 1]; if (ix != null) act({ k: 'rstep', item: L.E.gun.reload[ix].id }); return; }
     if (k === '[' || k === ']') nudgeSight('spd', k === ']' ? 1 : -1);
     else if (k === ';' || k === "'") nudgeSight('crs', k === "'" ? 1 : -1);
     else if (k === ',' || k === '.') nudgeSight('rng', k === '.' ? 1 : -1);
@@ -673,11 +757,14 @@ export function initGun() {
   // Test and automation handle: let the AI play the trainee's seat to the end.
   (window as any).PARA_GUN = {
     open: openGun, start, startReload, state: () => L && { tick: L.E.tick, done: L.done, game: L.game },
+    look: (az: number, el: number, binoculars = false, sight = false) => L?.fv?.look(az, el, binoculars, sight),
+    engine: () => L?.E,
+    visible: () => (L ? L.E.targets.filter((t) => t.state === 'live' && L!.E.seen[t.id] != null).map((t) => ({ id: t.id, type: t.type, ...losOf(targetPos(t, L!.E.tick * L!.E.dt, L!.E.dt)) })) : []),
     autoplay: () => { if (!L) return; const E = L.E, me = L.game === 'control' ? controlRoomAI : (x: GunEngine) => gunCrewAI(x);
       while (!L.done && E.tick < gunMaxTicks(E)) { L.q.push(...me(E)); tick(); } if (!L.done) finish(false); },
     history: () => H,
   };
   const q = new URLSearchParams(location.search);
-  if (q.has('gun')) { if (q.get('gun') === 'uav') { openGun(); startGcs(lobby); } else openGun((['ground', 'control'] as const).find((g) => q.get('gun') === g)); }
-  void engageRange; void muzzleVelocity; void inSafeArc;
+  if (q.has('gun')) { if (q.get('gun') === 'uav') { openGun(); startGcs(lobby); } else openGun((['ground', 'control', 'field'] as const).find((g) => q.get('gun') === g)); }
+  void engageRange; void muzzleVelocity; void inSafeArc; void hasWebGL;
 }

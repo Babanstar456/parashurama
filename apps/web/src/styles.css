@@ -672,3 +672,21 @@ body.gunOn{overflow:hidden}
 .lecPdf{padding:18px;border:1px dashed var(--rule);border-radius:6px;text-align:center}
 .lecText{max-height:55vh;overflow:auto;white-space:pre-wrap;background:var(--card2);border:1px solid var(--rule);border-radius:6px;padding:12px;font:14px/1.5 var(--body)}
 .idGrid .nbtn.unk{border-style:dashed}
+
+/* 3D field firing */
+.gnField{display:grid;gap:8px}
+.gnPick{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font:500 14px var(--cond);color:var(--nm)}
+.gnDrill.field .gnMain{overflow:hidden;background:#000}
+.gnMain .fdGl,.gnMain .fdHud{position:absolute;inset:0;width:100%;height:100%;display:block}
+.gnMain .fdHud{pointer-events:none}
+.gnMain .fdGl{cursor:crosshair;touch-action:none}
+.gnContacts{display:flex;flex-wrap:wrap;gap:4px}
+.gnContacts button,.gnIdKeys button{background:var(--np2);color:var(--nt);border:1px solid var(--nl);border-radius:4px;padding:3px 7px;font:500 13px var(--cond)}
+.gnContacts button.sel{border-color:var(--nr);color:var(--nr)}
+.gnClue{margin:8px 0;font:500 13px/1.45 var(--body);color:var(--nt)}
+.gnIdKeys{display:flex;flex-wrap:wrap;gap:4px}
+.gnIdKeys button.h{border-left:3px solid #FF5C61}.gnIdKeys button.f{border-left:3px solid #5DA9FF}.gnIdKeys button.n{border-left:3px solid #6FCF97}
+.gnIdKeys button.on{background:var(--nr);color:#06100c}
+
+.gnMain .fdTip{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 22px;background:rgba(10,14,12,.72);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;font:500 14px var(--cond);text-align:center;pointer-events:none;max-width:80%}
+.gnMain .fdTip b{font:700 20px var(--cond);letter-spacing:.08em}

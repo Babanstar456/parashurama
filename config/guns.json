@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.2.0",
   "note": "Training values from public nominal figures, not equipment specifications. DSSC to confirm.",
   "ammo": {
     "hei": {
@@ -11,6 +11,11 @@
       "label": "API-T 23 mm", "massKg": 0.19, "caliberM": 0.023, "mv": 970, "mvSd": 3, "mvPerDegC": 0.9,
       "tracerSec": 5, "selfDestructSec": 0, "sdFailP": 0,
       "cdMach": [[0, 0.15], [0.7, 0.15], [0.9, 0.19], [1.0, 0.34], [1.1, 0.38], [1.3, 0.36], [1.6, 0.32], [2.0, 0.29], [2.5, 0.26], [3.2, 0.24]]
+    },
+    "pfhe40": {
+      "label": "40 mm pre-fragmented HE, proximity fuze (training model)", "massKg": 0.88, "caliberM": 0.04, "mv": 1025, "mvSd": 4, "mvPerDegC": 0.9,
+      "tracerSec": 7, "selfDestructSec": 10, "sdFailP": 0.02, "proxM": 3,
+      "cdMach": [[0, 0.14], [0.7, 0.14], [0.9, 0.18], [1.0, 0.31], [1.1, 0.35], [1.3, 0.33], [1.6, 0.3], [2.0, 0.27], [2.5, 0.24], [3.2, 0.22]]
     }
   },
   "guns": {
@@ -40,6 +45,17 @@
         { "id": "feed", "label": "Feed the belts to the guns", "sec": 4 },
         { "id": "charge", "label": "Charge the guns", "sec": 2 }
       ]
+    },
+    "l70": {
+      "label": "40 mm L/70 (towed, thermal sight and laser rangefinder)", "short": "L70", "sight": "eo",
+      "barrels": 1, "rpmPerBarrel": 300, "beltRounds": 4, "ammo": "pfhe40",
+      "slewDegS": { "az": 80, "el": 45 }, "elevDeg": [-4, 90], "effRangeM": 4000, "dispMil": 1.0,
+      "heatPerRound": 2, "coolPerSec": 2, "heatLimit": 200, "stoppageP": 0.003,
+      "sightFovDeg": 8,
+      "eo": { "acquireRangeM": 5000, "lockSec": 2, "trackNoiseMil": 0.3, "faultP": 0 },
+      "reload": [
+        { "id": "clip", "label": "Loader drops a 4-round clip into the feed guides (the rammer chambers the rounds)", "sec": 2.5 }
+      ]
     }
   },
   "targets": {
@@ -54,6 +70,13 @@
     "standToSec": { "white": 20, "yellow": 8, "red": 0 }, "killReportSec": 8
   },
   "met": { "stdTempC": 15, "stdPressureHpa": 1013.25, "latitudeDeg": 26 },
+  "detect": {
+    "note": "Detection model for the field drill. Training values, not sensor specifications. DSSC to confirm.",
+    "visualM": { "Very small": 900, "Small": 1500, "Medium": 3000, "Large": 6000 },
+    "night": 0.4, "urban": 0.85,
+    "sensorBySize": { "Very small": 0.35, "Small": 0.55, "Medium": 1, "Large": 1 },
+    "spotWithinSec": 4, "idWithinSec": 6
+  },
   "lfx": {
     "note": "Live-fire drill checklists, reconstructed from the public brief. A draft for DSSC / AAD College to confirm.",
     "gunChecks": [

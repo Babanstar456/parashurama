@@ -67,9 +67,14 @@ export function validateConfig(c: Config): ValidationResult {
       if (!G.ammo[g.ammo]) errors.push(`guns.json gun "${id}" uses unknown ammo "${g.ammo}"`);
       if (g.elevDeg[0] >= g.elevDeg[1]) errors.push(`guns.json gun "${id}" has elevDeg min >= max`);
       if (g.sight === 'radar' && !g.radar) errors.push(`guns.json gun "${id}" has a radar sight but no radar block`);
+      if (g.sight === 'eo' && !g.eo) errors.push(`guns.json gun "${id}" has an electro-optical sight but no eo block`);
     }
     for (const [id, a] of Object.entries(G.ammo)) if (a.cdMach.some((p, i) => i > 0 && p[0] <= a.cdMach[i - 1][0])) errors.push(`guns.json ammo "${id}" cdMach Mach numbers must increase`);
     for (const size of Object.keys(c.threats.echoRcs)) if (!(size in G.targets.hitRadiusM) || !(size in G.targets.hitsToKill)) errors.push(`guns.json targets need hitRadiusM and hitsToKill for echo size "${size}"`);
+    if (G.detect) {
+      for (const size of Object.keys(c.threats.echoRcs)) if (!(size in G.detect.visualM) || !(size in G.detect.sensorBySize)) errors.push(`guns.json detect needs visualM and sensorBySize for echo size "${size}"`);
+      for (const r of ['V1', 'V2', 'V3']) if (!c.doctrine.rules[r]) errors.push(`doctrine.json needs rule ${r} for the field drill`);
+    }
     if (G.procedure.burstMin > G.procedure.burstMax) errors.push('guns.json procedure burstMin must not exceed burstMax');
     for (const r of ['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9', 'G10', 'G11', 'G12', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', ...(G.lfx ? ['L1', 'L2', 'L3'] : []), ...(G.uav ? ['U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'U7', 'U8', 'U9'] : [])]) if (!c.doctrine.rules[r]) errors.push(`doctrine.json needs rule ${r} for the gun detachment mode`);
   }

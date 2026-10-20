@@ -1,5 +1,6 @@
 import { angDiff, losOf } from './ballistics';
 import { getConfig, type Config } from './config';
+import { detectOf } from './config';
 import { engageRange, inSafeArc, targetPos, targetVel, unexploded, type GunDrillConfig, type GunEngine, type GunTarget, type OrderKind } from './gun';
 import { SELF_DEFENCE_SEC } from './gunai';
 import { bkt, type Observations } from './learning';
@@ -10,7 +11,7 @@ import { clamp } from './util';
  * control room) and comes with a plain sentence in `why`. Deductions (firing without clearance, into a safe arc,
  * against Weapon Control Status) take points off; they do not end the drill.
  */
-export type GunGame = 'ground' | 'control';
+export type GunGame = 'ground' | 'control' | 'field';
 export interface GunPart { rule: string; label: string; pts: number; max: number; why: string[]; }
 export interface GunScore {
   game: GunGame; total: number; parts: GunPart[]; deductions: GunPart[]; why: string[]; rules: string[];
@@ -54,7 +55,7 @@ const unseen = (E: GunEngine) => E.spawns.slice(E.next).filter((sp) => E.C.threa
 /** On Ground game: the gun detachment's drill (G1–G11). */
 export function scoreGround(E: GunEngine): GunScore {
   const P = E.G.procedure, gun = E.gun, ev = (k: string) => E.ev.filter((e) => e.k === k);
-  const radar = gun.sight === 'radar' && !E.cfg.radarFault;
+  const radar = gun.sight !== 'manual' && !E.cfg.radarFault;
   // G2 Make ready: acknowledge, man the gun, load before the executive order, lay on the indicated target.
   const w2: string[] = [];
   const ackC = avgOr(E.orders.map((o) => (o.ackTick == null ? 0 : lin(S(E, o.ackTick - o.tick), P.ackSec, P.ackSec * 3))));
@@ -75,7 +76,7 @@ export function scoreGround(E: GunEngine): GunScore {
     return at == null ? 0 : lin(S(E, at - o.tick), P.layWithinSec, P.layWithinSec * 3);
   });
   const layC = avgOr(layItems);
-  if (layC < 0.99) w2.push(radar ? 'Slow to lock the radar on the indicated target' : 'Slow to lay on the indicated target');
+  if (layC < 0.99) w2.push(radar ? `Slow to lock the ${gun.sight === 'eo' ? 'thermal sight' : 'radar'} on the indicated target` : 'Slow to lay on the indicated target');
   const g2 = part('G2', 'Make ready', 6, (3 * ackC + postC + 2 * loadC + 2 * layC) / 8, w2);
   // G3 Stoppages and barrel heat.
   const w3: string[] = [];
@@ -101,7 +102,7 @@ export function scoreGround(E: GunEngine): GunScore {
   const w5: string[] = [], MS = E.G.manualSight;
   const firstBursts = [...new Map(E.bursts.filter((b) => b.authorised && b.cid != null).map((b) => [b.cid, b] as const)).values()];
   const sol = firstBursts.map((b) => {
-    if (radar) { if (!b.locked) w5.push(`Burst on target ${b.cid} fired without a radar lock`); return b.locked ? 1 : 0.3; }
+    if (radar) { if (!b.locked) w5.push(`Burst on target ${b.cid} fired without a ${gun.sight === 'eo' ? 'thermal-sight' : 'radar'} lock`); return b.locked ? 1 : 0.3; }
     const T = tgt(E, b.cid)!, t = b.start * E.dt, p = targetPos(T, t, E.dt), v = targetVel(T, t, E.dt), L = losOf(p);
     const spd = Math.hypot(v[0], v[1]), crs = angDiff(L.az + 180, (Math.atan2(v[0], v[1]) * 180) / Math.PI);
     const s = b.sight;
@@ -198,6 +199,61 @@ export function reloadPart(E: GunEngine, max = 4): GunPart {
 }
 /** Reload practice (no targets): the score is the reload drill alone, out of 100. */
 export function scoreReload(E: GunEngine): GunScore { return finish('ground', E, [reloadPart(E, 100)], []); }
+
+/** Identification classes for partial credit: right class but wrong type still shows the trainee knew what to do with it. */
+const classOf = (E: GunEngine, type: string): string => { const t = E.C.threats.threats[type]; return !t ? 'unknown' : t.hostile ? 'hostile' : t.friendly ? 'friendly' : t.civil ? 'civil' : 'other'; };
+/** Weights of the On Ground parts inside the field drill (they add up to 55; V1–V3 add 45). The field drill ends when the
+ *  last hostile is down, so making safe (G9) is not part of it. */
+const FIELD_W: Record<string, number> = { G2: 4, G3: 2, G4: 8, G5: 5, G6: 10, G7: 17, G8: 4, G11: 2, G12: 3 };
+/**
+ * Field drill (3D): the detachment finds, reports and identifies its own targets, then engages on clearance.
+ * V1 detection time, V2 identification, V3 engagement decision; the gun drill itself is the On Ground scoring (G*) re-weighted.
+ */
+export function scoreField(E: GunEngine): GunScore {
+  const D = detectOf(E.G), T = E.C.threats.threats;
+  const name = (x: GunTarget) => `Target ${x.id} (${T[x.type].short})`;
+  // Every contact that became visible, or that the trainee reported anyway.
+  const vis = E.targets.filter((x) => E.seen[x.id] != null || E.spots[x.id] != null);
+  // V1 Detection: report each contact soon after it became visible.
+  const w1: string[] = [];
+  const det = vis.map((x) => {
+    const sp = E.spots[x.id];
+    if (sp == null) { w1.push(`${name(x)} was never reported`); return 0; }
+    const d = S(E, Math.max(0, sp - (E.seen[x.id] ?? sp)));
+    if (d > D.spotWithinSec) w1.push(`${name(x)} reported ${fmt(d)} after it could be seen`);
+    return lin(d, D.spotWithinSec, D.spotWithinSec * 4);
+  });
+  const v1 = part('V1', 'Detection', 15, vis.length ? avgOr(det) : 1, vis.length ? w1 : ['No contact came within sight in these conditions']);
+  // V2 Identification: the first firm identification (unknown can be upgraded), and how soon after the report.
+  const w2: string[] = [];
+  const idn = vis.map((x) => {
+    const mine = E.idents.filter((i) => i.cid === x.id), firm = mine.find((i) => i.cls !== 'unknown'), first = firm ?? mine[0];
+    if (!first) { w2.push(`${name(x)} was never identified`); return 0; }
+    let acc = 1;
+    if (first.cls === 'unknown') { acc = 0.25; w2.push(`${name(x)} left as unknown`); }
+    else if (first.cls !== x.type) {
+      const same = classOf(E, first.cls) === classOf(E, x.type);
+      acc = same ? 0.6 : 0;
+      w2.push(`${name(x)} identified as ${T[first.cls].short}${same ? ' (right class, wrong type)' : ` (it was ${classOf(E, x.type) === 'hostile' ? 'hostile' : 'not hostile'})`}`);
+    }
+    const d = S(E, Math.max(0, first.tick - (E.spots[x.id] ?? first.tick)));
+    if (d > D.idWithinSec) w2.push(`${name(x)} identified ${fmt(d)} after it was reported`);
+    return acc * (0.7 + 0.3 * lin(d, D.idWithinSec, D.idWithinSec * 4));
+  });
+  const v2 = part('V2', 'Identification', 20, vis.length ? avgOr(idn) : 1, w2);
+  // V3 Engagement decision: every hostile engaged (or destroyed); nothing else fired on.
+  const w3: string[] = [];
+  const dec = vis.map((x) => {
+    const fired = E.bursts.some((b) => b.cid === x.id);
+    if (x.hostile) { const ok = fired || x.state === 'destroyed'; if (!ok) w3.push(`${name(x)} was hostile and was never engaged`); return ok ? 1 : 0; }
+    if (fired) w3.push(`${name(x)} was fired on`);
+    return fired ? 0 : 1;
+  });
+  const v3 = part('V3', 'Engagement decision', 10, vis.length ? avgOr(dec) : 1, w3);
+  const g = scoreGround(E);
+  const parts = g.parts.filter((p) => FIELD_W[p.rule]).map((p) => { const max = FIELD_W[p.rule]; return { ...p, max, pts: p.max ? Math.round((max * p.pts) / p.max) : 0 }; });
+  return finish('field', E, [v1, v2, v3, ...parts], g.deductions);
+}
 
 /** Control Room game: the fire-control officer's orders (F1–F8, plus G7 for the result). */
 export function scoreControl(E: GunEngine): GunScore {
@@ -310,10 +366,12 @@ export const GUN_SKILLS: [string, string, GunGame][] = [
   ['gReady', 'Make ready', 'ground'], ['gReact', 'Reaction', 'ground'], ['gLead', 'Ballistic solution', 'ground'], ['gAcc', 'Burst accuracy', 'ground'],
   ['gDisc', 'Fire discipline', 'ground'], ['gSafe', 'Make safe and report', 'ground'], ['gReload', 'Reload drill', 'ground'],
   ['fOrders', 'Alert, indicate, sequence', 'control'], ['fWcs', 'WCS and safe arcs', 'control'], ['fPriority', 'Priority and range', 'control'], ['fClose', 'Cease, hold, close', 'control'],
+  ['vDetect', 'Detection', 'field'], ['vIdent', 'Identification', 'field'], ['vDecide', 'Engagement decision', 'field'], ['vShoot', 'Laying and shooting', 'field'], ['vDrill', 'Gun drill and safety', 'field'],
 ];
 const SKILL_RULES: Record<string, string[]> = {
   gReady: ['G2'], gReact: ['G4'], gLead: ['G5'], gAcc: ['G6'], gDisc: ['G1', 'G8', 'G10'], gSafe: ['G3', 'G9', 'G11', 'L1'], gReload: ['G12'],
   fOrders: ['F1', 'F2', 'L2'], fWcs: ['F3', 'F4'], fPriority: ['F5', 'F6'], fClose: ['F7', 'F8', 'L3'],
+  vDetect: ['V1'], vIdent: ['V2'], vDecide: ['V3', 'G1'], vShoot: ['G4', 'G5', 'G6', 'G7'], vDrill: ['G2', 'G3', 'G8', 'G9', 'G10', 'G11', 'G12', 'L1'],
 };
 /** One observation per skill per drill: right if every part of it earned at least 75% and no deduction hit it. */
 export function observeGun(sc: GunScore): Observations {

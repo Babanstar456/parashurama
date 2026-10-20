@@ -10,3 +10,4 @@ deploy/certs/
 data/
 deploy/secrets/
 *.pem
+tools/blender/src-assets/
