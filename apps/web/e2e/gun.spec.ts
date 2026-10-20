@@ -36,3 +36,19 @@ test.describe('Air defence gun drills', () => {
     await expect(page.locator('.gnParts')).toContainText('F2');
   });
 });
+
+test.describe('UAV ground-control-station strike drill', () => {
+  test('pre-flight checks tick off; the expert mission ends in a verified debrief', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    await page.goto('/?gun=uav&reset');
+    await expect(page.locator('.gnDrill.gcs')).toBeVisible();
+    await page.click('#ucProc [data-check=link]');
+    await expect(page.locator('#ucProc li.ok')).toHaveCount(1);
+    await page.keyboard.press(' '); // release on the ground: nothing happens (not airborne, not armed)
+    await page.evaluate(() => (window as any).PARA_UAV.autoplay());
+    await expect(page.locator('.gnScore')).toContainText('Verified');
+    await expect(page.locator('.gnParts')).toContainText('U5');
+    expect(errors).toEqual([]);
+  });
+});

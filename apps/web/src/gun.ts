@@ -11,6 +11,7 @@ import {
 import { app, hooks } from './app';
 import { $ } from './dom';
 import { toast } from './toast';
+import { initGcs, startGcs, stopGcs } from './gcs';
 
 const KEY = 'parashurama.gunH';
 const D2R = Math.PI / 180;
@@ -95,7 +96,7 @@ function pumpRadio() {
 
 // ---------- lobby ----------
 function lobby() {
-  stop();
+  stop(); stopGcs();
   const m = gunMastery(H);
   const card = (g: GunGame, title: string, sub: string, body: string) => {
     const p = planGun(H, g), mine = H.filter((h) => h.game === g), last = mine[mine.length - 1];
@@ -114,6 +115,8 @@ function lobby() {
     </div>
     <div class="gnPractice"><b>Reload drill</b><span>Timed practice: ${RELOAD_REPS} reloads against the time standard, every step in the right order. The step buttons are shuffled, so you must know the drill.</span>
       <button class="smallBtn" data-practice="zu23">ZU-23-2 →</button><button class="smallBtn" data-practice="zsu234">ZSU-23-4 →</button></div>
+    ${gunsOf(getConfig()).uav ? `<div class="gnPractice"><b>UAV strike drill</b><span>Ground-control station: pre-flight, take-off clearance, corridor, find and lock the target, CLEAR TO ENGAGE, Master Arm, release on the impact point, assessment, SAFE, return. <i>Extension beyond the counter-drone PS.</i></span>
+      <button class="smallBtn" id="gnUav">Fly a mission →</button></div>` : ''}
     <div class="gnCrew" id="gnCrew">${me ? '<p class="gnNote">Loading crew drills…</p>' : '<p class="gnNote"><b>Crew drill over the LAN:</b> open the app from the unit server to train as a crew (one PC in the Control Room, one on the gun).</p>'}</div>
     <div id="gnBoard"></div>
     <p class="gnNote">Words of command are placeholders until your unit's exact drill wording is loaded (config <code>guns.json</code>). Weapon Control Status and Air Defence Warning use NATO terms. Gun, ammunition and ballistic figures are training values, not equipment specifications.</p>
@@ -121,6 +124,7 @@ function lobby() {
   $('#gnClose').onclick = closeGun;
   document.querySelectorAll<HTMLElement>('#gunApp [data-game]').forEach((b) => (b.onclick = () => start(b.dataset.game as GunGame)));
   document.querySelectorAll<HTMLElement>('#gunApp [data-practice]').forEach((b) => (b.onclick = () => startReload(b.dataset.practice!)));
+  const uav = document.getElementById('gnUav'); if (uav) uav.onclick = () => { stop(); startGcs(lobby); };
   (document.querySelector('#gunApp [data-game]') as HTMLElement)?.focus();
   if (me) { renderCrews(); renderBoard(); }
 }
@@ -636,11 +640,12 @@ export function openGun(game?: GunGame) {
   el.classList.add('on'); open = true; document.body.classList.add('gunOn');
   if (game) start(game); else lobby();
 }
-export function closeGun() { closeFeed(); stop(); open = false; $('#gunApp')?.classList.remove('on'); document.body.classList.remove('gunOn'); hooks.showHome?.(); }
+export function closeGun() { closeFeed(); stop(); stopGcs(); open = false; $('#gunApp')?.classList.remove('on'); document.body.classList.remove('gunOn'); hooks.showHome?.(); }
 const ORDER_KEYS: Record<string, OrderKind> = { r: 'rangeClear', a: 'alert', t: 'target', m: 'method', f: 'engage', c: 'cease', h: 'hold', u: 'unload', g: 'rangeGreen' };
 const GUN_KEYS: Record<string, string> = { k: 'ack', p: 'post', r: 'load', f: 'safety', l: 'lay', q: 'lock', c: 'clear', b: 'barrel', x: 'kill', u: 'unload', n: 'report' };
 export function initGun() {
   hooks.openGun = openGun;
+  initGcs();
   void connect();
   document.addEventListener('keydown', (e) => {
     if (!open) return;
@@ -673,6 +678,6 @@ export function initGun() {
     history: () => H,
   };
   const q = new URLSearchParams(location.search);
-  if (q.has('gun')) openGun((['ground', 'control'] as const).find((g) => q.get('gun') === g));
+  if (q.has('gun')) { if (q.get('gun') === 'uav') { openGun(); startGcs(lobby); } else openGun((['ground', 'control'] as const).find((g) => q.get('gun') === g)); }
   void engageRange; void muzzleVelocity; void inSafeArc;
 }

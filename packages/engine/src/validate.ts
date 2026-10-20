@@ -71,7 +71,7 @@ export function validateConfig(c: Config): ValidationResult {
     for (const [id, a] of Object.entries(G.ammo)) if (a.cdMach.some((p, i) => i > 0 && p[0] <= a.cdMach[i - 1][0])) errors.push(`guns.json ammo "${id}" cdMach Mach numbers must increase`);
     for (const size of Object.keys(c.threats.echoRcs)) if (!(size in G.targets.hitRadiusM) || !(size in G.targets.hitsToKill)) errors.push(`guns.json targets need hitRadiusM and hitsToKill for echo size "${size}"`);
     if (G.procedure.burstMin > G.procedure.burstMax) errors.push('guns.json procedure burstMin must not exceed burstMax');
-    for (const r of ['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9', 'G10', 'G11', 'G12', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', ...(G.lfx ? ['L1', 'L2', 'L3'] : [])]) if (!c.doctrine.rules[r]) errors.push(`doctrine.json needs rule ${r} for the gun detachment mode`);
+    for (const r of ['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9', 'G10', 'G11', 'G12', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', ...(G.lfx ? ['L1', 'L2', 'L3'] : []), ...(G.uav ? ['U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'U7', 'U8', 'U9'] : [])]) if (!c.doctrine.rules[r]) errors.push(`doctrine.json needs rule ${r} for the gun detachment mode`);
   }
   return { ok: errors.length === 0, errors };
 }

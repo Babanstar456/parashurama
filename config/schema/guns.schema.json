@@ -63,6 +63,17 @@
         "gunChecks": { "type": "array", "items": { "$ref": "#/definitions/check" } },
         "rangeChecks": { "type": "array", "items": { "$ref": "#/definitions/check" } },
         "checkSec": { "$ref": "#/definitions/nn" }, "uxoSearchSec": { "$ref": "#/definitions/nn" } } },
+    "uav": { "type": "object", "additionalProperties": false, "description": "Optional UAV ground-control-station strike drill (training model).",
+      "required": ["label", "speed", "altM", "turnDegS", "munition", "corridorHalfWidthM", "gimbalFovDeg", "gimbalSlewDegS", "clearanceSec", "takeoffSec", "landSec", "checks"],
+      "properties": {
+        "note": { "type": "string" }, "label": { "type": "string", "minLength": 1 },
+        "speed": { "type": "number", "minimum": 10, "maximum": 120 }, "altM": { "type": "number", "minimum": 50, "maximum": 3000 }, "turnDegS": { "$ref": "#/definitions/pos" },
+        "munition": { "type": "object", "additionalProperties": false, "required": ["label", "massKg", "caliberM", "cdMach", "lethalRadiusM"],
+          "properties": { "label": { "type": "string" }, "massKg": { "$ref": "#/definitions/pos" }, "caliberM": { "$ref": "#/definitions/pos" }, "lethalRadiusM": { "$ref": "#/definitions/pos" },
+            "cdMach": { "type": "array", "minItems": 2, "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0 } } } } },
+        "corridorHalfWidthM": { "$ref": "#/definitions/pos" }, "gimbalFovDeg": { "$ref": "#/definitions/pos" }, "gimbalSlewDegS": { "$ref": "#/definitions/pos" },
+        "clearanceSec": { "$ref": "#/definitions/nn" }, "takeoffSec": { "$ref": "#/definitions/nn" }, "landSec": { "$ref": "#/definitions/nn" },
+        "checks": { "type": "array", "items": { "$ref": "#/definitions/check" } } } },
     "orders": { "type": "object", "additionalProperties": false, "description": "Words of command shown and spoken in the drill. Optional; missing = built-in placeholders.",
       "required": ["rangeClear", "alert", "target", "method", "engage", "hold", "cease", "unload", "ack", "ready", "onTarget", "stoppage", "reportSafe"],
       "properties": { "note": { "type": "string" }, "rangeClear": { "type": "string", "minLength": 1 }, "target": { "type": "string", "minLength": 1 }, "method": { "type": "string", "minLength": 1 }, "engage": { "type": "string", "minLength": 1 }, "hold": { "type": "string", "minLength": 1 }, "alert": { "type": "string", "minLength": 1 }, "cease": { "type": "string", "minLength": 1 }, "unload": { "type": "string", "minLength": 1 }, "ack": { "type": "string", "minLength": 1 }, "ready": { "type": "string", "minLength": 1 }, "onTarget": { "type": "string", "minLength": 1 }, "stoppage": { "type": "string", "minLength": 1 }, "reportSafe": { "type": "string", "minLength": 1 }, "killDestroyed": { "type": "string", "minLength": 1 }, "killNoEffect": { "type": "string", "minLength": 1 }, "rangeGreen": { "type": "string", "minLength": 1 } } }

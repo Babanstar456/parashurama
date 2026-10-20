@@ -37,7 +37,16 @@
     "F8": "After the engagement: Cease fire, then Unload; record the result of every target.",
     "L1": "Live fire: complete the gun's pre-firing checks before loading.",
     "L2": "Live fire: complete the range safety checks before RANGE CLEAR.",
-    "L3": "Live fire: locate every unexploded round before declaring RANGE GREEN."
+    "L3": "Live fire: locate every unexploded round before declaring RANGE GREEN.",
+    "U1": "UAV: complete the pre-flight checks before asking for take-off clearance.",
+    "U2": "UAV: take off only with clearance from range control.",
+    "U3": "UAV: stay inside the safe corridor and geofence.",
+    "U4": "UAV: release only after CLEAR TO ENGAGE, with Master Arm switched on after the clearance.",
+    "U5": "UAV: release accuracy, from the miss distance at impact.",
+    "U6": "UAV: find and lock the right target quickly; never lock a civil object.",
+    "U7": "UAV: report the battle damage assessment correctly.",
+    "U8": "UAV: Master Arm back to SAFE straight after release.",
+    "U9": "UAV: return along the inbound corridor, land, recover and clear the payload."
   },
   "confidence": [
     { "k": "likely",    "label": "Likely",    "p": 0.6,  "key": "Q" },

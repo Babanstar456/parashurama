@@ -17,3 +17,4 @@ export * from './gun';
 export * from './gunai';
 export * from './gunscore';
 export * from './gunplan';
+export * from './gcs';
