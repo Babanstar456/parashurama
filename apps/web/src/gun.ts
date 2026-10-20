@@ -19,6 +19,8 @@ const D2R = Math.PI / 180;
 let H: GunRecord[] = load();
 function load(): GunRecord[] { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(H.slice(-200))); } catch { /* storage full or blocked */ } }
+/** Set innerHTML only when it changed (the side panel is refreshed several times a second; unchanged HTML costs a re-layout). */
+const setHTML = (el: Element | null, html: string) => { if (el && (el as any).__h !== html) { el.innerHTML = html; (el as any).__h = html; } };
 const esc = (s: unknown) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const pad3 = (n: number) => String(Math.round(((n % 360) + 360) % 360)).padStart(3, '0');
 
@@ -374,11 +376,11 @@ function procedureSteps(E: GunEngine, game: GunGame): Step[] {
 function renderProcedure() {
   const E = L!.E, steps = procedureSteps(E, L!.game), at = steps.findIndex((x) => !x.done);
   const done = steps.filter((x) => x.done).length;
-  $('#gnProc').innerHTML = `<h4>Procedure <small>${done}/${steps.length}</small></h4><ol class="gnProc">${steps.map((x, i) => {
+  setHTML($('#gnProc'), `<h4>Procedure <small>${done}/${steps.length}</small></h4><ol class="gnProc">${steps.map((x, i) => {
     const cls = x.done ? 'ok' : i === at ? 'now' : '';
     const body = !x.done && x.check ? `<button data-check="${x.check}">${esc(x.label)}</button>` : `<span>${esc(x.label)}</span>`;
     return `<li class="${cls}"><i>${x.done ? '✓' : i === at ? '▶' : '○'}</i>${body}${x.key && !x.done ? `<kbd>${x.key}</kbd>` : ''}</li>`;
-  }).join('')}</ol>`;
+  }).join('')}</ol>`);
   document.querySelectorAll<HTMLElement>('#gnProc [data-check]').forEach((b) => (b.onclick = () => act({ k: 'check', item: b.dataset.check! })));
 }
 
@@ -408,7 +410,7 @@ function renderPanel() {
     const lfx = E.G.lfx, ux = lfx && E.unloadOrdered ? unexploded(E) : [], uxLeft = ux.filter((r) => !E.uxoFound.includes(r.i)).length;
     const procedure = E.unloadOrdered && lfx && E.rangeGreenTick == null ? `<h4>Range sweep</h4><p class="gnInd">${ux.length ? `${ux.length} round(s) failed to self-destruct. Click each <b style="color:#FF5C61">✕</b> on the map to locate it for EOD (${ux.length - uxLeft} of ${ux.length} found).` : 'No unexploded rounds reported.'} Then declare <b>RANGE GREEN</b>.</p>
         <button class="gnO" data-o="rangeGreen">Range green<kbd>G</kbd></button>` : '';
-    $('#gnPanel').innerHTML = `${procedure}<h4>Tracks <small>(by time to the asset)</small></h4>
+    setHTML($('#gnPanel'), `${procedure}<h4>Tracks <small>(by time to the asset)</small></h4>
       <table class="gnTracks"><tr><th>#</th><th>Type</th><th>Brg</th><th>Rng</th><th>Hgt</th><th>TTI</th></tr>
       ${tracks.map((t) => { const p = targetPos(t, E.tick * E.dt, E.dt), l = losOf(p), tt = gunTti(E, t), arc = inSafeArc(E.cfg, l.az);
         return `<tr data-cid="${t.id}" class="${t.id === L!.sel ? 'sel' : ''} ${t.hostile ? 'h' : T[t.type].friendly ? 'f' : 'n'}"><td>${t.id}</td><td>${esc(T[t.type].short)}${arc ? ' ⛔' : ''}</td><td>${pad3(l.az)}</td><td>${(l.range / 1000).toFixed(1)}</td><td>${Math.round(p[2])}</td><td>${isFinite(tt) ? Math.round(tt) + ' s' : '—'}</td></tr>`; }).join('') || '<tr><td colspan="6" class="empty">No tracks</td></tr>'}</table>
@@ -416,7 +418,7 @@ function renderPanel() {
       <div class="gnOrders">
         ${([['rangeClear', 'R', 'Range clear'], ['alert', 'A', 'Alert'], ['target', 'T', 'Target'], ['method', 'M', 'Method'], ['engage', 'F', 'FIRE'], ['cease', 'C', 'Cease fire'], ['hold', 'H', 'Hold fire'], ['unload', 'U', 'Unload']] as const)
           .map(([o, k, l]) => `<button class="gnO ${o === 'engage' ? 'fire' : o === 'hold' ? 'hold' : ''}" data-o="${o}" ${((o === 'target' || o === 'engage') && L!.sel == null) ? 'disabled' : ''}>${l}<kbd>${k}</kbd></button>`).join('')}
-      </div><h4>Gun</h4>${status}`;
+      </div><h4>Gun</h4>${status}`);
     document.querySelectorAll<HTMLElement>('#gnPanel [data-cid]').forEach((r) => (r.onclick = () => { L!.sel = +r.dataset.cid!; renderPanel(); }));
     document.querySelectorAll<HTMLElement>('#gnPanel [data-o]').forEach((b) => (b.onclick = () => giveOrder(b.dataset.o as OrderKind)));
     document.querySelectorAll<HTMLElement>('#gnPanel [data-check]').forEach((b) => (b.onclick = () => act({ k: 'check', item: b.dataset.check! })));
@@ -426,7 +428,7 @@ function renderPanel() {
     const R = G.reload, cur = E.reloads[E.reloads.length - 1];
     const reload = R ? `<h4>${g.loaded ? 'Loaded' : 'Reload'} <small>${g.loaded ? '' : `${g.rIdx} of ${R.length} steps done${g.busy === 'rstep' ? ' · working…' : ''}${cur && cur.end == null && cur.errors ? ` · ${cur.errors} out of order` : ''}`}</small></h4>
       <div class="gnReload">${L.rOrder.map((ix, k) => `<button data-r="${R[ix].id}" ${g.loaded || g.busy ? 'disabled' : ''} class="${ix < g.rIdx ? 'done' : ''}">${esc(R[ix].label)}<kbd>${k + 1}</kbd></button>`).join('')}</div>` : '';
-    $('#gnPanel').innerHTML = `<h4>${esc(G.short)} ${E.cfg.practice ? `· reload drill ${E.reloads.filter((r) => r.end != null).length}/${RELOAD_REPS}` : radar ? (G.sight === 'eo' ? '· thermal sight, EO fire control' : '· radar fire control') : '· manual sight'}</h4>${status}${reload}
+    setHTML($('#gnPanel'), `<h4>${esc(G.short)} ${E.cfg.practice ? `· reload drill ${E.reloads.filter((r) => r.end != null).length}/${RELOAD_REPS}` : radar ? (G.sight === 'eo' ? '· thermal sight, EO fire control' : '· radar fire control') : '· manual sight'}</h4>${status}${reload}
       ${E.cfg.practice ? "" : `<p class="gnInd">${des ? `Indicated: ${esc(orderText(E, 'target', des.cid))} <small>(at ${Math.round(des.tick * E.dt)} s)</small>` : 'No target indicated yet.'}</p>`}
       ${E.cfg.practice ? `<div class="gnKeys"><button data-g="unload">Unload<kbd>U</kbd></button></div><p class="gnHelp">Do each step in order with keys 1–${R?.length ?? 1} as shown above. The buttons are shuffled on purpose. Time standard: ${(R ?? []).reduce((a, x) => a + x.sec, 0).toFixed(1)} s per reload.</p>` : `${radar ? `<p class="gnInd">${G.sight === 'eo' ? 'Thermal tracker' : 'Radar'}: ${g.lockCid != null ? `locked on ${g.lockCid}${g.lockStart != null && E.tick - g.lockStart < Math.round(((G.sight === 'eo' ? G.eo : G.radar)?.lockSec ?? 0) / E.dt) ? ' (settling…)' : ''}` : 'search'}</p>`
         : `<div class="gnSight"><h4>Sight settings</h4>
@@ -439,7 +441,7 @@ function renderPanel() {
         <button data-g="safety">Safety<kbd>F</kbd></button>${radar ? `<button data-g="lock">${G.sight === 'eo' ? 'Track' : 'Radar lock'}<kbd>Q</kbd></button>` :'<button data-g="lay">Lay on target<kbd>L</kbd></button>'}
         <button data-g="clear">Clear stoppage<kbd>C</kbd></button><button data-g="barrel">Change barrel<kbd>B</kbd></button><button data-g="kill">Report kill<kbd>X</kbd></button>
         <button data-g="unload">Unload<kbd>U</kbd></button><button data-g="report">Report rounds<kbd>N</kbd></button>
-      </div><p class="gnHelp">Traverse/elevate: arrows or WASD (Shift = fine) or drag on the sight. Fire: hold <kbd>Space</kbd>, short bursts, only on FIRE.</p>`}`;
+      </div><p class="gnHelp">Traverse/elevate: arrows or WASD (Shift = fine) or drag on the sight. Fire: hold <kbd>Space</kbd>, short bursts, only on FIRE.</p>`}`);
     document.querySelectorAll<HTMLElement>('#gnPanel [data-g]').forEach((b) => (b.onclick = () => gunKey(b.dataset.g!)));
     document.querySelectorAll<HTMLElement>('#gnPanel [data-check]').forEach((b) => (b.onclick = () => act({ k: 'check', item: b.dataset.check! })));
     document.querySelectorAll<HTMLElement>('#gnPanel [data-r]').forEach((b) => (b.onclick = () => act({ k: 'rstep', item: b.dataset.r! })));
@@ -465,7 +467,7 @@ function renderIdBox() {
       <br>Friendly check: ${L!.iff!.get(S.id) ?? '<button data-iff="1">Interrogate <kbd>I</kbd></button>'}</div>
       <div class="gnIdKeys">${order.map((k, i) => `<button data-id="${k}" class="${identOf(E, S.id) === k ? 'on' : ''} ${T[k].hostile ? 'h' : T[k].friendly ? 'f' : 'n'}">${esc(T[k].short)}${i < 10 ? `<kbd>${(i + 1) % 10}</kbd>` : ''}</button>`).join('')}<button data-id="unknown" class="${identOf(E, S.id) === 'unknown' ? 'on' : ''}">Unknown<kbd>/</kbd></button></div>`;
   }
-  el.innerHTML = `<h4>Contacts <small>click a drone to report it · Tab to cycle</small></h4><div class="gnContacts">${list}</div>${clue}`;
+  setHTML(el, `<h4>Contacts <small>click a drone to report it · Tab to cycle</small></h4><div class="gnContacts">${list}</div>${clue}`);
   el.querySelectorAll<HTMLElement>('[data-sel]').forEach((b) => (b.onclick = () => { L!.sel = +b.dataset.sel!; renderPanel(); }));
   el.querySelectorAll<HTMLElement>('[data-id]').forEach((b) => (b.onclick = () => identify(b.dataset.id!)));
   el.querySelector<HTMLElement>('[data-iff]')?.addEventListener('click', friendCheck);
@@ -759,6 +761,7 @@ export function initGun() {
     open: openGun, start, startReload, state: () => L && { tick: L.E.tick, done: L.done, game: L.game },
     look: (az: number, el: number, binoculars = false, sight = false) => L?.fv?.look(az, el, binoculars, sight),
     engine: () => L?.E,
+    info: () => L?.fv?.info(),
     visible: () => (L ? L.E.targets.filter((t) => t.state === 'live' && L!.E.seen[t.id] != null).map((t) => ({ id: t.id, type: t.type, ...losOf(targetPos(t, L!.E.tick * L!.E.dt, L!.E.dt)) })) : []),
     autoplay: () => { if (!L) return; const E = L.E, me = L.game === 'control' ? controlRoomAI : (x: GunEngine) => gunCrewAI(x);
       while (!L.done && E.tick < gunMaxTicks(E)) { L.q.push(...me(E)); tick(); } if (!L.done) finish(false); },

@@ -34,8 +34,14 @@ def import_gltf(name):
         bpy.data.objects.remove(x, do_unlink=True)
     return o
 
-def decimate(o, ratio):
-    m = o.modifiers.new('dec', 'DECIMATE'); m.ratio = ratio
+def decimate(o, target_tris):
+    """Decimate to about target_tris triangles (game weight for instancing hundreds of copies)."""
+    import bmesh
+    n = sum(len(p.vertices) - 2 for p in o.data.polygons)
+    if target_tris < n:
+        # Scans come in with vertices split along texture seams, which stops the collapse early: weld them first.
+        bm = bmesh.new(); bm.from_mesh(o.data); bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0005); bm.to_mesh(o.data); bm.free()
+    m = o.modifiers.new('dec', 'DECIMATE'); m.ratio = min(1.0, target_tris / max(1, n))
     bpy.context.view_layer.objects.active = o
     bpy.ops.object.modifier_apply(modifier='dec')
     return o
@@ -48,10 +54,10 @@ def dup(o, loc=(0, 0, 0), scale=1.0, rotz=0.0, parent=None):
     return c
 
 # --- vegetation and rock from the scans --------------------------------------------------------
-shrub = decimate(import_gltf('shrub_02'), 0.06); shrub.name = 'bush'
+shrub = decimate(import_gltf('shrub_02'), 1650); shrub.name = 'bush'  # original detail
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 dims = shrub.dimensions; print('bush tris', len(shrub.data.polygons), 'dims', tuple(round(d, 2) for d in dims))
-rock = decimate(import_gltf('boulder_01'), 0.04); rock.name = 'rock'
+rock = decimate(import_gltf('boulder_01'), 1500); rock.name = 'rock'
 bark = mat('bark', (0.09, 0.07, 0.05), 0.9)
 
 def render_foliage(path, seed=5):
