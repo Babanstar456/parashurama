@@ -2,6 +2,7 @@
   "name": "parashurama",
   "version": "0.6.0",
   "private": true,
+  "license": "Apache-2.0",
   "description": "PARASHURAMA \u2013 AI counter-drone decision trainer (SIH 2026, PS SIH26247, Team Dhwanik_TH06)",
   "type": "module",
   "workspaces": [
@@ -22,6 +23,8 @@
     "typecheck": "tsc -p packages/engine --noEmit && tsc -p apps/web --noEmit && tsc -p apps/server --noEmit",
     "validate:config": "tsx packages/engine/scripts/validate-config.ts",
     "e2e": "npm run e2e -w @parashurama/web",
+    "loadtest": "tsx scripts/loadtest.ts",
+    "fps": "node scripts/fps.mjs",
     "ci": "npm run typecheck && npm run check:generated && npm run validate:config && npm test && npm run build && npm run build:single",
     "server": "npm run start -w @parashurama/server",
     "server:dev": "npm run dev -w @parashurama/server",

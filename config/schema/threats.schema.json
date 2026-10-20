@@ -33,7 +33,10 @@
           "orbitRadiusM": { "type": "array", "items": { "type": "number", "minimum": 0 }, "minItems": 2, "maxItems": 2 },
           "behaviour": { "type": "string" },
           "behaviourHover": { "type": "string" },
-          "deciding": { "type": "string" }
+          "deciding": { "type": "string" },
+          "acoustic": { "type": "object", "required": ["sig", "rangeM"], "additionalProperties": false,
+            "description": "Optional acoustic signature (training values): what an acoustic sensor hears, and the range at which it hears it in open, quiet conditions.",
+            "properties": { "sig": { "type": "string", "minLength": 1 }, "rangeM": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000 } } }
         }
       }
     }

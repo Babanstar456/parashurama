@@ -2,6 +2,7 @@
   "name": "@parashurama/engine",
   "version": "0.6.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "description": "Deterministic counter-drone simulation, doctrine scoring, learning model and enemy AI. No UI, no DOM.",
   "exports": {

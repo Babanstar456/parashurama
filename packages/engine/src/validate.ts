@@ -58,6 +58,7 @@ export function validateConfig(c: Config): ValidationResult {
   if (S.civilType && T[S.civilType] && !T[S.civilType].civil) errors.push(`training.json civilType "${S.civilType}" must be a civil threat`);
   if (Object.values(T).some((t) => t.civil) && !c.doctrine.rules.R9) errors.push('doctrine.json needs rule R9 when the library has a civil drone');
   if (T[S.swarmType] && T[S.swarmType].motion !== 'swarm') errors.push('training.json swarmType must use swarm motion');
+  if (c.training.acoustic) for (const id of c.threats.order) if (T[id] && !T[id].acoustic) errors.push(`threats.json threat "${id}" needs an acoustic signature when training.json fits an acoustic sensor`);
   if (c.training.certification.developingMastery >= c.training.certification.certifiedMastery) errors.push('training.json developingMastery must be below certifiedMastery');
   return { ok: errors.length === 0, errors };
 }

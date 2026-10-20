@@ -88,3 +88,7 @@ Also verified manually during development: all four Academy lessons completed by
 - The enemy AI is rule-based (explainable), not machine-learned.
 - Offline (no server) mode uses labelled demo operators on the readiness board and keeps history in the browser.
 - Voice callouts use the browser's built-in speech; voices vary by device.
+
+## Licence
+
+Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). Third-party licences are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

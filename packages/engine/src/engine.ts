@@ -1,4 +1,4 @@
-import { cameraRange, getConfig, ticks, isEffective, weatherFx, type Config } from './config';
+import { acousticRange, cameraRange, getConfig, ticks, isEffective, weatherFx, type Config } from './config';
 import { buildScenario } from './scenario';
 import type { Action, Contact, DrillConfig, Engine, Spawn } from './types';
 import { clamp, hash2, mulberry, brgOf } from './util';
@@ -102,6 +102,14 @@ export function clueAvailability(E: Engine, c: Contact): { rf: boolean; cam: boo
   const inCam = Math.hypot(c.x, c.y) < cameraRange(E.C, E.cfg.time, E.cfg.weather);
   const dd = Math.abs(((brgOf(c.x, c.y) - E.cfg.faultSector + 540) % 360) - 180);
   return { rf: f !== 'rf', cam: f !== 'eo' && inCam, radarOk: f !== 'radar' || dd >= S.radarFaultHalfWidthDeg };
+}
+
+/** Acoustic clue: what the acoustic sensor hears from this contact, and whether it is within hearing range now.
+ *  Null when no acoustic sensor is fitted. Pure: it never changes the drill, so replays and scores are unaffected. */
+export function acousticClue(E: Engine, c: Contact): { sig: string; rangeM: number; heard: boolean } | null {
+  const r = acousticRange(E.C, c.type, E.cfg);
+  if (r == null) return null;
+  return { sig: E.C.threats.threats[c.type].acoustic!.sig, rangeM: r, heard: Math.hypot(c.x, c.y) < r };
 }
 
 export function inReach(c: Contact, eff: string, C: Config = getConfig()): boolean {

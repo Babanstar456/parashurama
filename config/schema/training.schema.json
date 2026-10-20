@@ -30,6 +30,9 @@
       "properties": { "hostilePool": { "type": "array", "items": { "type": "string" }, "minItems": 1 }, "swarmType": { "type": "string" }, "friendlyType": { "type": "string" }, "clutterType": { "type": "string" }, "focusType": { "type": "string" }, "civilType": { "type": "string" } } },
     "weather": { "type": "object", "description": "Training values: how each weather degrades sensors. radar = detection factor, camera = identification-range factor, noise = image noise.",
       "additionalProperties": { "type": "object", "additionalProperties": false, "required": ["label", "radar", "camera", "noise"],
-        "properties": { "label": { "type": "string", "minLength": 1 }, "radar": { "type": "number", "minimum": 0.1, "maximum": 1 }, "camera": { "type": "number", "minimum": 0.1, "maximum": 1 }, "noise": { "type": "number", "minimum": 0, "maximum": 1 } } } }
+        "properties": { "label": { "type": "string", "minLength": 1 }, "radar": { "type": "number", "minimum": 0.1, "maximum": 1 }, "camera": { "type": "number", "minimum": 0.1, "maximum": 1 }, "noise": { "type": "number", "minimum": 0, "maximum": 1 }, "acoustic": { "type": "number", "minimum": 0.1, "maximum": 1, "description": "Optional hearing-range factor; missing = 1." } } } },
+    "acoustic": { "type": "object", "additionalProperties": false, "required": ["clueSec", "urban", "rural", "night"],
+      "description": "Optional acoustic sensor. Training values: hearing-range factors by terrain (background noise) and at night (quieter). Missing = no acoustic sensor (behaviour before v0.7).",
+      "properties": { "clueSec": { "type": "number", "minimum": 0 }, "urban": { "type": "number", "minimum": 0.1, "maximum": 2 }, "rural": { "type": "number", "minimum": 0.1, "maximum": 2 }, "night": { "type": "number", "minimum": 0.1, "maximum": 2 } } }
   }
 }

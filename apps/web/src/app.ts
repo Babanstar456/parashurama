@@ -1,7 +1,7 @@
 import {
   avg, brgOf, buildScenario, calStats, chainHash, clamp, classificationStats, drillsToCsv, createEngine, decisionClass, demoHistory, expertPolicy, FAULT_LABEL,
   fmtTime, inReach, isCleared, isDone, needsClearance, mastery, mulberry, observe, planNext, runSim, runTotal, scoreRun, sectorOf, SKILLS, step, sumCal,
-  tti, visibleBlip, windOf, cameraRange, weatherFx, WEATHER_LABEL,
+  tti, visibleBlip, windOf, cameraRange, weatherFx, WEATHER_LABEL, acousticClue,
 } from '@parashurama/engine';
 import { $, $$, cap, cssv } from './dom';
 import { C, TYPES, ORDER, EFF, EFF_ORDER, CONF, RULES, SIM, DT, SWEEP, RMAX, BASE, MAXT, T, confLabel, CERT } from './cfg';
@@ -170,14 +170,15 @@ function clueList(c){
   const Ty=TYPES[c.type],since=c.trackTick!=null?(L.tick-c.trackTick)*DT:0,d=Math.hypot(c.x,c.y),camR=cameraRange(C,live.cfg.time,live.cfg.weather);
   const sw=Ty.motion==='swarm'?L.contacts.filter(o=>o!==c&&o.type===c.type&&o.state==='live'&&Math.hypot(o.x-c.x,o.y-c.y)<600).length:0;
   const beh=(c.hover&&Ty.behaviourHover?Ty.behaviourHover:Ty.behaviour).replace('{n}',String(sw)).replace('with 1 others','with 1 other');
-  const CL=C.training.clues;
+  const CL=C.training.clues,ac=acousticClue(L,c);
   return[
     {k:'Radar',at:0,v:`${Math.round(c.v*3.6)} km/h · ${Math.round(c.alt)} m · ${Ty.echo.toLowerCase()} echo`},
     {k:'Friendly check',at:CL.friendlyCheckSec,v:Ty.friendly?'Matches flight plan F-21':'No flight-plan match'},
     {k:'RF signal',at:CL.rfSec,v:live.cfg.fault==='rf'?'Detector offline':Ty.rf},
     {k:'Behaviour',at:CL.behaviourSec,v:beh},
     {k:'Camera',at:0,cam:true,ready:d<camR,v:d<camR?(live.cfg.time==='night'?'Thermal':'Daylight')+(live.cfg.fault==='eo'?', degraded':'')+((live.cfg.weather||'clear')!=='clear'?', '+WEATHER_LABEL[live.cfg.weather].toLowerCase():''):`Out of range until ${(camR/1000).toFixed(1)} km`+((live.cfg.weather||'clear')!=='clear'?` (${WEATHER_LABEL[live.cfg.weather].toLowerCase()})`:'')},
-  ].map(x=>({...x,ok:x.cam?x.ready:since>=x.at,left:Math.max(0,x.at-since)}));
+    ...(ac?[{k:'Acoustic',at:C.training.acoustic.clueSec,heard:ac.heard,v:ac.sig,wait:ac.heard?'':`Not heard yet: in range from ${(ac.rangeM/1000).toFixed(1)} km`}]:[]),
+  ].map(x=>({...x,ok:x.cam?x.ready:since>=x.at&&x.heard!==false,left:Math.max(0,x.at-since)}));
 }
 function renderClues(force){
   const c=selC();
@@ -189,7 +190,7 @@ function renderClues(force){
     const prevOk=(live.sig.split('|')[2]||'');live.sig=sig;
     $('#selTitle').textContent=`${live.labels[c.id]||'—'} · ${cls?TYPES[cls].label:'Unknown contact'}`;
     $('#selMeta').textContent=cls?'Identification locked.':'Clues arrive over a few seconds. Commit when you are sure enough.';
-    $('#clues').innerHTML=cl.map((x,i)=>`<div class="clue ${x.ok?'':'wait'} ${x.ok&&prevOk[i]==='0'?'fresh':''}"><div class="k">${x.k}</div><div>${x.cam?(x.ok?`<canvas id="eo" width="264" height="176"></canvas><div class="v" style="font-size:12.5px;color:var(--nm);margin-top:3px">${x.v}</div>`:`<div class="v">${x.v}</div>`):`<div class="v">${x.ok?x.v:'arriving…'}</div>${x.ok?'':`<div class="prog"><i data-at="${x.at}" style="width:0%"></i></div>`}`}</div></div>`).join('');
+    $('#clues').innerHTML=cl.map((x,i)=>`<div class="clue ${x.ok?'':'wait'} ${x.ok&&prevOk[i]==='0'?'fresh':''}"><div class="k">${x.k}</div><div>${x.cam?(x.ok?`<canvas id="eo" width="264" height="176"></canvas><div class="v" style="font-size:12.5px;color:var(--nm);margin-top:3px">${x.v}</div>`:`<div class="v">${x.v}</div>`):`<div class="v">${x.ok?x.v:x.wait||'arriving…'}</div>${x.ok||x.wait?'':`<div class="prog"><i data-at="${x.at}" style="width:0%"></i></div>`}`}</div></div>`).join('');
     if(cls){$('#idBody').innerHTML=`<div class="locked">Identified as <b style="color:${KCOL(kindOfCls(cls))}">${TYPES[cls].label}</b> · ${confLabel(conf)}</div>`;}
     else{$('#idBody').innerHTML=`<div class="idGrid">${ORDER.map((k,i)=>`<button class="nbtn ${live.pick.cls===k?'pick':''}" data-cls="${k}">${TYPES[k].short}${i<10?`<small>${(i+1)%10}</small>`:''}</button>`).join('')}</div><div class="confRow">${CONF.map(x=>`<button class="nbtn ${live.pick.conf===x.p?'pick':''}" data-conf="${x.p}">${x.label}<small>${x.key} · ${Math.round(x.p*100)}%</small></button>`).join('')}</div><button class="commit" id="commitBtn" ${live.pick.cls&&live.pick.conf?'':'disabled'}>Commit identification <kbd>Enter</kbd></button>`;}
   }

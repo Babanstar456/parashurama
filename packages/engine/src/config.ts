@@ -12,6 +12,8 @@ export interface Threat {
   shape: 'quad' | 'wing' | 'bird'; motion: Motion;
   hoverRangeM?: [number, number]; orbitRadiusM?: [number, number];
   behaviour: string; behaviourHover?: string; deciding: string;
+  /** Optional acoustic signature (training values): what is heard, and from how far in open, quiet conditions. */
+  acoustic?: { sig: string; rangeM: number };
 }
 export interface ThreatsFile { version: string; order: string[]; echoRcs: Record<string, number>; threats: Record<string, Threat>; }
 export type Affects = 'rf' | 'gnss' | 'all';
@@ -43,8 +45,12 @@ export interface TrainingFile {
   scenario: { hostilePool: string[]; swarmType: string; friendlyType: string; clutterType: string; focusType: string; /** Optional: one civil drone in urban drills. */ civilType?: string };
   /** Optional so older instructor-saved configs stay valid; missing = every weather behaves as clear. */
   weather?: Record<string, WeatherFx>;
+  /** Optional acoustic sensor; missing = none fitted (drills before v0.7 look and replay the same). */
+  acoustic?: AcousticFx;
 }
-export interface WeatherFx { label: string; radar: number; camera: number; noise: number; }
+export interface WeatherFx { label: string; radar: number; camera: number; noise: number; /** Hearing-range factor; missing = 1. */ acoustic?: number; }
+/** Acoustic sensor: seconds to recognise a sound once heard, and hearing-range factors (background noise by terrain; quieter nights). */
+export interface AcousticFx { clueSec: number; urban: number; rural: number; night: number; }
 export interface Config { threats: ThreatsFile; effectors: EffectorsFile; doctrine: DoctrineFile; training: TrainingFile; }
 
 export const defaultConfig: Config = {
@@ -65,5 +71,11 @@ const CLEAR: WeatherFx = { label: 'Clear', radar: 1, camera: 1, noise: 0 };
 export const weatherFx = (c: Config, w?: string): WeatherFx => (w && c.training.weather?.[w]) || CLEAR;
 /** Camera identification range for a drill: time of day, then weather. */
 export const cameraRange = (c: Config, time: 'day' | 'night', w?: string): number => c.training.sim.cameraRangeM[time] * weatherFx(c, w).camera;
+/** Hearing range (m) for a threat type in a drill, or null when no acoustic sensor is fitted or the type has no signature. */
+export const acousticRange = (c: Config, type: string, d: { time: 'day' | 'night'; terrain: 'urban' | 'rural'; weather?: string }): number | null => {
+  const A = c.training.acoustic, s = c.threats.threats[type]?.acoustic;
+  if (!A || !s) return null;
+  return s.rangeM * A[d.terrain] * (d.time === 'night' ? A.night : 1) * (weatherFx(c, d.weather).acoustic ?? 1);
+};
 export const ticks = (c: Config, s: number): number => Math.round(s / c.training.sim.dt);
 export const confLabel = (c: Config, p: number): string => (c.doctrine.confidence.find((x) => Math.abs(x.p - p) < 0.01) ?? c.doctrine.confidence[0]).label;

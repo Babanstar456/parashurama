@@ -28,7 +28,8 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
 - `npm run e2e`: Playwright. Set `PW_CHROMIUM_PATH` if a local Chromium is needed.
 - `npm run dev` runs the web app only (offline). `npm run build && npm run server` runs it with the unit server on :8080.
 - **Updating `docs/index.html`** (served by Vercel, root `docs/`): run `npm run release:docs`. It builds the single file, drops the manifest and icon links, and writes the SHA-256 to `docs/RELEASE.txt`.
-- **Supply chain:** run `npm run audit:prod` (CI fails on high or critical) and `npm run sbom && npm run notices`. There is no LICENSE yet; the team must choose one first.
+- **Supply chain:** run `npm run audit:prod` (CI fails on high or critical) and `npm run sbom && npm run notices`. Licence: Apache-2.0 (`LICENSE`, `NOTICE`).
+- **Capacity checks:** `npm run loadtest` (unit server, many trainees; `--url` for a real server) and `npm run fps` (frame rate per view, visible browser; needs `npm run build:single`).
 - `apps/web/index.html` is the Vite **source** entry page (it loads `/src/main.ts`). Never overwrite it with a built bundle.
 - **App URL flags:** `?demo`, `?reset`, `?nohome`, `?instructor` (offline editor), `?fps` (frame-rate meter), `?lite` (force Lite mode).
 
@@ -50,6 +51,7 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
   - R11: EW collateral in `ewRestricted` areas.
   - R12: fire only with clearance under `roe` `tight` or `peacetime`. The new `req` action requests clearance, and there is a new `roe` skill.
   - Sensor-down fairness note (`idAvail`): explains a missing clue but never changes points.
+  - Acoustic sensing: optional `acoustic` per threat and in `training.json`; `acousticClue()` is a clue only and never changes a drill or a score.
 - **Planner options and security features:**
   - Control-group planning: `planNext(H, C, { adaptive: false })`, with a `cohort` per user.
   - Signed threat packs: `pack.ts`, `config/trust/keys.json`, `POST /api/packs`.
@@ -75,8 +77,7 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
 - Deliverables for the jury are files (PDF/DOCX/HTML).
 
 ## Open items
-- Record `?fps` results from the presentation laptop in `docs/TRACEABILITY.md`.
+- Record `npm run fps` (or `?fps` report) results from the presentation laptop in `docs/TRACEABILITY.md`.
 - VR: the WebXR entry has never been tried on a headset. Say "WebXR-ready, headset trial next".
-- DSSC review of the doctrine values and the new threat values.
-- Multi-trainee LAN load test.
-- Acoustic sensing is not modelled.
+- DSSC review of the doctrine values, the threat values and the acoustic values.
+- Load test over a real LAN (`npm run loadtest -- --url …`). The single-machine burst test is done (see TRACEABILITY).

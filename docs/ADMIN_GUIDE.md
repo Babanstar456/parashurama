@@ -120,12 +120,17 @@ Instructors add training videos in the app: hub → *Lecture library* → *Add a
 - Manual: instructor panel → *Back up database now*, or `npm run backup -w @parashurama/server`.
 - Restore: stop the server, replace `DATA_DIR/parashurama.db` with a backup file, start the server.
 
+## Checking capacity and speed before a session
+
+- **Server load:** `npm run loadtest -- --url http://<server>:8080 --trainees 30 --drills 5` signs in 30 demo trainees (`trainee-01` …) and submits drills all at once, then checks that every drill was accepted, re-verified and stored. Add `--insecure` for a self-signed HTTPS certificate. Without `--url` it tests a temporary server on this machine. Run it against a test server, not the live unit database, because it adds demo trainees and drills.
+- **Frame rate on a laptop:** open the app with `?fps`, use the menus, a drill, and the 3D view (press **V**), then click the meter to copy a per-view report. On a machine with Node: `npm run build:single && npm run fps` does the same automatically in a visible browser window and prints `EVIDENCE fps …` lines.
+
 ## Security notes
 
 - **Sign-in is by name only, with no passwords.** Anyone who can reach the server can use any account by typing its name, including `admin`. Run the server only on a trusted unit network.
 - Drill records and decision logs are encrypted at rest (AES-256-GCM); see *Encryption at rest*.
 - Sessions are random tokens (only their SHA-256 is stored), 12-hour lifetime, `HttpOnly; SameSite=Strict` cookies (`Secure` under HTTPS).
-- Sign-ins are rate-limited per address.
+- Sign-ins are rate-limited per address: 30 per minute. A classroom where every trainee shares one address (NAT, a proxy, or one PC) will see *Too many attempts* from the 30th sign-in in a minute; stagger sign-ins or give each PC its own address.
 - Cross-origin state changes are refused; strict Content-Security-Policy with no `eval` (config validators are pre-compiled).
 - Every drill is re-run on the server; a client cannot raise its own score. The decision log is SHA-256 chained.
 - Sign-ins, self-created accounts, config changes, user creation, flagged drills and backups are recorded in the audit log (`/api/admin/audit`).
