@@ -23,6 +23,11 @@ const MIGRATIONS: string[] = [
   // 3: lecture library (video files live in <dataDir>/lectures/<file>).
   `CREATE TABLE lectures(id INTEGER PRIMARY KEY, title TEXT NOT NULL, topic TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', file TEXT NOT NULL, mime TEXT NOT NULL,
      size INTEGER NOT NULL, duration REAL, sha256 TEXT NOT NULL, author INTEGER REFERENCES users(id), created_at INTEGER NOT NULL);`,
+  // 4: air defence gun drills (Control Room / On Ground), solo or as a LAN crew. actions and record are sealed like drills.
+  `CREATE TABLE gun_drills(id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), created_at INTEGER NOT NULL, game TEXT NOT NULL CHECK(game IN ('ground','control')),
+     crew TEXT, cfg TEXT NOT NULL, actions TEXT NOT NULL, end_tick INTEGER NOT NULL, total INTEGER NOT NULL, client_total INTEGER, verified INTEGER NOT NULL,
+     chain TEXT NOT NULL, flags TEXT NOT NULL, record TEXT NOT NULL, config_version INTEGER);
+   CREATE INDEX gun_drills_user ON gun_drills(user_id, created_at);`,
 ];
 /** Open (or create) the database and apply any pending migrations. */
 export function openDb(dataDir: string): DB {

@@ -163,3 +163,12 @@ describe('reload drill (G12) and live-fire procedure (L1–L3)', () => {
     expect(ded('L1', scoreGround(ok))).toBe(0); expect(ded('L2', scoreControl(ok))).toBe(0); expect(ded('L3', scoreControl(ok))).toBe(0);
   });
 });
+
+describe('a drill ended early', () => {
+  it('earns nothing for the parts it never reached', () => {
+    const cfg = defaultGunCfg({ seed: 5, difficulty: 3 });
+    const E = runGun(cfg, { policies: [controlRoomAI, crew], until: 50 });
+    expect(scoreGround(E).total).toBeLessThan(40);
+    expect(scoreControl(E).total).toBeLessThan(40);
+  });
+});

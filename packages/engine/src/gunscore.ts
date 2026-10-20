@@ -46,6 +46,10 @@ function finish(game: GunGame, E: GunEngine, parts: GunPart[], deductions: GunPa
   return { game, total: clamp(Math.round(sum), 0, 100), parts, deductions, why, rules, metrics: metrics(E, deductions.reduce((a, d) => a + d.why.length, 0)) };
 }
 const engageOrders = (E: GunEngine) => E.orders.filter((o) => o.o === 'engage');
+/** Does this drill have hostile targets at all (spawned or still to come)? Parts with nothing to judge only get full marks when it has none. */
+const hasHostiles = (E: GunEngine) => E.spawns.some((sp) => E.C.threats.threats[sp.type]?.hostile);
+/** Hostiles that never appeared because the drill was ended early. */
+const unseen = (E: GunEngine) => E.spawns.slice(E.next).filter((sp) => E.C.threats.threats[sp.type]?.hostile).length;
 
 /** On Ground game: the gun detachment's drill (G1–G11). */
 export function scoreGround(E: GunEngine): GunScore {
@@ -91,7 +95,8 @@ export function scoreGround(E: GunEngine): GunScore {
     if (d > 3) w4.push(`First burst on target ${o.cid} after ${fmt(d)}`);
     return lin(d, 3, P.firstBurstWithinSec);
   });
-  const g4 = part('G4', 'Reaction to the fire order', 20, avgOr(reacts), w4);
+  if (!reacts.length && hasHostiles(E)) w4.push('No executive order was carried out');
+  const g4 = part('G4', 'Reaction to the fire order', 20, avgOr(reacts, hasHostiles(E) ? 0 : 1), w4);
   // G5 Ballistic solution: manual sight settings against the truth, or radar lock before firing.
   const w5: string[] = [], MS = E.G.manualSight;
   const firstBursts = [...new Map(E.bursts.filter((b) => b.authorised && b.cid != null).map((b) => [b.cid, b] as const)).values()];
@@ -110,20 +115,21 @@ export function scoreGround(E: GunEngine): GunScore {
     return (cs + cc + cr) / 3;
   });
   const anyOrder = engageOrders(E).some((o) => tgt(E, o.cid)?.hostile);
-  const g5 = part('G5', 'Ballistic solution', 10, sol.length ? avgOr(sol) : anyOrder ? 0 : 1, w5);
+  const g5 = part('G5', 'Ballistic solution', 10, sol.length ? avgOr(sol) : anyOrder || hasHostiles(E) ? 0 : 1, w5);
   // G6 Burst accuracy.
   const w6: string[] = [];
   const acc = E.bursts.filter((b) => b.authorised && b.cid != null).map((b) => {
     const T = tgt(E, b.cid)!, r = E.G.targets.hitRadiusM[E.C.threats.threats[T.type].echo] ?? 0.4;
     return b.hits > 0 || b.bestMiss <= r ? 1 : lin(b.bestMiss, r, r + 5);
   });
-  const a6 = acc.length ? avgOr(acc) : anyOrder ? 0 : 1;
+  const a6 = acc.length ? avgOr(acc) : anyOrder || hasHostiles(E) ? 0 : 1;
   if (acc.length) w6.push(`${acc.filter((x) => x === 1).length} of ${acc.length} bursts hit; average credit ${Math.round(a6 * 100)}%`);
   const g6 = part('G6', 'Burst accuracy', 20, a6, a6 < 1 ? w6 : []);
   // G7 Effect: hostiles ordered engaged that were destroyed before reaching the asset.
   const ordered = [...new Set(engageOrders(E).map((o) => o.cid))].map((id) => tgt(E, id)).filter((t): t is GunTarget => !!t && t.hostile);
   const w7 = ordered.filter((t) => t.state !== 'destroyed').map((t) => `Target ${t.id} (${E.C.threats.threats[t.type].short}) ${t.state === 'leaked' ? 'reached the asset' : 'was not destroyed'}`);
-  const g7 = part('G7', 'Targets destroyed', 20, ordered.length ? ordered.filter((t) => t.state === 'destroyed').length / ordered.length : 1, w7);
+  if (!ordered.length && hasHostiles(E)) w7.push('No target was engaged');
+  const g7 = part('G7', 'Targets destroyed', 20, ordered.length ? ordered.filter((t) => t.state === 'destroyed').length / ordered.length : hasHostiles(E) ? 0 : 1, w7);
   // G8 Burst discipline.
   const w8: string[] = [], bmax = P.burstMax * gun.barrels;
   for (const b of E.bursts) {
@@ -225,7 +231,7 @@ export function scoreControl(E: GunEngine): GunScore {
     if (!okA) w2.push('Executive order before the detachment was alerted');
     return ((okT ? 1 : 0) + (okM ? 1 : 0) + (okA ? 1 : 0)) / 3;
   });
-  const f2 = part('F2', 'Fire-order sequence', 15, avgOr(seq, hostiles.length ? 0 : 1), w2);
+  const f2 = part('F2', 'Fire-order sequence', 15, avgOr(seq, hasHostiles(E) ? 0 : 1), w2);
   // F5 Priority; F6 executive inside effective range with time to spare.
   const w5: string[] = [], w6: string[] = [];
   const pri = engageOrders(E).filter((e) => tgt(E, e.cid)?.hostile).map((e) => {
@@ -234,7 +240,7 @@ export function scoreControl(E: GunEngine): GunScore {
     if (worse) w5.push(`Target ${worse.id} was more urgent when target ${T.id} was engaged`);
     return worse ? 0 : 1;
   });
-  const f5 = part('F5', 'Priority by time to impact', 10, avgOr(pri, hostiles.length ? 0 : 1), w5);
+  const f5 = part('F5', 'Priority by time to impact', 10, avgOr(pri, hasHostiles(E) ? 0 : 1), w5);
   const rng = hostiles.map((T) => {
     const e = O.find((o) => o.o === 'engage' && o.cid === T.id);
     if (!e) { w6.push(`Target ${T.id} was never engaged`); return 0; }
@@ -243,7 +249,9 @@ export function scoreControl(E: GunEngine): GunScore {
     if (tt < E.C.doctrine.defeat.modifiers.lateEngagementSec) { w6.push(`Target ${T.id} engaged with only ${fmt(tt)} to impact`); return 0.3; }
     return 1;
   });
-  const f6 = part('F6', 'Executive order in range and in time', 15, avgOr(rng), w6);
+  for (let i = 0; i < unseen(E); i++) rng.push(0);
+  if (unseen(E)) w6.push(`${unseen(E)} target(s) never reached: the drill ended early`);
+  const f6 = part('F6', 'Executive order in range and in time', 15, avgOr(rng, hasHostiles(E) ? 0 : 1), w6);
   // F7 Cease fire after a kill; Hold fire when a friendly/civil aircraft enters the line of fire.
   const w7: string[] = [], f7Items: number[] = [];
   for (const T of hostiles.filter((t) => t.state === 'destroyed' || t.state === 'leaked')) {
@@ -268,8 +276,8 @@ export function scoreControl(E: GunEngine): GunScore {
   if (!cease) w8.push('No final Cease fire'); if (!unl) w8.push('No Unload order at the end');
   const f8 = part('F8', 'Close the engagement', 10, ((cease ? 1 : 0) + (unl ? lin(S(E, unl.tick - lastEnd), 10, 40) : 0)) / 2, w8);
   // Result.
-  const kills = hostiles.filter((t) => t.state === 'destroyed').length;
-  const g7 = part('G7', 'Targets destroyed', 20, hostiles.length ? kills / hostiles.length : 1,
+  const kills = hostiles.filter((t) => t.state === 'destroyed').length, all = hostiles.length + unseen(E);
+  const g7 = part('G7', 'Targets destroyed', 20, all ? kills / all : 1,
     hostiles.filter((t) => t.state !== 'destroyed').map((t) => `Target ${t.id} (${E.C.threats.threats[t.type].short}) ${t.state === 'leaked' ? 'reached the asset' : 'survived'}`));
   // Deductions: F3 Weapon Control Status, F4 safe arcs.
   const d3: string[] = [], d4: string[] = [];

@@ -659,3 +659,8 @@ body.gunOn{overflow:hidden}
 .gnProc button{all:unset;cursor:pointer;color:var(--nu);text-decoration:underline dotted;text-underline-offset:3px}
 .gnProc button:focus-visible{outline:2px solid var(--nu)}
 #gnProc{max-height:42vh;overflow:auto}
+.gnCrew{margin:6px 0 14px}.gnCrewList{display:grid;gap:6px;margin:6px 0 10px}
+.gnCrewRow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;padding:8px 12px;border-radius:6px;background:var(--np);border:1px solid var(--nl);font:500 14px var(--cond)}
+.gnCrewRow b{font:700 18px var(--cond);letter-spacing:.12em;color:var(--nu)}
+.gnCrewTag{font:700 13px var(--cond);letter-spacing:.1em;color:var(--nu)}
+#gnBoard{margin-bottom:12px}
