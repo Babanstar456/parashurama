@@ -1,7 +1,7 @@
 import { randomInt } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
-  chainHashGun, controlRoomAI, createGun, gunCrewAI, gunDone, gunMastery, gunsOf, observeGun, planGun, runGun, scoreControl, scoreGround, scoreReload, stepGun,
+  chainHashGun, controlRoomAI, createGun, gunCrewAI, gunDone, gunMastery, gunsOf, observeGun, planGun, runGun, scoreControl, scoreField, scoreGround, scoreReload, stepGun,
   type Config, type GunAction, type GunDrillConfig, type GunEngine, type GunGame, type GunRecord, type GunScore,
 } from '@parashurama/engine';
 import { audit, type DB } from './db';
@@ -38,13 +38,15 @@ export function cleanGunCfg(c: any, C: Config): GunDrillConfig {
   const wcs = opt(c.wcs, (x) => oneOf(x, ['hold', 'tight', 'free'] as const, 'cfg.wcs')); if (wcs) cfg.wcs = wcs;
   const adw = opt(c.adw, (x) => oneOf(x, ['white', 'yellow', 'red'] as const, 'cfg.adw')); if (adw) cfg.adw = adw;
   const pr = opt(c.practice, (x) => oneOf(x, ['reload'] as const, 'cfg.practice')); if (pr) cfg.practice = pr;
+  const si = opt(c.selfId, (x) => !!x); if (si) cfg.selfId = true;
+  const sw = opt(c.swarm, (x) => !!x); if (sw) cfg.swarm = true;
   if (c.safeArcs != null) {
     if (!Array.isArray(c.safeArcs) || c.safeArcs.length > 4) throw new BadRequest('cfg.safeArcs must be a list of at most 4 arcs');
     cfg.safeArcs = c.safeArcs.map((a: any, i: number) => [num(a?.[0], 0, 360, `cfg.safeArcs[${i}][0]`), num(a?.[1], 0, 360, `cfg.safeArcs[${i}][1]`)] as [number, number]);
   }
   return cfg;
 }
-const KINDS = ['order', 'check', 'uxo', 'rstep', 'ack', 'post', 'kill', 'load', 'safety', 'lay', 'slew', 'trig', 'sight', 'lock', 'clear', 'barrel', 'unload', 'report'] as const;
+const KINDS = ['order', 'check', 'uxo', 'rstep', 'ack', 'post', 'kill', 'load', 'safety', 'lay', 'slew', 'trig', 'sight', 'lock', 'clear', 'barrel', 'unload', 'report', 'spot', 'ident'] as const;
 const ORDERS = ['rangeClear', 'alert', 'target', 'method', 'engage', 'cease', 'hold', 'unload', 'rangeGreen'] as const;
 /** One action, without its tick (the server stamps crew actions; solo logs carry their own). */
 export function cleanGunAction(x: any, i: number): Omit<GunAction, 'tick'> {
@@ -60,6 +62,7 @@ export function cleanGunAction(x: any, i: number): Omit<GunAction, 'tick'> {
   if (x.out != null) a.out = oneOf(x.out, ['destroyed', 'noEffect'] as const, `actions[${i}].out`);
   if (x.item != null) { if (typeof x.item !== 'string' || !/^[A-Za-z0-9]{1,32}$/.test(x.item)) throw new BadRequest(`actions[${i}].item is not valid`); a.item = x.item; }
   if (x.i != null) a.i = int(x.i, 0, 1e6, `actions[${i}].i`);
+  if (x.cls != null) { if (typeof x.cls !== 'string' || !/^[A-Za-z0-9]{1,32}$/.test(x.cls)) throw new BadRequest(`actions[${i}].cls is not valid`); a.cls = x.cls; }
   return a;
 }
 function cleanGunActions(a: any, maxTick: number): GunAction[] {
@@ -72,12 +75,12 @@ function cleanGunActions(a: any, maxTick: number): GunAction[] {
   });
 }
 const maxTicksFor = (C: Config, cfg: GunDrillConfig) => Math.round(((cfg.maxSec ?? 180) + 90) / C.training.sim.dt) + 10;
-export const scoreFor = (E: GunEngine, game: GunGame): GunScore => (E.cfg.practice ? scoreReload(E) : game === 'ground' ? scoreGround(E) : scoreControl(E));
+export const scoreFor = (E: GunEngine, game: GunGame): GunScore => (E.cfg.practice ? scoreReload(E) : game === 'ground' ? scoreGround(E) : game === 'field' ? scoreField(E) : scoreControl(E));
 const mySeat = (game: GunGame) => (game === 'control' ? 'cr' : 'gun');
 
 /** Re-run a solo gun drill: the trainee's seat from the log, the other seat by the AI itself. */
 export async function verifyGun(C: Config, p: any) {
-  const game = oneOf(p?.game, ['ground', 'control'] as const, 'game');
+  const game = oneOf(p?.game, ['ground', 'control', 'field'] as const, 'game');
   const cfg = cleanGunCfg(p.cfg, C), maxTick = maxTicksFor(C, cfg);
   const all = cleanGunActions(p.actions, maxTick), endTick = int(p.endTick, 1, maxTick, 'endTick');
   const mine = all.filter((a) => a.seat === mySeat(game));
@@ -118,7 +121,7 @@ export function registerGun(app: FastifyInstance, db: DB, key: Buffer | null, ne
     const rows = (req.user!.role === 'trainee' ? db.prepare('SELECT id,name,unit,role FROM users WHERE id=?').all(req.user!.id)
       : db.prepare("SELECT id,name,unit,role FROM users WHERE disabled=0 AND (role IN ('trainee','instructor') OR id=?) ORDER BY name").all(req.user!.id)) as any[];
     return { operators: rows.map((u) => { const H = history(u.id), last = (g: GunGame) => H.filter((h) => h.game === g).at(-1)?.total ?? null;
-      return { ...u, mastery: gunMastery(H, C), drills: H.length, lastGround: last('ground'), lastControl: last('control') }; }) };
+      return { ...u, mastery: gunMastery(H, C), drills: H.length, lastGround: last('ground'), lastControl: last('control'), lastField: last('field') }; }) };
   });
 
   const rooms = new Map<string, Room>();

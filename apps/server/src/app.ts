@@ -54,7 +54,7 @@ export async function buildApp(o: Options) {
   app.addHook('onSend', async (req, reply, payload) => {
     reply.header('X-Content-Type-Options', 'nosniff').header('Referrer-Policy', 'no-referrer').header('X-Frame-Options', 'DENY')
       .header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-      .header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+      .header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self' blob:; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
     if (o.secureCookies) reply.header('Strict-Transport-Security', 'max-age=31536000');
     if (req.url.startsWith('/api/') && !/^\/api\/lectures\/\d+\/video/.test(req.url)) reply.header('Cache-Control', 'no-store');
     return payload;

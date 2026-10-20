@@ -1,0 +1,8 @@
+Sounds from Freesound (https://freesound.org), all licensed Creative Commons 0 (public domain). No attribution is
+required; listed for traceability. Cut and normalised from the HQ previews by the PARASHURAMA team.
+
+l70_shot.wav   <- "Autocannon Three Shot Burst" by qubodup, https://freesound.org/people/qubodup/sounds/854186/ (last shot and tail)
+l70_boom.wav   <- "GUNArtl_69thFieldArtilleryGun01" by InMotionAudio, https://freesound.org/people/InMotionAudio/sounds/702245/
+load_clip.wav  <- "Ammo Box, Open-Close, Moving Handle" by DanielPickens, https://freesound.org/people/DanielPickens/sounds/586544/
+load_ram.wav, load_ram2.wav <- "R30-03-Artillery Gun Sequence" by craigsmith, https://freesound.org/people/craigsmith/sounds/486036/
+cases.wav      <- "Bouncing Shell Casings (Various Sizes)" by GryffDavid, https://freesound.org/people/GryffDavid/sounds/318964/

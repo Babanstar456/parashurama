@@ -1,4 +1,4 @@
-import { getConfig, type Config } from './config';
+import { getConfig, gunsOf, type Config } from './config';
 import { defaultGunCfg, type Adw, type GunDrillConfig, type Wcs } from './gun';
 import { GUN_SKILLS, gunMastery, type GunGame, type GunRecord } from './gunscore';
 import { clamp, mulberry } from './util';
@@ -20,6 +20,11 @@ const WHY: Record<string, string> = {
   fWcs: 'Weapon Control Status: WEAPONS HOLD with safe arcs.',
   fPriority: 'Priority and range: more targets at once.',
   fClose: 'Cease and Hold fire: friendly and civil aircraft cross the line of fire.',
+  vDetect: 'Detection was slow: night, bad weather or a failed sensor, so you must search the sky yourself.',
+  vIdent: 'Identification needs work: more birds, civil drones and a friendly UAV mixed in with the threats.',
+  vDecide: 'Engagement decisions: Weapons TIGHT with friendly and civil traffic, so fire only on what you have identified as hostile.',
+  vShoot: 'Laying and shooting: the manual-sight ZU-23-2 against fast, crossing targets.',
+  vDrill: 'Gun drill: stoppages on and the detachment stood down, so man the gun, load and clear stoppages under pressure.',
 };
 export function planGun(H: GunRecord[], game: GunGame, C: Config = getConfig()): GunPlan {
   const mine = H.filter((h) => h.game === game), m = gunMastery(mine, C);
@@ -36,9 +41,22 @@ export function planGun(H: GunRecord[], game: GunGame, C: Config = getConfig()):
   if (focus === 'gDisc' || focus === 'fWcs') { const a = Math.floor(r() * 360); safeArcs = [[a, (a + 50) % 360]]; }
   if (focus === 'fWcs') wcs = 'hold';
   if (focus === 'gSafe') stoppages = true;
+  // Field drill (3D): all three guns, weather and sensor faults; it draws on its own stream so the other games are unchanged.
+  let field: Partial<GunDrillConfig> = {};
+  if (game === 'field') {
+    const f = mulberry(seed + 4111), guns = ['zu23', 'zsu234', 'l70'].filter((k) => gunsOf(C).guns[k]);
+    gun = focus === 'vShoot' ? 'zu23' : guns[Math.floor(f() * guns.length)];
+    // At night the thermal-sight or radar gun is tasked: a manual-sight gun cannot see small drones in the dark.
+    if (gun === 'zu23' && time === 'night') gun = guns.includes('l70') ? 'l70' : 'zsu234';
+    const wx = ['clear', 'clear', 'rain', 'fog', 'dust'] as const, weather = focus === 'vDetect' ? wx[2 + Math.floor(f() * 3)] : wx[Math.floor(f() * wx.length)];
+    const radarFault = gun !== 'zu23' && (focus === 'vDetect' ? f() < 0.6 : f() < 0.15);
+    if (focus === 'vDecide') wcs = 'tight';
+    if (focus === 'vDrill') { stoppages = true; adw = 'yellow'; }
+    field = { selfId: true, weather, ...(radarFault ? { radarFault } : {}), ...(focus === 'vDetect' && gun !== 'zu23' && f() < 0.5 ? { time: 'night' as const } : {}) };
+  }
   const cfg = defaultGunCfg({
-    seed, gun, difficulty: focus === 'fPriority' || focus === 'gReact' || focus === 'gReload' ? clamp(difficulty + 1, 1, 6) : focus === 'gDisc' || focus === 'fClose' ? Math.max(3, difficulty) : difficulty,
-    time, terrain, adw, wcs, stoppages, ...(safeArcs ? { safeArcs } : {}),
+    seed, gun, difficulty: focus === 'fPriority' || focus === 'gReact' || focus === 'gReload' ? clamp(difficulty + 1, 1, 6) : focus === 'gDisc' || focus === 'fClose' || focus === 'vIdent' || focus === 'vDecide' ? Math.max(3, difficulty) : difficulty,
+    time, terrain, adw, wcs, stoppages, ...(safeArcs ? { safeArcs } : {}), ...field,
     met: { tempC: Math.round(10 + r() * 32), pressureHpa: Math.round(985 + r() * 35), wind: [Math.round((r() - 0.5) * 16), Math.round((r() - 0.5) * 16), 0], latitudeDeg: 26 },
   });
   return { cfg, focus, why: mine.length ? WHY[focus] : 'First drill: a standard engagement to set your baseline.' };

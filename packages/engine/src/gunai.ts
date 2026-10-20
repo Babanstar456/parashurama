@@ -1,5 +1,6 @@
 import { angDiff, losOf } from './ballistics';
-import { authorised, engageRange, inSafeArc, unexploded, sightSolution, targetPos, targetVel, targetOnLine, type GunAction, type GunEngine, type GunTarget, type OrderKind } from './gun';
+import { fcsOf } from './config';
+import { aimedTarget, authorised, engageRange, identOf, inSafeArc, reportedHostile, unexploded, sightSolution, targetPos, targetVel, type GunAction, type GunEngine, type GunTarget, type OrderKind } from './gun';
 import { clamp } from './util';
 
 /**
@@ -23,14 +24,16 @@ const lastOrder = (E: GunEngine, kinds: OrderKind[]) => [...E.orders].reverse().
 export const SELF_DEFENCE_SEC = 20;
 /** Under the drill's Weapon Control Status, may the control room order fire on this target now? */
 export function wcsAllows(E: GunEngine, T: GunTarget): boolean {
-  if (!T.hostile) return false;
+  // Field drill: the control room can only go on what the detachment reported.
+  if (E.cfg.selfId ? !reportedHostile(E, T.id) : !T.hostile) return false;
   const w = E.cfg.wcs ?? 'tight';
   return w === 'hold' ? gunTti(E, T) <= SELF_DEFENCE_SEC : true;
 }
 const bearingOf = (E: GunEngine, T: GunTarget) => losOf(targetPos(T, now(E), E.dt)).az;
 /** A friendly or civil aircraft close to the gun's line of fire (deg). */
 export function nonHostileInLine(E: GunEngine, maxDeg = 5): GunTarget | undefined {
-  return E.targets.find((T) => T.state === 'live' && !T.hostile && (() => { const L = losOf(targetPos(T, now(E), E.dt)); return Math.hypot(angDiff(L.az, E.g.az), L.el - E.g.el) < maxDeg; })());
+  // Birds are clutter: they do not stop the guns (and only appear in the field drill).
+  return E.targets.find((T) => T.state === 'live' && !T.hostile && T.type !== 'bird' && (() => { const L = losOf(targetPos(T, now(E), E.dt)); return Math.hypot(angDiff(L.az, E.g.az), L.el - E.g.el) < maxDeg; })());
 }
 
 /** Expert control room: Range clear, Alert, Target, Method, Fire in sequence, by time to impact; Cease, Hold and Unload on time. */
@@ -50,7 +53,9 @@ export function controlRoomAI(E: GunEngine): GunAction[] {
     if (left) return E.tick - lastFound >= sec(E, lfx.uxoSearchSec) ? [{ tick: E.tick, seat: 'cr', k: 'uxo', i: left.i }] : [];
     return o('rangeGreen');
   }
-  const hostiles = E.targets.filter((T) => T.state === 'live' && T.hostile).sort((a, b) => gunTti(E, a) - gunTti(E, b));
+  // Field drill: the control room knows only the contacts the detachment reported as hostile.
+  const known = (T: GunTarget) => (E.cfg.selfId ? reportedHostile(E, T.id) : T.hostile);
+  const hostiles = E.targets.filter((T) => T.state === 'live' && known(T)).sort((a, b) => gunTti(E, a) - gunTti(E, b));
   const cleared = E.cleared != null ? E.targets.find((T) => T.id === E.cleared) : undefined;
   // Emergency: a friendly or civil aircraft in the line of fire while cleared to fire.
   if (cleared && nonHostileInLine(E)) return o('hold');
@@ -63,7 +68,7 @@ export function controlRoomAI(E: GunEngine): GunAction[] {
   if (cleared && (cleared.state !== 'live' || inSafeArc(E.cfg, bearingOf(E, cleared)))) return o('cease');
   if (!hostiles.length) {
     const pending = E.next < E.spawns.length;
-    if (!pending && E.targets.some((x) => x.hostile)) {
+    if (!pending && E.targets.some((x) => x.hostile) && !E.targets.some((x) => x.hostile && x.state === 'live')) {
       if (!E.ceased && !E.orders.some((x) => x.o === 'cease' && x.tick > (lastOrder(E, ['engage'])?.tick ?? -1))) return o('cease');
       if (!E.unloadOrdered && E.tick - (lastOrder(E, ['cease'])?.tick ?? E.tick) >= sec(E, 2)) return o('unload');
     }
@@ -72,8 +77,9 @@ export function controlRoomAI(E: GunEngine): GunAction[] {
   if ((E.cfg.adw ?? 'red') !== 'red' && !E.orders.some((x) => x.o === 'alert')) return o('alert');
   const T = hostiles[0];
   if (T.designatedTick != null && E.tick - T.designatedTick < 0) return [];
-  // Contacts are tracked about 1 s after they appear.
+  // Contacts are tracked about 1 s after they appear (field drill: 1 s after the detachment's report).
   if (E.tick - T.spawnTick < sec(E, 1)) return [];
+  if (E.cfg.selfId) { const id = [...E.idents].reverse().find((x) => x.cid === T.id); if (!id || E.tick - id.tick < sec(E, 1)) return []; }
   // Finish the current engagement before switching; otherwise indicate the most urgent target.
   if (cleared && cleared.state === 'live' && cleared.id !== T.id) return [];
   const tgtOrder = lastOrder(E, ['target']);
@@ -90,6 +96,12 @@ export function gunCrewAI(E: GunEngine, skill: CrewSkill = { ackSec: 1 }): GunAc
   const a = (x: Omit<GunAction, 'tick' | 'seat'>) => out.push({ tick: E.tick, seat: 'gun', ...x } as GunAction);
   const un = E.orders.find((x) => x.ackTick == null);
   if (un && E.tick - un.tick >= sec(E, skill.ackSec)) a({ k: 'ack' });
+  // Field drill: report each contact about 1 s after it becomes visible, and identify it 1.5 s later.
+  if (E.cfg.selfId) for (const T of E.targets) {
+    if (T.state !== 'live' || E.seen[T.id] == null) continue;
+    if (E.spots[T.id] == null) { if (E.tick - E.seen[T.id] >= sec(E, 1)) a({ k: 'spot', cid: T.id }); }
+    else if (identOf(E, T.id) == null && E.tick - E.spots[T.id] >= sec(E, 1.5)) a({ k: 'ident', cid: T.id, cls: T.type });
+  }
   // Pre-firing checks on the gun (live-fire procedure), one at a time, before loading. Not part of reload practice.
   const lfx = E.cfg.practice ? undefined : E.G.lfx;
   const todo = lfx?.gunChecks.find((c) => E.checks[c.id] == null);
@@ -116,10 +128,10 @@ export function gunCrewAI(E: GunEngine, skill: CrewSkill = { ackSec: 1 }): GunAc
   for (const T of E.targets) if (T.state === 'destroyed' && !E.kills.some((k) => k.cid === T.id) && E.tick - (T.endTick ?? 0) >= sec(E, 1)) a({ k: 'kill', cid: T.id, out: 'destroyed' });
   const des = [...E.orders].reverse().find((x) => x.o === 'target');
   const T = des?.cid != null ? E.targets.find((x) => x.id === des.cid) : undefined;
-  const radar = gun.sight === 'radar' && !E.cfg.radarFault;
+  const radar = gun.sight !== 'manual' && !E.cfg.radarFault;
   if (T && T.state === 'live') {
     const L = losOf(targetPos(T, now(E), E.dt));
-    if (radar) { if (g.lockCid !== T.id && L.range <= (gun.radar?.acquireRangeM ?? 0)) a({ k: 'lock', cid: T.id }); }
+    if (radar) { if (g.lockCid !== T.id && L.range <= (fcsOf(gun)?.acquireRangeM ?? 0)) a({ k: 'lock', cid: T.id }); }
     else {
       const far = Math.hypot(angDiff(L.az, g.az), L.el - g.el) > gun.sightFovDeg / 2 - 1;
       if (far && g.layCid !== T.id) a({ k: 'lay', cid: T.id });
@@ -149,12 +161,14 @@ export function gunCrewAI(E: GunEngine, skill: CrewSkill = { ackSec: 1 }): GunAc
     if (!ok || (b && b.end == null && b.rounds >= perBarrel * gun.barrels)) a({ k: 'trig', on: false });
   } else if (ok && g.loaded && !g.safety && !g.busy && T) {
     const L = losOf(targetPos(T, now(E), E.dt));
-    const onLine = targetOnLine(E, gun.sightFovDeg / 2)?.id === T.id;
+    const onLine = aimedTarget(E, gun.sightFovDeg / 2)?.id === T.id;
     const sol = radar ? E.fcs : sightSolution(E, E.fcs);
     const err = sol?.ok ? Math.hypot(angDiff(sol.az, g.az), sol.el - g.el) : 99;
     const rested = !b || b.end == null || E.tick - b.end >= sec(E, 1);
-    const locked = !radar || (g.lockCid === T.id && g.lockStart != null && E.tick - g.lockStart >= sec(E, gun.radar?.lockSec ?? 0));
-    if (onLine && locked && rested && err < 0.06 && L.range <= engageRange(E, T) * 1.05 && g.heat < gun.heatLimit * 0.9) a({ k: 'trig', on: true });
+    const locked = !radar || (g.lockCid === T.id && g.lockStart != null && E.tick - g.lockStart >= sec(E, fcsOf(gun)?.lockSec ?? 0));
+    // Field drill: the layer can see a friendly or civil aircraft near the line too, and does not open fire.
+    const clearLine = !E.cfg.selfId || !nonHostileInLine(E, 7);
+    if (onLine && locked && rested && clearLine && err < 0.06 && L.range <= engageRange(E, T) * 1.05 && g.heat < gun.heatLimit * 0.9) a({ k: 'trig', on: true });
   }
   if (!g.trig && !g.busy && g.heat >= gun.heatLimit * 0.9) a({ k: 'barrel' });
   return out;

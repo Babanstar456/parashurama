@@ -57,14 +57,20 @@ export interface WeatherFx { label: string; radar: number; camera: number; noise
 /** Acoustic sensor: seconds to recognise a sound once heard, and hearing-range factors (background noise by terrain; quieter nights). */
 export interface AcousticFx { clueSec: number; urban: number; rural: number; night: number; }
 /** Gun detachment data (config/guns.json). Training values from public nominal figures, not equipment specifications. */
-export interface Ammo { label: string; massKg: number; caliberM: number; mv: number; mvSd: number; mvPerDegC: number; tracerSec: number; selfDestructSec: number; sdFailP: number; cdMach: [number, number][]; }
+export interface Ammo { label: string; massKg: number; caliberM: number; mv: number; mvSd: number; mvPerDegC: number; tracerSec: number; selfDestructSec: number; sdFailP: number; cdMach: [number, number][];
+  /** Optional proximity fuze: a pass within this distance (m) is a hit. Missing = contact fuze only. */ proxM?: number; }
 export interface Gun {
-  label: string; short: string; sight: 'manual' | 'radar'; barrels: number; rpmPerBarrel: number; beltRounds: number; ammo: string;
+  label: string; short: string; sight: 'manual' | 'radar' | 'eo'; barrels: number; rpmPerBarrel: number; beltRounds: number; ammo: string;
   slewDegS: { az: number; el: number }; elevDeg: [number, number]; effRangeM: number; dispMil: number;
   heatPerRound: number; coolPerSec: number; heatLimit: number; stoppageP: number; sightFovDeg: number;
   /** Optional reload drill, in order; missing = one-step load. */ reload?: { id: string; label: string; sec: number }[];
-  radar?: { acquireRangeM: number; lockSec: number; trackNoiseMil: number; faultP: number };
+  radar?: FcsSensor;
+  /** Electro-optical fire control (sight 'eo'): thermal imager, laser rangefinder, auto-tracker. */ eo?: FcsSensor;
+  /** Optional 3D model id for the field drill; missing = the gun id. */ model?: string;
 }
+export interface FcsSensor { acquireRangeM: number; lockSec: number; trackNoiseMil: number; faultP: number; }
+/** Field-drill detection model (guns.json detect). */
+export interface DetectModel { note?: string; visualM: Record<string, number>; night: number; urban: number; sensorBySize: Record<string, number>; spotWithinSec: number; idWithinSec: number; }
 export interface GunsFile {
   version: string; note?: string; ammo: Record<string, Ammo>; guns: Record<string, Gun>;
   targets: { hitRadiusM: Record<string, number>; hitsToKill: Record<string, number>; engageRangeM?: Record<string, number> };
@@ -80,6 +86,8 @@ export interface GunsFile {
   uav?: { note?: string; label: string; speed: number; altM: number; turnDegS: number;
     munition: { label: string; massKg: number; caliberM: number; cdMach: [number, number][]; lethalRadiusM: number };
     corridorHalfWidthM: number; gimbalFovDeg: number; gimbalSlewDegS: number; clearanceSec: number; takeoffSec: number; landSec: number; checks: { id: string; label: string }[] };
+  /** Optional detection model for the field drill; missing = built-in defaults (detectOf). */
+  detect?: DetectModel;
   lfx?: { note?: string; gunChecks: { id: string; label: string }[]; rangeChecks: { id: string; label: string }[]; checkSec: number; uxoSearchSec: number };
 }
 export type OrderWord = 'rangeClear' | 'alert' | 'target' | 'method' | 'engage' | 'hold' | 'cease' | 'unload' | 'ack' | 'ready' | 'onTarget' | 'stoppage' | 'reportSafe' | 'killDestroyed' | 'killNoEffect' | 'rangeGreen';
@@ -100,6 +108,10 @@ export const getConfig = (): Config => current;
 export const _setConfig = (c: Config): void => { current = c; };
 /** Gun data of a config, falling back to the shipped guns.json for older configs. */
 export const gunsOf = (c: Config): GunsFile => c.guns ?? (gunsJson as unknown as GunsFile);
+/** Detection model of a config, falling back to the shipped values for older guns files. */
+export const detectOf = (G: GunsFile): DetectModel => G.detect ?? (gunsJson as unknown as GunsFile).detect!;
+/** A gun's fire-control sensor (radar or electro-optical), if it has one. */
+export const fcsOf = (g: Gun): FcsSensor | undefined => (g.sight === 'eo' ? g.eo : g.sight === 'radar' ? g.radar : undefined);
 export const decisionClass = (t: Threat): DecisionClass => (t.rfOn ? 'rfLinked' : t.gnss ? 'gnssOnly' : 'autonomous');
 export const isEffective = (t: Threat, e: Effector): boolean => e.affects === 'all' || (e.affects === 'rf' && t.rfOn) || (e.affects === 'gnss' && t.gnss);
 const CLEAR: WeatherFx = { label: 'Clear', radar: 1, camera: 1, noise: 0 };

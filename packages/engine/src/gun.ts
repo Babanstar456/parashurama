@@ -1,5 +1,5 @@
 import { closestApproach, angDiff, dirOf, fly, gauss, losOf, muzzleVelocity, solveAim, type AimSolution, type Met, type Vec3 } from './ballistics';
-import { getConfig, gunsOf, type Config, type Gun, type GunsFile } from './config';
+import { detectOf, fcsOf, getConfig, gunsOf, weatherFx, type Config, type Gun, type GunsFile } from './config';
 import type { Terrain, TimeOfDay, Weather } from './types';
 import { clamp, hash2, mulberry } from './util';
 
@@ -19,7 +19,7 @@ export type Wcs = 'hold' | 'tight' | 'free';
 /** Air Defence Warning (NATO terms): sets how long the crew needs to be at the gun. */
 export type Adw = 'white' | 'yellow' | 'red';
 export type KillOutcome = 'destroyed' | 'noEffect';
-export type GunActionKind = 'order' | 'check' | 'uxo' | 'rstep' | 'ack' | 'post' | 'kill' | 'load' | 'safety' | 'lay' | 'slew' | 'trig' | 'sight' | 'lock' | 'clear' | 'barrel' | 'unload' | 'report';
+export type GunActionKind = 'order' | 'check' | 'uxo' | 'rstep' | 'ack' | 'post' | 'kill' | 'load' | 'safety' | 'lay' | 'slew' | 'trig' | 'sight' | 'lock' | 'clear' | 'barrel' | 'unload' | 'report' | 'spot' | 'ident';
 export interface GunAction {
   tick: number; seat: Seat; k: GunActionKind;
   /** order */ o?: OrderKind; cid?: number;
@@ -29,6 +29,7 @@ export interface GunAction {
   /** report: rounds expended */ n?: number;
   /** kill assessment */ out?: KillOutcome;
   /** live-fire check item id; unexploded round index found */ item?: string; i?: number;
+  /** field drill identification: a threat type id, or 'unknown' */ cls?: string;
 }
 export interface GunSpawn { type: string; t: number; brg: number; dist: number; alt: number; passM: number; }
 export interface GunDrillConfig {
@@ -40,6 +41,11 @@ export interface GunDrillConfig {
   safeArcs?: [number, number][];
   /** Practice drill with no targets: 'reload' = timed reloads only. */
   practice?: 'reload';
+  /** Field drill: the detachment finds, reports and identifies its own targets (no target indication from the control room);
+   *  the control room clears fire on what the detachment reports, under Weapon Control Status. Missing = false. */
+  selfId?: boolean;
+  /** Field drill: force a swarm attack (otherwise from difficulty 3, at random). */
+  swarm?: boolean;
 }
 export type TargetState = 'pending' | 'live' | 'destroyed' | 'leaked' | 'gone';
 export interface GunTarget {
@@ -70,6 +76,8 @@ export interface GunEngine {
   reloads: { start: number; end: number | null; errors: number; steps: boolean }[];
   orders: OrderRec[]; rangeClear: boolean; cleared: number | null; ceased: boolean; held: boolean; unloadOrdered: boolean; kills: { tick: number; cid: number; out: KillOutcome }[];
   rounds: Round[]; bursts: Burst[]; pending: { tick: number; cid: number }[]; ev: GunEvent[]; fcs: AimSolution | null;
+  /** Field drill: tick each target first became visible to the detachment, tick it was reported, and every identification. */
+  seen: Record<number, number>; spots: Record<number, number>; idents: { tick: number; cid: number; cls: string }[];
 }
 
 const MIL = 180 / Math.PI / 1000; // 1 mil (milliradian) in degrees
@@ -97,6 +105,7 @@ export const targetVel = (T: GunTarget, t: number, dt: number, win = 2): Vec3 =>
 /** Procedural gun drill: targets from the threat library, difficulty sets numbers, speeds and crossing distances. */
 export function buildGunScenario(cfg: GunDrillConfig, C: Config = getConfig()): GunSpawn[] {
   if (cfg.practice) return [];
+  if (cfg.selfId) return buildFieldScenario(cfg, C);
   const r = mulberry(cfg.seed * 7 + 1301), T = C.threats.threats;
   const pool = ['fpv', 'recon', 'aiStrike', 'dropper', 'loiter', 'fibre'].filter((k) => T[k]);
   const n = clamp(1 + Math.floor(cfg.difficulty / 2), 1, 4), out: GunSpawn[] = [];
@@ -115,9 +124,34 @@ export function buildGunScenario(cfg: GunDrillConfig, C: Config = getConfig()): 
   return out.sort((a, b) => a.t - b.t);
 }
 
+/** Field drill (selfId): three hostile drones from the small-drone library, one friendly aircraft and a bird to be
+ *  identified and left alone. A swarm replaces one hostile when cfg.swarm is set. Its own random stream, so the other
+ *  drills are unchanged. */
+export function buildFieldScenario(cfg: GunDrillConfig, C: Config = getConfig()): GunSpawn[] {
+  const r = mulberry(cfg.seed * 7 + 2603), T = C.threats.threats, d = cfg.difficulty, out: GunSpawn[] = [];
+  const pool = ['fpv', 'fibre', 'recon', 'dropper', 'loiter', 'aiStrike', 'vtol', ...(d >= 5 ? ['jetOwa'] : [])].filter((k) => T[k]);
+  const attackOf = (type: string) => T[type].motion !== 'approachHover' && T[type].motion !== 'surveil';
+  const one = (type: string, t: number) => {
+    const ty = T[type];
+    out.push({ type, t, brg: Math.round(r() * 359), dist: clamp(ty.speed * (22 + r() * 10) + 700, 1300, 3200),
+      alt: clamp(ty.alt[0] + r() * (ty.alt[1] - ty.alt[0]), 15, 900), passM: attackOf(type) ? Math.round((r() - 0.5) * 80) : Math.round((r() - 0.5) * 600) });
+  };
+  const swarmAt = cfg.swarm && T.swarm ? Math.floor(r() * 3) : -1;
+  for (let i = 0; i < 3; i++) {
+    const t = 6 + i * 16 + r() * 4;
+    if (i !== swarmAt) { one(pool[Math.floor(r() * pool.length)], t); continue; }
+    const k = 3 + Math.floor(d / 2), brg = Math.round(r() * 359), dist = clamp(T.swarm.speed * (30 + r() * 10) + 700, 1300, 3200), alt = T.swarm.alt[0] + r() * (T.swarm.alt[1] - T.swarm.alt[0]);
+    for (let j = 0; j < k; j++) out.push({ type: 'swarm', t: t + j * 0.6, brg: (brg + Math.round((r() - 0.5) * 8) + 360) % 360, dist: dist + Math.round((r() - 0.5) * 300), alt: alt + Math.round((r() - 0.5) * 40), passM: Math.round((r() - 0.5) * 120) });
+  }
+  // In the middle of the drill: a friendly aircraft crossing, and a bird.
+  if (T.friendly) out.push({ type: 'friendly', t: 16 + r() * 8, brg: Math.round(r() * 359), dist: 2200, alt: 180 + Math.round(r() * 80), passM: 350 + Math.round(r() * 300) });
+  if (T.bird) out.push({ type: 'bird', t: 12 + r() * 10, brg: Math.round(r() * 359), dist: 650 + Math.round(r() * 300), alt: 40 + Math.round(r() * 80), passM: 150 + Math.round(r() * 250) });
+  return out.sort((a, b) => a.t - b.t);
+}
+
 export function defaultGunCfg(o: Partial<GunDrillConfig> = {}): GunDrillConfig {
   const gun = o.gun ?? 'zu23';
-  return { seed: 1, gun, time: 'day', terrain: 'rural', difficulty: 3, met: { tempC: 30, pressureHpa: 1005, wind: [0, 0, 0], latitudeDeg: 26 }, issueRounds: gun === 'zsu234' ? 1000 : 400, stoppages: true, ...o };
+  return { seed: 1, gun, time: 'day', terrain: 'rural', difficulty: 3, met: { tempC: 30, pressureHpa: 1005, wind: [0, 0, 0], latitudeDeg: 26 }, issueRounds: gun === 'zsu234' ? 1000 : gun === 'l70' ? 200 : 400, stoppages: true, ...o };
 }
 
 export function createGun(cfg: GunDrillConfig, C: Config = getConfig(), spawns?: GunSpawn[]): GunEngine {
@@ -129,6 +163,7 @@ export function createGun(cfg: GunDrillConfig, C: Config = getConfig(), spawns?:
       busy: null, busyUntil: 0, stoppage: false, heat: 0, overheatRounds: 0, sight: null, sightTick: null, lockCid: null, lockStart: null, acc: 0, fired: 0,
       unloaded: false, reported: null, reportTick: null },
     nhIn: null, checks: {}, uxoFound: [], rangeGreenTick: null, reloads: [], orders: [], rangeClear: false, cleared: null, ceased: false, held: false, unloadOrdered: false, kills: [], rounds: [], bursts: [], pending: [], ev: [], fcs: null,
+    seen: {}, spots: {}, idents: [],
   };
 }
 
@@ -146,6 +181,15 @@ export function targetOnLine(E: GunEngine, maxDeg = 8): GunTarget | undefined {
   }
   return best;
 }
+/** The target the layer is aiming at. Field drill: the cleared target when it is near the line (in a swarm the nearest
+ *  drone to the barrel is often not the one being engaged); otherwise the live target nearest the line. */
+export function aimedTarget(E: GunEngine, maxDeg: number): GunTarget | undefined {
+  if (E.cfg.selfId && E.cleared != null) {
+    const T = tgt(E, E.cleared);
+    if (T && T.state === 'live') { const L = losOf(targetPos(T, E.tick * E.dt, E.dt)); if (Math.hypot(angDiff(L.az, E.g.az) * Math.cos((L.el * Math.PI) / 180), L.el - E.g.el) < maxDeg) return T; }
+  }
+  return targetOnLine(E, maxDeg);
+}
 /** Is firing authorised right now on this target: range clear, an ENGAGE order on it, no hold/check/cease since. */
 export const authorised = (E: GunEngine, cid: number | null): boolean => E.rangeClear && !E.held && E.cleared != null && cid === E.cleared;
 /** Is this bearing inside one of the drill's safe arcs? */
@@ -157,17 +201,17 @@ export function inSafeArc(cfg: GunDrillConfig, az: number): boolean {
 export function sightSolution(E: GunEngine, warm?: AimSolution | null): AimSolution | null {
   const am = E.G.ammo[E.gun.ammo], mv = muzzleVelocity(am, E.cfg.met.tempC, E.G.met.stdTempC);
   const t = E.tick * E.dt;
-  if (E.gun.sight === 'radar' && !E.cfg.radarFault && E.g.lockCid != null && E.g.lockStart != null && E.tick - E.g.lockStart >= sec(E, E.gun.radar?.lockSec ?? 0)) {
+  if (E.gun.sight !== 'manual' && !E.cfg.radarFault && E.g.lockCid != null && E.g.lockStart != null && E.tick - E.g.lockStart >= sec(E, fcsOf(E.gun)?.lockSec ?? 0)) {
     const T = tgt(E, E.g.lockCid);
     if (!T || T.state !== 'live') return null;
-    const n = (E.gun.radar?.trackNoiseMil ?? 0) * MIL * Math.PI / 180, p = targetPos(T, t, E.dt), R = Math.hypot(...p);
+    const n = (fcsOf(E.gun)?.trackNoiseMil ?? 0) * MIL * Math.PI / 180, p = targetPos(T, t, E.dt), R = Math.hypot(...p);
     const np: Vec3 = [p[0] + gauss(E.cfg.seed + 11, E.tick) * n * R, p[1] + gauss(E.cfg.seed + 12, E.tick) * n * R, p[2] + gauss(E.cfg.seed + 13, E.tick) * n * R];
     return solveAim(am, mv, E.cfg.met, np, targetVel(T, t, E.dt), warm);
   }
   const s = E.g.sight;
   if (!s) return null;
   // Manual (ZAP-23 style) sight: the layer holds the target in the sight; the sight assumes the set speed, course and range.
-  const T = targetOnLine(E, E.gun.sightFovDeg / 2);
+  const T = aimedTarget(E, E.gun.sightFovDeg / 2);
   if (!T) return null;
   const L = losOf(targetPos(T, t, E.dt)), p = dirOf(L.az, L.el).map((x) => x * s.rng) as Vec3;
   const hdg = ((L.az + 180 - s.crs) * Math.PI) / 180; // course angle: 0 = coming straight at the gun, + = crossing to the right
@@ -195,6 +239,13 @@ function apply(E: GunEngine, a: GunAction): void {
   if (a.k === 'uxo' && a.seat === 'cr' && a.i != null && unexploded(E).some((r) => r.i === a.i) && !E.uxoFound.includes(a.i)) { E.uxoFound.push(a.i); E.ev.push({ tick: E.tick, k: 'uxoFound', n: a.i }); return; }
   if (a.seat !== 'gun') return;
   switch (a.k) {
+    case 'spot': { const T = tgt(E, a.cid); if (T && T.state === 'live' && E.spots[T.id] == null) { E.spots[T.id] = E.tick; E.ev.push({ tick: E.tick, k: 'spot', cid: T.id }); } return; }
+    case 'ident': {
+      const T = tgt(E, a.cid);
+      if (!T || T.state !== 'live' || !a.cls || (a.cls !== 'unknown' && !E.C.threats.threats[a.cls])) return;
+      if (E.spots[T.id] == null) { E.spots[T.id] = E.tick; E.ev.push({ tick: E.tick, k: 'spot', cid: T.id }); }
+      E.idents.push({ tick: E.tick, cid: T.id, cls: a.cls }); E.ev.push({ tick: E.tick, k: 'ident', cid: T.id, text: a.cls }); return;
+    }
     case 'ack': { const r = [...E.orders].reverse().find((x) => x.ackTick == null); if (r) { r.ackTick = E.tick; E.ev.push({ tick: E.tick, k: 'ack', o: r.o }); } return; }
     case 'post': if (!g.posted && !g.busy) { g.busy = 'post'; g.busyUntil = E.tick + sec(E, P.standToSec?.[E.cfg.adw ?? 'red'] ?? 0); } return;
     case 'kill': if (a.cid != null && a.out) { E.kills.push({ tick: E.tick, cid: a.cid, out: a.out }); E.ev.push({ tick: E.tick, k: 'killReport', cid: a.cid, out: a.out }); } return;
@@ -229,7 +280,7 @@ function spawn(E: GunEngine, sp: GunSpawn): void {
   const v: Vec3 = [((aim[0] - p0[0]) / d) * speed, ((aim[1] - p0[1]) / d) * speed, 0];
   const stand = ty.motion === 'approachHover' ? (ty.hoverRangeM?.[0] ?? 900) : ty.motion === 'surveil' ? (ty.orbitRadiusM?.[0] ?? 1400) : null;
   const hover = stand != null && ty.hostile ? Math.max(0, (sp.dist - stand) / speed) : null;
-  E.targets.push({ id: E.targets.length + 1, type: sp.type, hostile: ty.hostile, spawnTick: E.tick, p0, v, weave: ty.motion === 'weave' ? 12 : 0,
+  E.targets.push({ id: E.targets.length + 1, type: sp.type, hostile: ty.hostile, spawnTick: E.tick, p0, v, weave: ty.motion === 'weave' || (E.cfg.selfId && ty.motion === 'wander') ? 12 : 0,
     hoverAtSec: hover, orbitR: ty.motion === 'surveil' && stand != null ? stand : null, state: 'live', hits: 0, endTick: null, designatedTick: null });
 }
 
@@ -239,10 +290,10 @@ function fire(E: GunEngine): void {
   g.acc += rate * E.dt;
   let burst = E.bursts[E.bursts.length - 1];
   if (!burst || burst.end != null) {
-    const on = targetOnLine(E, 6);
+    const on = aimedTarget(E, 6);
     burst = { start: E.tick, end: null, rounds: 0, cid: on?.id ?? null, authorised: authorised(E, on?.id ?? null), maxRangeM: 0, bestMiss: Infinity, hits: 0,
       safeArc: inSafeArc(E.cfg, g.az), afterHold: E.held, sight: g.sight ? { ...g.sight } : null,
-      locked: g.lockCid != null && g.lockCid === (on?.id ?? -1) && g.lockStart != null && E.tick - g.lockStart >= sec(E, gun.radar?.lockSec ?? 0) };
+      locked: g.lockCid != null && g.lockCid === (on?.id ?? -1) && g.lockStart != null && E.tick - g.lockStart >= sec(E, fcsOf(gun)?.lockSec ?? 0) };
     E.bursts.push(burst);
     E.ev.push({ tick: E.tick, k: burst.safeArc ? 'safeArcBurst' : burst.authorised ? 'burst' : 'unauthorisedBurst', cid: burst.cid ?? undefined });
   }
@@ -266,7 +317,7 @@ function fire(E: GunEngine): void {
       if (!best || ap.miss < best.miss) best = { cid: T.id, miss: ap.miss, tau: ap.tau };
     }
     const T = best && tgt(E, best.cid), sz = T ? E.C.threats.threats[T.type].echo : '';
-    const hit = !!(best && T && best.miss <= (E.G.targets.hitRadiusM[sz] ?? 0.4));
+    const hit = !!(best && T && best.miss <= Math.max(E.G.targets.hitRadiusM[sz] ?? 0.4, am.proxM ?? 0));
     E.rounds.push({ i, tick: E.tick, t0, az, el, mv, cid: best?.cid ?? null, miss: best?.miss ?? Infinity, tau: best?.tau ?? 0, hit, authorised: burst.authorised, dud });
     if (hit && best) E.pending.push({ tick: E.tick + Math.max(1, Math.ceil(best.tau / E.dt)), cid: best.cid });
     burst.rounds++;
@@ -296,7 +347,7 @@ export function stepGun(E: GunEngine, acts: GunAction[]): void {
   // Laying: coarse lay on a designated target, powered radar laying on a lock, or the layer's handwheels.
   const sAz = gun.slewDegS.az * E.dt, sEl = gun.slewDegS.el * E.dt;
   let wantAz: number | null = null, wantEl: number | null = null;
-  if (gun.sight === 'radar' && !E.cfg.radarFault && g.lockCid != null) { E.fcs = sightSolution(E, E.fcs); if (E.fcs?.ok) { wantAz = E.fcs.az; wantEl = E.fcs.el; } }
+  if (gun.sight !== 'manual' && !E.cfg.radarFault && g.lockCid != null) { E.fcs = sightSolution(E, E.fcs); if (E.fcs?.ok) { wantAz = E.fcs.az; wantEl = E.fcs.el; } }
   else if (g.layCid != null) { const T = tgt(E, g.layCid); if (T && T.state === 'live') { const L = losOf(targetPos(T, t, E.dt)); wantAz = L.az; wantEl = L.el; } else g.layCid = null; }
   if (wantAz != null && wantEl != null) {
     const dA = angDiff(wantAz, g.az), dE = wantEl - g.el;
@@ -321,8 +372,10 @@ export function stepGun(E: GunEngine, acts: GunAction[]): void {
     else if (h > HORIZON_M + 200) { T.state = 'gone'; T.endTick = E.tick; }
     else if (!T.hostile) { const s = t - T.spawnTick * E.dt; if (s > 2 && h > Math.hypot(T.p0[0], T.p0[1]) + 50) { T.state = 'gone'; T.endTick = E.tick; } }
   }
+  // Field drill: note when each contact first becomes visible to the detachment (for the detection score).
+  if (E.cfg.selfId) for (const T of live(E)) if (E.seen[T.id] == null && detectable(E, T, t)) E.seen[T.id] = E.tick;
   // A friendly or civil aircraft near the line of fire while cleared: the control room must order HOLD FIRE.
-  const nh = E.cleared != null && E.targets.some((T) => T.state === 'live' && !T.hostile && (() => { const L = losOf(targetPos(T, t, E.dt)); return Math.hypot(angDiff(L.az, g.az), L.el - g.el) < 5; })());
+  const nh = E.cleared != null && E.targets.some((T) => T.state === 'live' && !T.hostile && T.type !== 'bird' && (() => { const L = losOf(targetPos(T, t, E.dt)); return Math.hypot(angDiff(L.az, g.az), L.el - g.el) < 5; })());
   if (nh && E.nhIn == null) { E.nhIn = E.tick; E.ev.push({ tick: E.tick, k: 'nonHostileInLine' }); }
   else if (!nh && E.nhIn != null && E.cleared != null) E.nhIn = null;
   E.tick++;
@@ -338,6 +391,12 @@ export const engageRange = (E: GunEngine, T: GunTarget): number => Math.min(E.gu
 export function gunDone(E: GunEngine): boolean {
   if (E.tick >= gunMaxTicks(E)) return true;
   if (E.cfg.practice === 'reload') return E.reloads.filter((r) => r.end != null).length >= RELOAD_REPS;
+  // Field drill: over 3 s after the last hostile is destroyed (or gets through); the friendly and the bird do not count.
+  if (E.cfg.selfId) {
+    const H = E.targets.filter((t) => t.hostile);
+    if (E.spawns.slice(E.next).some((sp) => E.C.threats.threats[sp.type]?.hostile) || !H.length || H.some((t) => t.state === 'live')) return false;
+    return E.tick >= Math.max(...H.map((t) => t.endTick ?? 0)) + sec(E, 3);
+  }
   const resolved = E.next >= E.spawns.length && E.targets.every((t) => !t.hostile || t.state !== 'live');
   return resolved && E.ceased && E.g.reportTick != null && (!E.G.lfx || E.rangeGreenTick != null);
 }
@@ -373,4 +432,25 @@ export function driveGun(E: GunEngine, policies: ((E: GunEngine) => GunAction[])
   }
   return log;
 }
+/**
+ * Field drill: range (m) at which the detachment can see this target. The eye (binoculars) by target size, cut at night,
+ * by weather and by buildings in urban terrain; or the gun's own radar or thermal sight by size, whichever is longer.
+ */
+export function detectRangeM(E: GunEngine, T: GunTarget): number {
+  const D = detectOf(E.G), size = E.C.threats.threats[T.type].echo, wx = weatherFx(E.C, E.cfg.weather), urban = E.cfg.terrain === 'urban' ? D.urban : 1;
+  let r = (D.visualM[size] ?? 1000) * (E.cfg.time === 'night' ? D.night : 1) * wx.camera * urban;
+  const s = fcsOf(E.gun);
+  if (s && !E.cfg.radarFault) r = Math.max(r, s.acquireRangeM * (D.sensorBySize[size] ?? 1) * (E.gun.sight === 'eo' ? wx.camera : wx.radar) * urban);
+  return r;
+}
+/** Can the detachment see this target now: in detection range and above the horizon (above the rooftops in urban terrain)? */
+export function detectable(E: GunEngine, T: GunTarget, t = E.tick * E.dt): boolean {
+  if (T.state !== 'live') return false;
+  const L = losOf(targetPos(T, t, E.dt));
+  return L.range <= detectRangeM(E, T) && L.el >= (E.cfg.terrain === 'urban' ? 1.5 : 0.3);
+}
+/** The detachment's latest identification of a target (a threat type id or 'unknown'), or null if never identified. */
+export const identOf = (E: GunEngine, cid: number): string | null => { for (let i = E.idents.length - 1; i >= 0; i--) if (E.idents[i].cid === cid) return E.idents[i].cls; return null; };
+/** Did the detachment report this target as hostile (its latest identification is a hostile type)? */
+export const reportedHostile = (E: GunEngine, cid: number): boolean => { const c = identOf(E, cid); return !!c && c !== 'unknown' && !!E.C.threats.threats[c]?.hostile; };
 export { MIL, barrelDir };
