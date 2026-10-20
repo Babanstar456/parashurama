@@ -124,7 +124,7 @@ function adviseContact(c: any) {
       <p class="why">${sure ? 'All the clues agree, so you can say Certain.' : 'One sensor is down, so say Confident rather than Certain.'}${coach.teach ? ' The drill is paused for you; take your time.' : ''}</p>`, target };
   }
   let pre = '';
-  if (cls !== c.type) pre = `<div class="oops">You said ${TYPES[cls].label.toLowerCase()}, but it is ${art(t.label)} <b>${t.label.toLowerCase()}</b>: ${t.deciding}. The label is locked; your weapon choice still counts, so choose for what it really is.</div>`;
+  if (cls !== c.type) pre = `<div class="oops">You said ${(TYPES[cls]?.label??'unknown').toLowerCase()}, but it is ${art(t.label)} <b>${t.label.toLowerCase()}</b>: ${t.deciding}. The label is locked; your weapon choice still counts, so choose for what it really is.</div>`;
   const last = c.engs[c.engs.length - 1];
   if (c.effectAt != null) return { title: `${lab}: weapon sent`, html: `${pre}<p>${EFF[c.effectBy].label} is on its way. It takes effect in ${Math.max(0, (c.effectAt - L.tick) * 0.1).toFixed(1)} s.</p><p class="nextHint">Look for the next yellow dot.</p>`, target: '' };
   if (!t.hostile || t.friendly) {

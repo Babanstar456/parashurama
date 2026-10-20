@@ -17,12 +17,21 @@ export interface DrillConfig {
   roe?: Roe;
   /** Optional: jamming/spoofing here disrupts own and civil systems (R11). Missing = false. */
   ewRestricted?: boolean;
+  /** Optional Weapon Control Status (NATO terms; R13). Missing = no restriction beyond the other rules. */
+  wcs?: 'hold' | 'tight' | 'free';
+  /** Optional safe arcs: bearings [from, to] the gun must never fire into (R14). */
+  safeArcs?: [number, number][];
+  /** Optional: every kill must be assessed and reported, and a payload drone's crash site marked (R15). */
+  killAssess?: boolean;
 }
-export type ActionKind = 'track' | 'id' | 'eng' | 'req';
+/** Identification class for a contact the operator cannot yet identify. A legitimate answer; it can be upgraded later. */
+export const UNKNOWN = 'unknown';
+export type ActionKind = 'track' | 'id' | 'eng' | 'req' | 'bda';
 /** A trainee (or expert) decision, stamped with the tick it applies on. */
-export interface Action { tick: number; k: ActionKind; cid: number; cls?: string; conf?: number; eff?: string; }
+export interface Action { tick: number; k: ActionKind; cid: number; cls?: string; conf?: number; eff?: string; /** bda: kill assessment */ out?: 'destroyed' | 'noEffect'; }
 export interface Engagement { tick: number; eff: string; effective: boolean; range: number; tti: number; priorityMiss?: boolean; /** The effector could work but this shot missed (pk < 1). */ miss?: boolean;
-  /** Set only under a restrictive ROE: was this engagement cleared? */ cleared?: boolean; }
+  /** Set only under a restrictive ROE: was this engagement cleared? */ cleared?: boolean;
+  /** Bearing at engagement; recorded only when the drill has safe arcs. */ brg?: number; }
 export type ContactState = 'live' | 'neutralised' | 'leaked';
 export interface Contact {
   id: number; type: string; x: number; y: number; alt: number; v: number; hdg: number; wob: number;
@@ -35,6 +44,7 @@ export interface Contact {
   clrReq?: number | null; clrAt?: number | null;
   /** Which clues were available when it was identified (fairness flag; never changes points). */
   idAvail?: { rf: boolean; cam: boolean; radarOk: boolean };
+  /** Kill assessment reported (tick), only when the drill asks for it. */ bdaTick?: number;
 }
 /** A threat entering the drill: type, time (s), bearing (deg) and optional start distance (m, scripted drills). */
 export interface Spawn { type: string; t: number; brg: number; dist?: number; }

@@ -20,7 +20,7 @@
     "detection": { "type": "object", "required": ["points", "fullWithinSec", "zeroAtSec"], "additionalProperties": false,
       "properties": { "points": { "type": "number", "minimum": 0 }, "fullWithinSec": { "type": "number", "minimum": 0 }, "zeroAtSec": { "type": "number", "exclusiveMinimum": 0 } } },
     "identification": { "type": "object", "required": ["points", "correctBase", "correctPerConfidence", "wrongPerUnconfidence", "friendFoeBonus"], "additionalProperties": false,
-      "properties": { "points": { "type": "number" }, "correctBase": { "type": "number" }, "correctPerConfidence": { "type": "number" }, "wrongPerUnconfidence": { "type": "number" }, "friendFoeBonus": { "type": "number" } } },
+      "properties": { "points": { "type": "number" }, "correctBase": { "type": "number" }, "correctPerConfidence": { "type": "number" }, "wrongPerUnconfidence": { "type": "number" }, "friendFoeBonus": { "type": "number" }, "unknown": { "type": "number", "minimum": 0 } } },
     "roe": { "type": "object", "additionalProperties": false,
       "properties": { "tight": { "$ref": "#/definitions/roeProfile" }, "peacetime": { "$ref": "#/definitions/roeProfile" } } },
     "defeat": {
@@ -38,7 +38,7 @@
         "hostileHeldButNeutralised": { "type": "number" },
         "civilHold": { "type": "number" }, "civilEngaged": { "type": "number" },
         "modifiers": { "type": "object", "required": ["urbanGun", "lateEngagementSec", "late", "priority", "priorityRatio"], "additionalProperties": false,
-          "properties": { "urbanGun": { "type": "number", "maximum": 0 }, "lateEngagementSec": { "type": "number", "minimum": 0 }, "late": { "type": "number", "maximum": 0 }, "priority": { "type": "number", "maximum": 0 }, "priorityRatio": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }, "missNotReengaged": { "type": "number", "maximum": 0 }, "unauthorised": { "type": "number", "maximum": 0 }, "ewRestricted": { "type": "number", "maximum": 0 } } }
+          "properties": { "wcs": { "type": "number", "maximum": 0 }, "selfDefenceSec": { "type": "number", "minimum": 0 }, "safeArc": { "type": "number", "maximum": 0 }, "killAssess": { "type": "number", "maximum": 0 }, "killAssessSec": { "type": "number", "minimum": 0 }, "urbanGun": { "type": "number", "maximum": 0 }, "lateEngagementSec": { "type": "number", "minimum": 0 }, "late": { "type": "number", "maximum": 0 }, "priority": { "type": "number", "maximum": 0 }, "priorityRatio": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }, "missNotReengaged": { "type": "number", "maximum": 0 }, "unauthorised": { "type": "number", "maximum": 0 }, "ewRestricted": { "type": "number", "maximum": 0 } } }
       }
     }
   }

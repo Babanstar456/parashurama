@@ -17,7 +17,7 @@ export interface ClassificationStats {
 export function classificationStats(sc: ContactScore[], C: Config): ClassificationStats {
   const T = C.threats.threats;
   const hostile = sc.filter((s) => T[s.c.type].hostile);
-  const identified = sc.filter((s) => s.src.idCls).length;
+  const identified = sc.filter((s) => s.src.idCls && s.src.idCls !== 'unknown').length;
   const correct = sc.filter((s) => s.src.idCls === s.c.type).length;
   return {
     contacts: sc.length, hostiles: hostile.length, identified, correct,

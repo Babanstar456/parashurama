@@ -1,5 +1,5 @@
 {
-  "version": "1.3.0",
+  "version": "1.4.0",
   "order": ["recon", "fpv", "loiter", "swarm", "friendly", "bird", "fibre", "aiStrike", "jetOwa", "dropper", "vtol", "tacIsr", "male", "civil"],
   "echoRcs": { "Very small": 0.008, "Small": 0.02, "Medium": 0.08, "Large": 0.5 },
   "threats": {
@@ -69,7 +69,7 @@
     },
     "dropper": {
       "label": "Payload-drop drone", "short": "Payload dropper", "speed": 12, "alt": [40, 120], "echo": "Medium",
-      "rf": "Control link · 2.4 GHz", "rfOn": true, "gnss": true, "friendly": false, "hostile": true,
+      "rf": "Control link · 2.4 GHz", "rfOn": true, "gnss": true, "friendly": false, "hostile": true, "payload": true,
       "shape": "quad", "motion": "straight", "behaviour": "Slow and heavy, heading straight for the asset",
       "deciding": "a 2.4 GHz control link like a recon quad, but a bigger echo and it does not stop to watch: a heavy multirotor carrying a payload to drop on the asset",
       "acoustic": { "sig": "Deep, heavy multirotor hum", "rangeM": 600 }
