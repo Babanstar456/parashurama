@@ -72,6 +72,10 @@ export interface GunsFile {
   /** Words of command (placeholders until the unit's exact drill wording is loaded). */
   orders?: Record<OrderWord, string> & { note?: string };
   /** Optional live-fire drill procedure (pre-firing checks, range sweep). Missing = none. */
+  /** Optional UAV ground-control-station strike drill (training model). */
+  uav?: { note?: string; label: string; speed: number; altM: number; turnDegS: number;
+    munition: { label: string; massKg: number; caliberM: number; cdMach: [number, number][]; lethalRadiusM: number };
+    corridorHalfWidthM: number; gimbalFovDeg: number; gimbalSlewDegS: number; clearanceSec: number; takeoffSec: number; landSec: number; checks: { id: string; label: string }[] };
   lfx?: { note?: string; gunChecks: { id: string; label: string }[]; rangeChecks: { id: string; label: string }[]; checkSec: number; uxoSearchSec: number };
 }
 export type OrderWord = 'rangeClear' | 'alert' | 'target' | 'method' | 'engage' | 'hold' | 'cease' | 'unload' | 'ack' | 'ready' | 'onTarget' | 'stoppage' | 'reportSafe' | 'killDestroyed' | 'killNoEffect' | 'rangeGreen';

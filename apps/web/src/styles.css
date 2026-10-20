@@ -664,3 +664,7 @@ body.gunOn{overflow:hidden}
 .gnCrewRow b{font:700 18px var(--cond);letter-spacing:.12em;color:var(--nu)}
 .gnCrewTag{font:700 13px var(--cond);letter-spacing:.1em;color:var(--nu)}
 #gnBoard{margin-bottom:12px}
+.ucMain{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--nl)}
+.ucMain canvas{min-height:0}
+.gnKeys button.fire{border-color:var(--nh);color:#fff;background:rgba(255,92,97,.18);font-weight:700}
+@media (max-width:900px){.ucMain{grid-template-columns:1fr;grid-template-rows:1fr 1fr}}

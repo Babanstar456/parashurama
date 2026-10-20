@@ -72,6 +72,19 @@
     ],
     "checkSec": 1, "uxoSearchSec": 2
   },
+  "uav": {
+    "note": "UAV ground-control-station strike drill (extension beyond the counter-drone PS). Training model, not any real UAV or munition.",
+    "label": "Tactical strike UAV (training model)", "speed": 40, "altM": 300, "turnDegS": 12,
+    "munition": { "label": "Free-fall practice bomblet (training)", "massKg": 2.5, "caliberM": 0.08, "cdMach": [[0, 0.32], [0.8, 0.36], [1.2, 0.5], [2, 0.45]], "lethalRadiusM": 8 },
+    "corridorHalfWidthM": 300, "gimbalFovDeg": 8, "gimbalSlewDegS": 20, "clearanceSec": 4, "takeoffSec": 6, "landSec": 8,
+    "checks": [
+      { "id": "link", "label": "C2 link and encrypted video feeds checked" },
+      { "id": "failsafe", "label": "Failsafe (return to home) set and confirmed" },
+      { "id": "fence", "label": "Geofence and safe corridors loaded" },
+      { "id": "payload", "label": "Payload fitted; armament crew reports safety pin out" },
+      { "id": "brief", "label": "Joint pre-brief: target, ROE, met, abort procedure" }
+    ]
+  },
   "orders": {
     "note": "Placeholder words of command in standard air-defence fire-control style. Replace with the unit's exact drill wording (DSSC / AAD College).",
     "rangeClear": "RANGE CLEAR",
