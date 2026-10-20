@@ -1,6 +1,25 @@
 # Changelog
 
 ## Unreleased
+- **Air defence gun drills** (two games on one engine, `?gun`):
+  - **Exterior ballistics:** point-mass RK4 with Mach-dependent drag, standard atmosphere from site met, wind, Coriolis, muzzle velocity by propellant temperature, seeded dispersion, and a fire-control lead solver.
+  - **Guns:** ZU-23-2 with a manual ring sight (the crew sets speed, course and range) and ZSU-23-4 with radar lock and a computed lead. All figures are training values in `config/guns.json`.
+  - **Control Room** (fire-control officer, F1–F8) and **On Ground** (gun detachment, G1–G12). Firing without clearance, after HOLD FIRE, or into a safe arc deducts points.
+  - **Live-fire procedure (L1–L3):** pre-firing gun checks, range safety checks before RANGE CLEAR, sweep for unexploded rounds before RANGE GREEN. A procedure tracker ticks off each step.
+  - **Reload drill (G12):** steps in order against a time standard, plus a Reload drill practice mode.
+  - **Words of command** are placeholders in config until the unit's exact drill wording is supplied. Weapon Control Status and Air Defence Warning use NATO terms.
+- **Crew over the LAN**:
+  - The unit server runs the drill and pushes every tick by Server-Sent Events. Each seat sends its own inputs; an empty seat is played by the AI.
+  - Results are stored per seat, sealed (migration 4, `gun_drills`).
+  - Solo gun drills are re-checked with the AI seat replayed by the server.
+  - `npm run crewload` checks the server clock under many crews.
+- **UAV ground-control-station strike drill** (extension beyond the PS, training model, U1–U9): pre-flight, take-off clearance, corridor and geofence, target lock, CLEAR TO ENGAGE, Master Arm, release on the impact point, damage assessment, SAFE, return and recovery.
+- **Radar drill control measures** (all optional; old drills unchanged):
+  - Weapon Control Status (R13), safe arcs (R14), kill assessment and marking a payload drone's crash site (R15).
+  - An explicit Unknown identification.
+  - Time-to-impact rank in the track list, and the own-UAV schedule in the brief.
+- **Classroom library**: the lecture videos are kept, and notes (PDF, images, text précis) are added, organised by course.
+- **Docs**: `docs/GUN_FIELD_CARD.md` (printable).
 - **Acoustic sensing** (optional, clue only):
   - Every threat has an `acoustic` signature and hearing range in `config/threats.json` (1.3.0). These are training values.
   - `config/training.json` (1.4.0) fits the sensor: 3 s to recognise a sound, urban 0.6×, night 1.25×, and a weather factor (rain 0.6×, dust 0.5×).

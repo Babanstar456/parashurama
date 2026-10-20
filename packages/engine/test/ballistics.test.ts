@@ -28,6 +28,7 @@ describe('exterior ballistics (point mass, RK4)', () => {
     expect(Math.abs(leadDeg - expected) / expected).toBeLessThan(0.05);
     const ap = closestApproach(am, { az: s.az, el: s.el, mv: am.mv }, met, (t) => [p[0] + v[0] * t, p[1] + v[1] * t, p[2] + v[2] * t], 8);
     expect(ap.miss).toBeLessThan(0.1);
+    console.log(`EVIDENCE gun lead for a 30 m/s crossing target at about 1,500 m: ${leadDeg.toFixed(2)}° (speed × time of flight gives ${expected.toFixed(2)}°), solved shot misses by ${ap.miss.toFixed(3)} m`);
   });
   it('a crosswind pushes the round downwind, and the solver allows for it', () => {
     const shot = { az: 0, el: 5, mv: am.mv }, target = (): Vec3 => [0, 1500, 130];

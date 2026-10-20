@@ -29,6 +29,20 @@ In *Scripted drills*: give it a name, choose day/night, terrain and sensor fault
 - Drills flagged **superhuman-reaction-times** (most tracks started within 0.4 s of the first radar paint) are worth a conversation: the drill may have been scripted.
 - Mastery comes from a standard learning model (Bayesian knowledge tracing). One drill can move it but never certify anyone on its own.
 
+## Gun drills, live-fire procedure and the classroom library
+
+- **Words of command, checklists and gun values** live in `config/guns.json`:
+  - `orders`: the words of command.
+  - `lfx`: the live-fire checks.
+  - `guns[*].reload`: the reload steps.
+  - `procedure`: the time standards.
+  - `uav`: the UAV drill.
+
+  Replace the placeholders with your unit's exact drill wording. Validate with `npm run validate:config`, or ship the change as a signed pack.
+- **Crew drill over the LAN:** on the unit server, one trainee creates a crew drill in the gun lobby and reads out the code; each person takes a seat (Control Room or gun); anyone seated starts it. An empty seat is played by the AI.
+- **Unit gun readiness** (gun lobby, instructors and admins): drills, last On Ground and Control Room scores, and the weakest gun skill for each person.
+- **Classroom library** (Home → *Classroom library*): add videos or notes (PDF, PNG/JPEG, text) under a course: Control Room, On Ground (gun), UAV GCS, Live-fire safety, and others.
+
 ## Running a session
 
 1. New operators: Academy lessons 1–4.

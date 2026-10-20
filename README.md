@@ -89,6 +89,16 @@ Also verified manually during development: all four Academy lessons completed by
 - Offline (no server) mode uses labelled demo operators on the readiness board and keeps history in the browser.
 - Voice callouts use the browser's built-in speech; voices vary by device.
 
+## Air defence gun drills and the UAV strike drill
+
+- **Gun drills (Home → *Control Room · On Ground*, or `?gun`):**
+  - **Control Room** gives fire orders; **On Ground** crews a ZU-23-2 (manual sight) or ZSU-23-4 (radar fire control).
+  - Real exterior ballistics, the live-fire procedure, and a timed reload drill.
+  - Can be played solo, or as a crew over the LAN through the unit server.
+- **UAV strike drill (`?gun=uav`):** an extension beyond the counter-drone PS.
+
+All figures are training values. Words of command are placeholders until the unit's drill wording is supplied. See [docs/GUN_FIELD_CARD.md](docs/GUN_FIELD_CARD.md).
+
 ## Licence
 
 Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). Third-party licences are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

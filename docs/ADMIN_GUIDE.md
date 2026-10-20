@@ -104,7 +104,7 @@ Drill records and decision logs, which are the personnel training data, are encr
 
 That also protects user names, the audit log and backups.
 
-## Lecture library
+## Classroom library (videos and notes)
 
 Instructors add training videos in the app: hub → *Lecture library* → *Add a lecture*.
 - **Formats:** MP4 (H.264), WebM or Ogg.
@@ -122,6 +122,7 @@ Instructors add training videos in the app: hub → *Lecture library* → *Add a
 
 ## Checking capacity and speed before a session
 
+- **Crew drills over the LAN:** `npm run crewload -- --crews 10 --sec 20` runs ten crew drills at the real clock on a temporary server and reports whether every client kept time. Crew drills need no extra port: they use Server-Sent Events on the same HTTP(S) port.
 - **Server load:** `npm run loadtest -- --url http://<server>:8080 --trainees 30 --drills 5` signs in 30 demo trainees (`trainee-01` …) and submits drills all at once, then checks that every drill was accepted, re-verified and stored. Add `--insecure` for a self-signed HTTPS certificate. Without `--url` it tests a temporary server on this machine. Run it against a test server, not the live unit database, because it adds demo trainees and drills.
 - **Frame rate on a laptop:** open the app with `?fps`, use the menus, a drill, and the 3D view (press **V**), then click the meter to copy a per-view report. On a machine with Node: `npm run build:single && npm run fps` does the same automatically in a visible browser window and prints `EVIDENCE fps …` lines.
 

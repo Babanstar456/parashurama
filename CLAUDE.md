@@ -29,9 +29,9 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
 - `npm run dev` runs the web app only (offline). `npm run build && npm run server` runs it with the unit server on :8080.
 - **Updating `docs/index.html`** (served by Vercel, root `docs/`): run `npm run release:docs`. It builds the single file, drops the manifest and icon links, and writes the SHA-256 to `docs/RELEASE.txt`.
 - **Supply chain:** run `npm run audit:prod` (CI fails on high or critical) and `npm run sbom && npm run notices`. Licence: Apache-2.0 (`LICENSE`, `NOTICE`).
-- **Capacity checks:** `npm run loadtest` (unit server, many trainees; `--url` for a real server) and `npm run fps` (frame rate per view, visible browser; needs `npm run build:single`).
+- **Capacity checks:** `npm run loadtest` (unit server, many trainees; `--url` for a real server), `npm run crewload` (LAN crew drills at the real clock) and `npm run fps` (frame rate per view, visible browser; needs `npm run build:single`).
 - `apps/web/index.html` is the Vite **source** entry page (it loads `/src/main.ts`). Never overwrite it with a built bundle.
-- **App URL flags:** `?demo`, `?reset`, `?nohome`, `?instructor` (offline editor), `?fps` (frame-rate meter), `?lite` (force Lite mode).
+- **App URL flags:** `?demo`, `?reset`, `?nohome`, `?instructor` (offline editor), `?fps` (frame-rate meter), `?lite` (force Lite mode), `?lectures`, `?gun` (gun drills lobby), `?gun=ground|control|uav`.
 
 ## Engine rules to preserve
 - **Determinism.** A drill is fully defined by its seed and its time-stamped decision log. Never use `Math.random()` in the engine; use `mulberry` and `hash2` from `util.ts`. The server re-runs every drill, and the log is SHA-256 chained.
@@ -52,6 +52,13 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
   - R12: fire only with clearance under `roe` `tight` or `peacetime`. The new `req` action requests clearance, and there is a new `roe` skill.
   - Sensor-down fairness note (`idAvail`): explains a missing clue but never changes points.
   - Acoustic sensing: optional `acoustic` per threat and in `training.json`; `acousticClue()` is a clue only and never changes a drill or a score.
+  - R13 Weapon Control Status (`DrillConfig.wcs`), R14 safe arcs (`safeArcs`, gun only), R15 kill assessment (`killAssess`; `bda` action; threat `payload` flag → mark crash site). Explicit `unknown` identification (10 points, upgradable, excluded from calibration). The enemy AI sets these from its own random stream (`seed ^ 0xadc0`) so existing conditions are unchanged.
+- **Gun and UAV drills** (separate engine modules, records and routes; never mixed into `DB.H`, `SKILLS`, `planNext` or `/api/drills`):
+  - `ballistics.ts` (RK4 point mass), `gun.ts` (shared drill: orders, WCS, ADW stand-to, safe arcs, reload steps, live-fire checks, UXO), `gunai.ts` (expert control room and crew), `gunscore.ts` (G1–G12 On Ground, F1–F8 Control Room, L1–L3 live fire; `GUN_SKILLS`, `gunMastery`), `gunplan.ts`, `gcs.ts` (UAV strike drill, U1–U9).
+  - Data: `config/guns.json` (`guns`, `ammo`, `targets`, `procedure`, `orders`, `lfx`, `uav`), all training values or placeholders; optional in `Config` (`gunsOf()` falls back).
+  - Server: `apps/server/src/gun.ts` (`/api/gun/*`, `/api/crews/*` with Server-Sent Events; migration 4 `gun_drills`). Solo drills are re-run with the AI seat replayed by the server; crew actions are stamped with the sender's seat.
+  - Web: `apps/web/src/gun.ts`, `gcs.ts`. Gun history under `parashurama.gunH`, UAV under `parashurama.uavH`.
+  - Words of command are placeholders; official Indian Army drill manuals are restricted. Never present them as exact. WCS / ADW are NATO terms.
 - **Planner options and security features:**
   - Control-group planning: `planNext(H, C, { adaptive: false })`, with a `cohort` per user.
   - Signed threat packs: `pack.ts`, `config/trust/keys.json`, `POST /api/packs`.
@@ -79,5 +86,5 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
 ## Open items
 - Record `npm run fps` (or `?fps` report) results from the presentation laptop in `docs/TRACEABILITY.md`.
 - VR: the WebXR entry has never been tried on a headset. Say "WebXR-ready, headset trial next".
-- DSSC review of the doctrine values, the threat values and the acoustic values.
-- Load test over a real LAN (`npm run loadtest -- --url …`). The single-machine burst test is done (see TRACEABILITY).
+- DSSC review of the doctrine values, the threat values, the acoustic values, and the gun, ammunition, reload, live-fire and UAV values in `guns.json`; replace the placeholder words of command with the unit's drill wording.
+- Load test over a real LAN (`npm run loadtest -- --url …`) and a two-PC crew drill on the unit network. The single-machine tests are done (see TRACEABILITY).
