@@ -9,10 +9,12 @@ import { createSession, createUser, dropSession, Limiter, userForToken, username
 import { BadRequest, cleanCfg, cleanSpawns, verifyDrill } from './verify';
 import { isSealed, open as unseal, seal } from './crypto';
 import { registerLectures } from './lectures';
+import { registerGun } from './gun';
 
 export interface Options { dataDir: string; webDir?: string; secureCookies?: boolean; logger?: boolean; /** Trusted threat-pack keys (default: config/trust/keys.json). */ trustKeys?: TrustKey[];
   /** AES-256 key for drill records and decision logs at rest (null = plaintext). */ dataKey?: Buffer | null;
-  /** Largest lecture video accepted, in bytes (default 1 GB). */ lectureMaxBytes?: number; }
+  /** Largest lecture video accepted, in bytes (default 1 GB). */ lectureMaxBytes?: number;
+  /** Crew drill tick period in ms (default: the drill's 100 ms; tests run faster). */ crewTickMs?: number; }
 declare module 'fastify' { interface FastifyRequest { user: User | null } }
 const COOKIE = 'psid';
 const ROLES: Role[] = ['trainee', 'instructor', 'commander', 'admin'];
@@ -177,6 +179,7 @@ export async function buildApp(o: Options) {
     audit(db, req.user!.id, 'cohort-set', `#${req.params.id} ${c}`); return { ok: true };
   });
   registerLectures(app, db, o.dataDir, need as any, o.lectureMaxBytes ?? 1024 * 1048576);
+  registerGun(app, db, key, need as any, activeConfig, o.crewTickMs);
   app.post('/api/admin/backup', { preHandler: need('admin') }, async (req) => { const file = backup(db, o.dataDir); audit(db, req.user!.id, 'backup', file); return { file }; });
   app.get('/api/admin/audit', { preHandler: need('admin') }, async () => ({ events: db.prepare('SELECT a.at,a.action,a.detail,u.username FROM audit a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT 200').all() }));
 
@@ -189,12 +192,14 @@ export async function buildApp(o: Options) {
 
 /** Encrypt drill records and decision logs written before encryption was switched on. Safe to run twice. */
 export function encryptExisting(db: DB, key: Buffer): number {
-  const rows = db.prepare('SELECT id, record, actions FROM drills').all() as { id: number; record: string; actions: string }[];
-  const up = db.prepare('UPDATE drills SET record=?, actions=? WHERE id=?');
   let n = 0;
   db.exec('BEGIN');
   try {
-    for (const r of rows) if (!isSealed(r.record) || !isSealed(r.actions)) { up.run(isSealed(r.record) ? r.record : seal(r.record, key), isSealed(r.actions) ? r.actions : seal(r.actions, key), r.id); n++; }
+    for (const table of ['drills', 'gun_drills']) {
+      const rows = db.prepare(`SELECT id, record, actions FROM ${table}`).all() as { id: number; record: string; actions: string }[];
+      const up = db.prepare(`UPDATE ${table} SET record=?, actions=? WHERE id=?`);
+      for (const r of rows) if (!isSealed(r.record) || !isSealed(r.actions)) { up.run(isSealed(r.record) ? r.record : seal(r.record, key), isSealed(r.actions) ? r.actions : seal(r.actions, key), r.id); n++; }
+    }
     db.exec('COMMIT');
   } catch (e) { db.exec('ROLLBACK'); throw e; }
   return n;

@@ -28,9 +28,28 @@ interface Live {
   sight: { spd: number; crs: number; rng: number }; sol: any; plan: ReturnType<typeof planGun>;
   /** Reload step buttons in a shuffled order (keys 1…n), so the order has to be known, not read. */ rOrder: number[];
   duds: Map<number, Vec3>;
+  /** LAN crew drill: the server runs the clock; this client mirrors it from the event stream. */
+  crew?: { code: string; seat: 'cr' | 'gun' | null; out: any[]; flush: any; scores?: Record<string, number> };
 }
 let L: Live | null = null;
 let open = false;
+
+// ---------- unit server (optional): solo drills are re-checked and stored there; LAN crew drills run there ----------
+let me: { id: number; name: string; role: string } | null = null;
+let es: EventSource | null = null;
+async function api(path: string, body?: unknown): Promise<any> {
+  const r = await fetch(path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', headers: body === undefined ? {} : { 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+  return j;
+}
+async function connect() {
+  if (location.protocol === 'file:') return;
+  try { me = (await api('/api/me')).user ?? null; } catch { me = null; return; }
+  try { const d = (await api('/api/gun/drills/mine')).drills as GunRecord[]; if (d.length || !H.length) { H = d; save(); } } catch { /* keep local */ }
+  if (open && !L && document.getElementById('gnCrew')) lobby();
+}
+function closeFeed() { if (es) { es.close(); es = null; } }
 
 // ---------- words of command ----------
 const W = () => ({
@@ -95,35 +114,107 @@ function lobby() {
     </div>
     <div class="gnPractice"><b>Reload drill</b><span>Timed practice: ${RELOAD_REPS} reloads against the time standard, every step in the right order. The step buttons are shuffled, so you must know the drill.</span>
       <button class="smallBtn" data-practice="zu23">ZU-23-2 →</button><button class="smallBtn" data-practice="zsu234">ZSU-23-4 →</button></div>
+    <div class="gnCrew" id="gnCrew">${me ? '<p class="gnNote">Loading crew drills…</p>' : '<p class="gnNote"><b>Crew drill over the LAN:</b> open the app from the unit server to train as a crew (one PC in the Control Room, one on the gun).</p>'}</div>
+    <div id="gnBoard"></div>
     <p class="gnNote">Words of command are placeholders until your unit's exact drill wording is loaded (config <code>guns.json</code>). Weapon Control Status and Air Defence Warning use NATO terms. Gun, ammunition and ballistic figures are training values, not equipment specifications.</p>
   </div>`;
   $('#gnClose').onclick = closeGun;
   document.querySelectorAll<HTMLElement>('#gunApp [data-game]').forEach((b) => (b.onclick = () => start(b.dataset.game as GunGame)));
   document.querySelectorAll<HTMLElement>('#gunApp [data-practice]').forEach((b) => (b.onclick = () => startReload(b.dataset.practice!)));
   (document.querySelector('#gunApp [data-game]') as HTMLElement)?.focus();
+  if (me) { renderCrews(); renderBoard(); }
+}
+
+// ---------- crew lobby (LAN) ----------
+async function renderCrews() {
+  const el = $('#gnCrew'); if (!el) return;
+  let list: any[] = [];
+  try { list = (await api('/api/crews')).crews; } catch (e: any) { el.innerHTML = `<p class="gnNote">Crew drills unavailable: ${esc(e.message)}</p>`; return; }
+  el.innerHTML = `<h4>Crew drill over the LAN <small>· one PC in the Control Room, one on the gun; an empty seat is played by the AI</small></h4>
+    <div class="gnCrewList">${list.filter((r) => !r.started).map((r) => `<div class="gnCrewRow"><b>${esc(r.code)}</b>
+      <span>Control Room: ${esc(r.seats.cr ?? 'free')}</span><span>Gun: ${esc(r.seats.gun ?? 'free')}</span>
+      <button class="smallBtn" data-join="${esc(r.code)}">Open</button></div>`).join('') || '<p class="gnNote">No crew drills waiting.</p>'}</div>
+    <button class="smallBtn solid" id="gnCrewNew">Create a crew drill</button> <button class="smallBtn" id="gnCrewRefresh">Refresh</button>`;
+  $('#gnCrewNew').onclick = async () => { try { const r = await api('/api/crews', {}); crewRoom(r.code); } catch (e: any) { toast(e.message); } };
+  $('#gnCrewRefresh').onclick = renderCrews;
+  document.querySelectorAll<HTMLElement>('#gnCrew [data-join]').forEach((b) => (b.onclick = () => crewRoom(b.dataset.join!)));
+}
+async function renderBoard() {
+  const el = $('#gnBoard'); if (!el || !me || me.role === 'trainee') return;
+  try {
+    const ops = (await api('/api/gun/readiness')).operators as any[];
+    const weak = (m: Record<string, number>) => GUN_SKILLS.reduce((a, b) => (m[a[0]] <= m[b[0]] ? a : b))[1];
+    el.innerHTML = `<h4>Unit gun readiness</h4><table class="gnTracks"><tr><th>Name</th><th>Drills</th><th>Last On Ground</th><th>Last Control Room</th><th>Weakest skill</th></tr>
+      ${ops.map((o) => `<tr><td>${esc(o.name)}</td><td>${o.drills}</td><td>${o.lastGround ?? '—'}</td><td>${o.lastControl ?? '—'}</td><td>${o.drills ? esc(weak(o.mastery)) : '—'}</td></tr>`).join('')}</table>`;
+  } catch { /* trainees and offline: no board */ }
+}
+/** Waiting room: pick a seat, then start; the drill view opens when the server starts the clock. */
+function crewRoom(code: string) {
+  stop(); closeFeed();
+  let seat: 'cr' | 'gun' | null = null, last: any = null;
+  const draw = (st: any) => {
+    last = st;
+    seat = st.seats.cr === me?.name ? 'cr' : st.seats.gun === me?.name ? 'gun' : null;
+    $('#gunApp').innerHTML = `<div class="gnLobby"><div class="gnHead"><h2>Crew drill ${esc(st.code)}</h2><button class="smallBtn" id="gnCrewBack">Back</button></div>
+      <p class="gnLead">Tell your partner the code <b>${esc(st.code)}</b>. Each person takes a seat; an empty seat is played by the AI. Anyone seated can start.</p>
+      <div class="gnCards">
+        <button class="gnCard" data-seat="cr"><small>Seat</small><b>Control Room</b><span>${st.seats.cr ? esc(st.seats.cr) : 'Free (AI)'}</span><em>${seat === 'cr' ? 'Your seat ✓' : st.seats.cr ? 'Taken' : 'Take this seat →'}</em></button>
+        <button class="gnCard" data-seat="gun"><small>Seat</small><b>On Ground (gun)</b><span>${st.seats.gun ? esc(st.seats.gun) : 'Free (AI)'}</span><em>${seat === 'gun' ? 'Your seat ✓' : st.seats.gun ? 'Taken' : 'Take this seat →'}</em></button>
+      </div>
+      <p class="gnNote">${esc(gunsOf(getConfig()).guns[st.cfg.gun]?.label ?? st.cfg.gun)} · ${st.cfg.time} · ${st.cfg.terrain} · level ${st.cfg.difficulty}</p>
+      <button class="smallBtn solid" id="gnCrewStart" ${seat ? '' : 'disabled'}>Start the drill</button></div>`;
+    $('#gnCrewBack').onclick = () => { if (seat) api(`/api/crews/${st.code}/seat`, { seat: 'none' }).catch(() => undefined); closeFeed(); lobby(); };
+    document.querySelectorAll<HTMLElement>('#gunApp [data-seat]').forEach((b) => (b.onclick = () => api(`/api/crews/${st.code}/seat`, { seat: b.dataset.seat }).catch((e) => toast(e.message))));
+    $('#gnCrewStart').onclick = () => api(`/api/crews/${st.code}/start`, {}).catch((e) => toast(e.message));
+  };
+  es = new EventSource(`/api/crews/${code}/events`);
+  es.addEventListener('state', (e: MessageEvent) => {
+    const st = JSON.parse(e.data);
+    seat = st.seats.cr === me?.name ? 'cr' : st.seats.gun === me?.name ? 'gun' : null;
+    if (st.started && !L) start(seat === 'gun' ? 'ground' : 'control', st.cfg, { code: st.code, seat });
+    else if (!st.started) draw(st);
+    void last;
+  });
+  es.addEventListener('sync', (e: MessageEvent) => {
+    const d = JSON.parse(e.data); if (!L?.crew) return;
+    // Rebuild exactly from the server's log (late join or reconnect).
+    L.E = runGun(L.E.cfg, { actions: d.log, until: d.tick }); L.log = d.log.slice(); L.seenO = 0; L.seenE = 0; L.radio = []; L.tracers.clear(); pumpRadio();
+  });
+  es.addEventListener('tick', (e: MessageEvent) => { const d = JSON.parse(e.data); crewTick(d.t, d.a); });
+  es.addEventListener('end', (e: MessageEvent) => { const d = JSON.parse(e.data); if (L?.crew && !L.done) { L.crew.scores = d.scores; finish(false); } });
+  es.onerror = () => { if (!L?.crew) toast('Lost the unit server; retrying…'); };
+}
+function resync() { if (!L?.crew) return; const c = L.crew; closeFeed(); crewRoomResume(c.code); }
+/** Reconnect to a running crew drill: the server sends the full log again. */
+function crewRoomResume(code: string) {
+  es = new EventSource(`/api/crews/${code}/events`);
+  es.addEventListener('sync', (e: MessageEvent) => { const d = JSON.parse(e.data); if (!L?.crew) return; L.E = runGun(L.E.cfg, { actions: d.log, until: d.tick }); L.log = d.log.slice(); });
+  es.addEventListener('tick', (e: MessageEvent) => { const d = JSON.parse(e.data); crewTick(d.t, d.a); });
+  es.addEventListener('end', (e: MessageEvent) => { const d = JSON.parse(e.data); if (L?.crew && !L.done) { L.crew.scores = d.scores; finish(false); } });
 }
 
 // ---------- drill ----------
-export function start(game: GunGame, cfg?: GunDrillConfig) {
+export function start(game: GunGame, cfg?: GunDrillConfig, crew?: { code: string; seat: 'cr' | 'gun' | null }) {
   stop();
   const plan = planGun(H, game);
   const c = cfg ?? plan.cfg, E = createGun(c);
   L = { game, E, log: [], q: [], acc: 0, last: performance.now(), raf: 0, done: false, sel: null, tracers: new Map(), radio: [], seenO: 0, seenE: 0,
-    keys: new Set(), rates: [0, 0], drag: null, sight: { spd: 20, crs: 0, rng: 1000 }, sol: null, plan, rOrder: [], duds: new Map() };
+    keys: new Set(), rates: [0, 0], drag: null, sight: { spd: 20, crs: 0, rng: 1000 }, sol: null, plan, rOrder: [], duds: new Map(),
+    ...(crew ? { crew: { ...crew, out: [], flush: null } } : {}) };
   { const n = E.gun.reload?.length ?? 0, r = mulberry(c.seed + 77), o = [...Array(n).keys()];
     for (let i = n - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; }
     if (n > 1 && o.every((v, i) => v === i)) o.reverse(); L.rOrder = o; }
   const G = E.gun, cfgTxt = `${G.label} · ${c.time === 'night' ? 'Night' : 'Day'} · ${c.terrain} · ${c.met.tempC} °C, ${c.met.pressureHpa} hPa, wind ${Math.round(Math.hypot(c.met.wind[0], c.met.wind[1]))} m/s`;
   const measures = `<b>WCS</b> ${(c.wcs ?? 'tight').toUpperCase()} · <b>ADW</b> ${(c.adw ?? 'red').toUpperCase()}${c.safeArcs?.length ? ` · <b>Safe arc</b> ${c.safeArcs.map(([a, b]) => `${pad3(a)}–${pad3(b)}°`).join(', ')}` : ''}`;
   $('#gunApp').innerHTML = `<div class="gnDrill ${game}">
-    <div class="gnBar"><b>${c.practice ? 'RELOAD DRILL' : game === 'control' ? 'CONTROL ROOM' : 'ON GROUND'}</b><span>${esc(cfgTxt)}</span><span class="gnMeasures">${measures}</span><span class="gnClock num" id="gnClock">0:00</span><button class="smallBtn" id="gnQuit">End drill</button></div>
+    <div class="gnBar"><b>${c.practice ? 'RELOAD DRILL' : game === 'control' ? 'CONTROL ROOM' : 'ON GROUND'}</b><span>${esc(cfgTxt)}</span><span class="gnMeasures">${measures}</span>${crew ? `<span class="gnCrewTag">CREW ${esc(crew.code)} · ${crew.seat === 'cr' ? 'Control Room seat' : crew.seat === 'gun' ? 'Gun seat' : 'watching'}</span>` : ''}<span class="gnClock num" id="gnClock">0:00</span><button class="smallBtn" id="gnQuit">End drill</button></div>
     <div class="gnMain"><canvas id="gnView" aria-label="${game === 'control' ? 'Air picture' : 'Gun sight'}"></canvas>${game === 'ground' && G.sight === 'radar' ? '<canvas id="gnScope" aria-label="Fire-control radar"></canvas>' : ''}</div>
     <aside class="gnSide">
       <div class="gnBox" id="gnProc"></div>
       <div class="gnBox" id="gnPanel"></div>
       <div class="gnBox gnRadioBox"><h4>Radio net</h4><div class="gnRadio" id="gnRadio"></div></div>
     </aside></div>`;
-  $('#gnQuit').onclick = () => finish(true);
+  $('#gnQuit').onclick = () => (L?.crew ? (L.crew.seat ? api(`/api/crews/${L.crew.code}/end`, {}).catch((e) => toast(e.message)) : (closeFeed(), lobby())) : finish(true));
   const view = $('#gnView') as HTMLCanvasElement;
   if (game === 'ground') {
     view.onpointerdown = (e) => { view.setPointerCapture(e.pointerId); L!.drag = { x: e.clientX, y: e.clientY, ax: e.clientX, ay: e.clientY }; };
@@ -132,7 +223,8 @@ export function start(game: GunGame, cfg?: GunDrillConfig) {
   } else {
     view.onclick = (e) => { const id = pickBlip(e); if (id != null) { L!.sel = id; renderPanel(); } };
   }
-  radio('SYS', c.practice ? `Reload drill on the ${G.short}: ${RELOAD_REPS} reloads. Load, then Unload (U), and again. Keys 1–${G.reload?.length ?? 1} are the step buttons as shown.`
+  if (crew) radio('SYS', `Crew drill ${crew.code} on the unit server. ${crew.seat === 'cr' ? 'You have the Control Room; the gun is crewed by your partner or the AI.' : crew.seat === 'gun' ? 'You have the gun; orders come from your partner or the AI.' : 'You are watching.'}`);
+  else radio('SYS', c.practice ? `Reload drill on the ${G.short}: ${RELOAD_REPS} reloads. Load, then Unload (U), and again. Keys 1–${G.reload?.length ?? 1} are the step buttons as shown.`
     : game === 'control' ? 'You are the fire-control officer. Do the range safety checks, then RANGE CLEAR.' : `You are the ${G.short} detachment. Do the gun checks, then wait for orders; acknowledge with K.`);
   renderPanel();
   L.raf = requestAnimationFrame(loop);
@@ -144,17 +236,39 @@ export function startReload(gun: string) {
   start('ground', { ...p.cfg, gun, practice: 'reload', issueRounds: 2000, adw: 'red', safeArcs: undefined });
 }
 /** Trainee input becomes a time-stamped action on the next tick. */
-function act(a: Omit<GunAction, 'tick' | 'seat'>) { if (!L || L.done) return; L.q.push({ ...(a as any), tick: L.E.tick, seat: L.game === 'control' ? 'cr' : 'gun' }); }
+function act(a: Omit<GunAction, 'tick' | 'seat'>) {
+  if (!L || L.done) return;
+  if (L.crew) {
+    // Crew drill: the server stamps the tick and our seat; batch inputs for at most 100 ms.
+    if (!L.crew.seat) return;
+    L.crew.out.push(a);
+    if (!L.crew.flush) L.crew.flush = setTimeout(() => { const c = L?.crew; if (!c) return; const acts = c.out.splice(0); c.flush = null; api(`/api/crews/${c.code}/act`, { acts }).catch((e) => toast(e.message)); }, 100);
+    return;
+  }
+  L.q.push({ ...(a as any), tick: L.E.tick, seat: L.game === 'control' ? 'cr' : 'gun' });
+}
+/** Handwheels: keys or mouse drag → slew rates; only changes are sent. */
+function handwheels() {
+  if (!L || L.game !== 'ground') return;
+  const k = L.keys, fine = k.has('shift') ? 0.2 : 1;
+  let az = ((k.has('arrowright') || k.has('d')) ? 1 : 0) - ((k.has('arrowleft') || k.has('a')) ? 1 : 0), el = ((k.has('arrowup') || k.has('w')) ? 1 : 0) - ((k.has('arrowdown') || k.has('s')) ? 1 : 0);
+  az *= fine; el *= fine;
+  if (L.drag) { az = Math.max(-1, Math.min(1, (L.drag.x - L.drag.ax) / 160)); el = Math.max(-1, Math.min(1, -(L.drag.y - L.drag.ay) / 160)); }
+  if (az !== L.rates[0] || el !== L.rates[1]) { L.rates = [az, el]; act({ k: 'slew', az: +az.toFixed(3), el: +el.toFixed(3) }); }
+}
+/** One tick from the server's stream: apply exactly what the server applied. */
+function crewTick(t: number, acts: GunAction[]) {
+  if (!L || L.done || !L.crew) return;
+  const E = L.E;
+  if (t < E.tick) return; // already have it
+  if (t > E.tick) { resync(); return; } // missed ticks: reconnect and rebuild from the full log
+  L.log.push(...acts); stepGun(E, acts);
+  if (L.game === 'ground' && E.gun.sight === 'manual') L.sol = sightSolution(E, L.sol); else L.sol = E.fcs;
+  pumpRadio();
+}
 function tick() {
   const E = L!.E;
-  if (L!.game === 'ground') {
-    // Handwheels: keys or mouse drag → slew rates; only changes are logged.
-    const k = L!.keys, fine = k.has('shift') ? 0.2 : 1;
-    let az = ((k.has('arrowright') || k.has('d')) ? 1 : 0) - ((k.has('arrowleft') || k.has('a')) ? 1 : 0), el = ((k.has('arrowup') || k.has('w')) ? 1 : 0) - ((k.has('arrowdown') || k.has('s')) ? 1 : 0);
-    az *= fine; el *= fine;
-    if (L!.drag) { az = Math.max(-1, Math.min(1, (L!.drag.x - L!.drag.ax) / 160)); el = Math.max(-1, Math.min(1, -(L!.drag.y - L!.drag.ay) / 160)); }
-    if (az !== L!.rates[0] || el !== L!.rates[1]) { L!.rates = [az, el]; act({ k: 'slew', az: +az.toFixed(3), el: +el.toFixed(3) }); }
-  }
+  handwheels();
   const mine = L!.q.map((a) => ({ ...a, tick: E.tick })); L!.q = [];
   const ai = (L!.game === 'control' ? gunCrewAI(E, { ackSec: 1.5 }) : E.cfg.practice ? [] : controlRoomAI(E)).map((a) => ({ ...a, tick: E.tick }));
   const acts = [...mine, ...ai];
@@ -165,6 +279,7 @@ function tick() {
 }
 function loop(now: number) {
   if (!L || L.done) return;
+  if (L.crew) { handwheels(); draw(); if (now - L.last > 300) { L.last = now; renderPanel(); } L.raf = requestAnimationFrame(loop); return; }
   L.acc += Math.min(250, now - L.last); L.last = now;
   const step = L.E.dt * 1000;
   let n = 0;
@@ -483,14 +598,20 @@ function finish(quit: boolean) {
   // Expert ghost: the doctrine-perfect seat on the same drill.
   const ghost = runGun(E.cfg, { policies: [controlRoomAI, (x) => gunCrewAI(x)], stopWhenDone: true }), gsc = score(ghost);
   const rec: GunRecord & { log?: GunAction[]; verified?: boolean } = { n: H.filter((h) => h.game === game).length + 1, date: Date.now(), game, cfg: E.cfg, total: sc.total, obs: observeGun(sc), metrics: sc.metrics, rules: sc.rules, endTick: E.tick, verified };
-  if (!quit || E.tick > 100) { H.push(rec); save(); hooks.syncGunDrill?.({ ...rec, log: L.log }); }
+  const crew = L.crew; closeFeed();
+  if (!quit || E.tick > 100) {
+    H.push(rec); save();
+    // Solo drills go to the unit server to be re-checked and stored (crew drills are stored there already).
+    if (me && !crew) api('/api/gun/drills', { game, cfg: E.cfg, actions: L.log, endTick: E.tick, clientTotal: sc.total })
+      .then((r) => toast(r.verified ? `Saved on the unit server: ${r.total}` : `Unit server scored ${r.total}`)).catch(() => toast('Could not save to the unit server'));
+  }
   const pass = sc.total >= getConfig().training.certification.passMark, RULES = getConfig().doctrine.rules;
   const bursts = E.bursts.filter((b) => b.cid != null);
   const maxMiss = 12;
   $('#gunApp').innerHTML = `<div class="gnDebrief">
     <div class="gnHead"><h2>${E.cfg.practice ? 'Reload drill' : game === 'control' ? 'Control Room' : 'On Ground'} · debrief</h2><button class="smallBtn" id="gnLobby">All gun drills</button><button class="smallBtn solid" id="gnNext">Next drill →</button></div>
     <div class="gnScore ${pass ? 'pass' : 'fail'}"><b class="num">${sc.total}</b><span>${pass ? 'PASS' : 'NOT YET'} · pass mark ${getConfig().training.certification.passMark}</span>
-      <small>${verified ? 'Verified: same score when re-run from the log.' : 'Re-run did not match.'} Expert on the same drill: ${gsc.total}.</small></div>
+      <small>${verified ? 'Verified: same score when re-run from the log.' : 'Re-run did not match.'} Expert on the same drill: ${gsc.total}.${crew?.scores ? ` Crew ${esc(crew.code)} on the unit server: Control Room ${crew.scores.cr}, Gun ${crew.scores.gun}${crew.scores[crew.seat ?? 'cr'] === sc.total ? ' (matches)' : ''}.` : ''}</small></div>
     <div class="gnMetrics">
       <span><b>${sc.metrics.kills}/${sc.metrics.hostiles}</b>destroyed</span><span><b>${sc.metrics.leaked}</b>reached the asset</span>
       <span><b>${sc.metrics.roundsFired}</b>rounds fired</span><span><b>${sc.metrics.ammoPerKill ?? '—'}</b>rounds per kill</span>
@@ -515,11 +636,12 @@ export function openGun(game?: GunGame) {
   el.classList.add('on'); open = true; document.body.classList.add('gunOn');
   if (game) start(game); else lobby();
 }
-export function closeGun() { stop(); open = false; $('#gunApp')?.classList.remove('on'); document.body.classList.remove('gunOn'); hooks.showHome?.(); }
+export function closeGun() { closeFeed(); stop(); open = false; $('#gunApp')?.classList.remove('on'); document.body.classList.remove('gunOn'); hooks.showHome?.(); }
 const ORDER_KEYS: Record<string, OrderKind> = { r: 'rangeClear', a: 'alert', t: 'target', m: 'method', f: 'engage', c: 'cease', h: 'hold', u: 'unload', g: 'rangeGreen' };
 const GUN_KEYS: Record<string, string> = { k: 'ack', p: 'post', r: 'load', f: 'safety', l: 'lay', q: 'lock', c: 'clear', b: 'barrel', x: 'kill', u: 'unload', n: 'report' };
 export function initGun() {
   hooks.openGun = openGun;
+  void connect();
   document.addEventListener('keydown', (e) => {
     if (!open) return;
     e.stopPropagation();
