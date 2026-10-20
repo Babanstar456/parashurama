@@ -1,6 +1,16 @@
 # Changelog
 
 ## Unreleased
+- **Acoustic sensing** (optional, clue only):
+  - Every threat has an `acoustic` signature and hearing range in `config/threats.json` (1.3.0). These are training values.
+  - `config/training.json` (1.4.0) fits the sensor: 3 s to recognise a sound, urban 0.6×, night 1.25×, and a weather factor (rain 0.6×, dust 0.5×).
+  - `acousticClue()` adds an *Acoustic* clue in the drill and a column in the field guide. A fibre-optic FPV, silent on radio, is heard close in.
+  - It never changes a drill or a score. Without the `acoustic` block, nothing changes. Tests: `acoustic.test.ts`.
+- **Multi-trainee load test**: `npm run loadtest` (`scripts/loadtest.ts`).
+  - Signs in demo trainees and submits drills all at once, checks every drill is re-verified and stored, and prints `EVIDENCE loadtest …` lines.
+  - `--url` targets a real LAN server. `apps/server/test/load.test.ts` runs a short version in `npm test`.
+- **Frame-rate report**: the `?fps` meter keeps per-view figures (menus, drill, 3D expanded); click it to copy the report. `npm run fps` measures them in a visible browser window.
+- **Licence**: Apache-2.0 (`LICENSE`, `NOTICE`).
 - **Lecture library**: training videos (MP4, WebM or Ogg) for self-study, opened from the hub's *Lecture library* card or with `?lectures`.
   - **On the unit server:** instructors and admins upload once and every trainee can watch.
     - Files are stored in `DATA_DIR/lectures/` with their size and SHA-256.
@@ -36,7 +46,7 @@
   - `npm run audit:prod` runs in CI.
   - Upgraded `@fastify/static` 8 → 10.1.6 to fix high-severity advisories (path traversal and route-guard bypass, GHSA-pr96-94w5-mx2h and others). Static serving was re-tested.
   - `npm run release:docs` publishes `docs/index.html` and writes its SHA-256 to `docs/RELEASE.txt`.
-  - A LICENSE is still to be agreed by the team.
+  - Licensed under Apache-2.0 (`LICENSE`, `NOTICE`; `"license"` set in every package.json).
 - **Control group for measuring training transfer**:
   - `planNext(H, C, { adaptive: false })` gives fixed level 3, conditions drawn at random from the seed, and no targeting. Adaptive mode is unchanged.
   - Users have a study `cohort` (`adaptive` or `control`), added by database migration 2. Existing users become `adaptive`.

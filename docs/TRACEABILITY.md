@@ -7,6 +7,7 @@ Every figure below is printed by the test suite as an `EVIDENCE …` line (`npm 
 | Desktop simulator, scripted and procedural scenarios | `packages/engine/src/engine.ts`, `scenario.ts`, `scenarios.ts`; `config/scenarios.json`; instructor drill builder `apps/web/src/editor.ts` | `determinism.test.ts`, `scenarios.test.ts`, `fuzz.test.ts`, e2e `drill.spec.ts` |
 | VR optional | `apps/web/src/view3d.ts` (Three.js, WebXR entry) | e2e `hub.spec.ts` (3D view). WebXR has not been tried on a headset. |
 | Day/night, degraded sensors, urban/rural, weather | `DrillConfig` (`time`, `fault`, `terrain`, `weather`); `config/training.json` | `weather.test.ts`, `scoring.test.ts` |
+| Acoustic sensing | Optional `acoustic` signature per threat (`config/threats.json`) and sensor block (`config/training.json`: terrain, night and weather factors); `acousticClue()` in `engine.ts`; *Acoustic* clue in the drill and a column in the field guide | `acoustic.test.ts` (ranges by condition; a fibre-optic FPV with no radio is heard close in; drills and scores identical with and without the sensor; old configs still valid) |
 | Single drones and swarms; many drone types | `config/threats.json` (14 types: all three defeat classes, plus friendly, civil and clutter), swarm motion and area effect in `engine.ts` | `library.test.ts` (the expert ghost defeats every hostile type), `scoring.test.ts` |
 | Decision-tree scoring: detection time, classification, engagement | `scoring.ts` `scoreRun()`, `config.ts` `decisionClass()`, `config/doctrine.json` (rules D1, C1, R1–R12) | `scoring.test.ts` (golden case per rule), `evidence.test.ts` |
 | Civil airspace: report, don't engage | `civil` threat flag, rule R9 in `scoreRun()`, urban civil contact in `buildScenario()` | `scoring.test.ts` (R9 golden cases; old configs unchanged) |
@@ -19,13 +20,14 @@ Every figure below is printed by the test suite as an `EVIDENCE …` line (`npm 
 | AAR: individual and unit performance across sessions | Debrief and readiness board (`apps/web/src/app.ts`); `/api/readiness`; CSV export `/api/export/drills.csv` and `drillsToCsv()` | `server.test.ts`, `apps/server/test/evidence.test.ts` |
 | Adaptive difficulty and randomisation | `enemy.ts` `planNext()`; learning model `learning.ts` (Bayesian knowledge tracing) | `enemy.test.ts`, `learning.test.ts`, `evidence.test.ts` |
 | Proof that training transfers (study design) | `planNext(..., { adaptive: false })` control mode; `users.cohort`; `cohort` column in the CSV export | `enemy.test.ts` (control ignores weaknesses, adaptive unchanged), `apps/server/test/evidence.test.ts` (cohort set and exported) |
-| Ordinary computers, unit level | Single offline file `docs/index.html`; unit server on SQLite; automatic Lite mode (`apps/web/src/lite.ts`) | `evidence.test.ts` (headless speed); `?fps` meter; e2e `hub.spec.ts` (Lite keeps the 3D view closed) |
+| Ordinary computers, unit level | Single offline file `docs/index.html`; unit server on SQLite; automatic Lite mode (`apps/web/src/lite.ts`) | `evidence.test.ts` (headless speed); `?fps` meter with a per-view report and `npm run fps` (`scripts/fps.mjs`); e2e `hub.spec.ts` (Lite keeps the 3D view closed) |
+| Many trainees on one unit server | `scripts/loadtest.ts` (`npm run loadtest`, or `--url` for a real LAN server) | `apps/server/test/load.test.ts` (10 trainees × 3 drills at once: all accepted, re-verified and stored) |
 | Untampered offline updates | Signed threat packs: `pack.ts` (`verifyPack`, `canonical`), `config/trust/keys.json`, `POST /api/packs`, editor import | `pack.test.ts` (valid accepted; changed byte, unknown or untrusted key rejected; invalid config caught), `apps/server/test/evidence.test.ts` |
 | Personnel data protection | AES-256-GCM sealing of drill records and logs (`apps/server/src/crypto.ts`), key outside the data directory, refuse-to-start in production, `migrate-encrypt` | `apps/server/test/encryption.test.ts` (ciphertext at rest, restart and CSV export with a key, migration, wrong key) |
 | Supply-chain hygiene | `docs/sbom.cdx.json`, `THIRD_PARTY_NOTICES.md`, `npm run audit:prod` in CI, `docs/RELEASE.txt` (SHA-256 of the offline file) | CI workflow `.github/workflows/ci.yml` |
 | Tamper-evident records | Server re-runs each drill (`apps/server/src/verify.ts`); SHA-256 chained log (`integrity.ts`) | `integrity.test.ts`, `server.test.ts` |
 
-## Measured evidence (19 Oct 2026, 14-type library, rules up to R12)
+## Measured evidence (20 Oct 2026, 14-type library, rules up to R12)
 
 | Measure | Result |
 |---|---|
@@ -41,9 +43,15 @@ Every figure below is printed by the test suite as an `EVIDENCE …` line (`npm 
 | Weakest condition targeted by the planner | 4 of 4 |
 | One bad drill after three good ones | difficulty 4 → 3 |
 | Sustained averages 90 / 70 / 40 | levels 4 / 3 / 2 |
-| Headless engine speed | thousands × real time (varies with machine load: 2,700–5,900× on the dev laptop) |
+| Headless engine speed | thousands × real time (varies with machine load: 2,500–5,900× on the dev laptop) |
 | Sessions surviving a server restart | 3 of 3 |
-| Single-file app size | 1.20 MB (496 KB gzipped) |
+| Single-file app size | 1.22 MB (503 KB gzipped) |
+| Acoustic hearing range, fibre-optic FPV (training values) | rural day 350 m, urban day 210 m, rural night 437.5 m, urban in rain 126 m |
+| Unit server, 30 trainees × 5 drills submitted at the same moment | 150 of 150 accepted and re-verified, 0 lost; submit latency p50 158.6 ms, p95 271.9 ms; 0.98 s in all |
+| Unit server, 60 trainees × 5 drills at the same moment | 300 of 300 accepted and re-verified, 0 lost; submit latency p50 280.3 ms, p95 460.4 ms; 1.69 s in all |
+| Frame rate on the dev laptop (i3-1005G1, Chromium, `npm run fps -- --sec 8`) | menus 58 fps (lowest 49); drill with radar and small 3D 58 (lowest 48); 3D expanded 60 (lowest 59) |
+
+The load figures come from `npm run loadtest` on the dev laptop (i3-1005G1, 4 threads). Client and server shared that machine over loopback, each trainee on its own loopback address, with no think time, so this is a worst-case burst without real network delay. The sign-in limit (30 per address per minute) stops a class that shares one address; see the admin guide.
 
 Before the 13-type library, the same suite measured 14 distinct threat mixes (the original 3-type hostile pool).
 
@@ -51,5 +59,6 @@ Before the 13-type library, the same suite measured 14 distinct threat mixes (th
 
 | Measure | How |
 |---|---|
-| Frame rate on the presentation laptop | Open the app with `?fps`: hub, a 2D drill, and the 3D view (press **V**). Record the current and lowest values here. |
-| Multi-trainee load on the unit server | Not yet tested. |
+| Frame rate on the presentation laptop | `npm run build:single && npm run fps` on that laptop, or open `docs/index.html?fps`, use the menus, a drill and the 3D view (**V**), then click the meter to copy the report. Record it here. |
+| Load over a real LAN | `npm run loadtest -- --url http://<server>:8080` from a second PC against a test server. |
+| VR headset | WebXR entry is built; not yet tried on a headset. |

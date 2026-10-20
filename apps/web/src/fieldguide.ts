@@ -12,11 +12,12 @@ export function actionFor(type: string): string {
   return `${e.label} (${e.key})`;
 }
 function html(): string {
+  const ac = !!C.training.acoustic;
   const rows = ORDER.map((k) => {
     const t = TYPES[k];
     const col = t.friendly ? 'var(--blue)' : t.hostile ? 'var(--red)' : 'var(--green)';
     return `<tr><td><b style="color:${col}">${t.label}</b></td><td>~${Math.round(t.speed * 3.6)} km/h</td><td>${t.alt[0]}–${t.alt[1]} m</td><td>${t.echo}</td>
-      <td>${t.rf}</td><td>${t.behaviour.replace('{n}', 'others')}</td><td>${CAMERA[t.shape]}</td><td><b>${actionFor(k)}</b></td></tr>`;
+      <td>${t.rf}</td><td>${t.behaviour.replace('{n}', 'others')}</td><td>${CAMERA[t.shape]}</td>${ac ? `<td>${t.acoustic ? `${t.acoustic.sig} (~${t.acoustic.rangeM} m)` : '—'}</td>` : ''}<td><b>${actionFor(k)}</b></td></tr>`;
   }).join('');
   return `<div class="fgHead"><h3>Field guide</h3><button class="fgClose" id="fgClose" aria-label="Close field guide">Close <kbd>F</kbd></button></div>
   <ol class="fgSteps">
@@ -26,10 +27,11 @@ function html(): string {
     <li><b>No radio emission, fast and straight in, or flying in a group?</b> It navigates by satellite. Jamming fails; <b>GNSS spoof</b> works (it also hits nearby swarm drones).</li>
     <li><b>Weapon greyed out?</b> It is not in reach yet. Watch the coloured bar on its card, and handle the most urgent contact first.</li>
     <li><b>How sure are you?</b> Say <b>Certain</b> only when friendly check, radio and behaviour all agree. If a sensor is down, say Confident.</li>
-    <li><b>Rain, fog or dust?</b> Radar paints blips less often and the camera only works close in. Do not wait for the picture: decide from <b>RF signal and behaviour</b>, and say Confident rather than Certain.</li>
+    <li><b>Rain, fog or dust?</b> Radar paints blips less often and the camera only works close in. Do not wait for the picture: decide from <b>RF signal and behaviour</b>, and say Confident rather than Certain.</li>${ac ? `
+    <li><b>Acoustic sensor.</b> It hears what radio cannot: a fibre-optic FPV screams like any racing quad but shows no radio. It only hears close in, less in towns, rain and dust, and a little further at night.</li>` : ''}
   </ol>
-  <div class="wrapx"><table class="fgTable"><tr><th>Contact</th><th>Speed</th><th>Height</th><th>Echo</th><th>Radio</th><th>Behaviour</th><th>Camera</th><th>Do this</th></tr>${rows}</table></div>
-  <p class="fgNote">Speeds vary by about ±12%. The guide is available on the brief, in the Academy and in the debrief, not during scored drills.</p>`;
+  <div class="wrapx"><table class="fgTable"><tr><th>Contact</th><th>Speed</th><th>Height</th><th>Echo</th><th>Radio</th><th>Behaviour</th><th>Camera</th>${ac ? '<th>Acoustic</th>' : ''}<th>Do this</th></tr>${rows}</table></div>
+  <p class="fgNote">Speeds vary by about ±12%.${ac ? ' Hearing ranges are for open, quiet ground.' : ''} The guide is available on the brief, in the Academy and in the debrief, not during scored drills.</p>`;
 }
 export function guideAllowed(): boolean { return !(app.phase === 'fight' && app.live.mode !== 'academy'); }
 export function toggleGuide(force?: boolean) {

@@ -14,20 +14,32 @@ async function applyConfig(c: unknown, source: string) {
   try { const { useConfig } = await import('./validator'); useConfig(c as any); }
   catch (e) { console.warn(e); toast(`${source} settings were invalid, so the defaults are used.`); }
 }
-/** `?fps`: frame-rate meter (current and lowest of the last 10 s) for checking performance on a unit laptop. */
+/** `?fps`: frame-rate meter (current and lowest of the last 10 s) for checking performance on a unit laptop.
+ *  It also keeps a per-view record (menus, drill, drill with the 3D view expanded); click the meter to copy the report. */
 function fpsMeter() {
   const el = document.createElement('div');
   el.id = 'fpsMeter';
-  el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:9999;padding:4px 8px;border-radius:3px;background:rgba(0,0,0,.75);color:#fff;font:12px/1.3 monospace;pointer-events:none';
+  el.title = 'Click to copy the frame-rate report';
+  el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:9999;padding:4px 8px;border-radius:3px;background:rgba(0,0,0,.75);color:#fff;font:12px/1.3 monospace;cursor:pointer';
   document.body.appendChild(el);
   let frames = 0, last = performance.now();
-  const hist: number[] = [];
+  const hist: number[] = [], byView: Record<string, number[]> = {};
+  const view = () => {
+    if (!document.querySelector('#fight.on')) return 'menus';
+    const v3 = document.querySelector('#view3d');
+    return v3?.classList.contains('big') ? 'drill, 3D expanded' : v3?.querySelector('canvas') && !v3.classList.contains('min') ? 'drill, radar + small 3D' : 'drill, radar only';
+  };
+  const report = () => [`PARASHURAMA ?fps report · ${new Date().toISOString().slice(0, 16).replace('T', ' ')} · ${navigator.userAgent}`,
+    ...Object.entries(byView).map(([v, a]) => `${v}: average ${Math.round(a.reduce((x, y) => x + y, 0) / a.length)} fps, lowest ${Math.min(...a)} fps (${a.length} s)`)].join('\n');
+  (window as any).fpsReport = report;
+  el.addEventListener('click', () => { const r = report(); console.log(r); navigator.clipboard?.writeText(r).then(() => toast('Frame-rate report copied'), () => toast('Report printed to the browser console')); });
   const tick = (now: number) => {
     frames++;
     if (now - last >= 1000) {
       const fps = Math.round((frames * 1000) / (now - last));
       hist.push(fps); if (hist.length > 10) hist.shift();
-      el.textContent = `${fps} fps · low ${Math.min(...hist)} (10 s)`;
+      if (!document.hidden) (byView[view()] ??= []).push(fps);
+      el.textContent = `${fps} fps · low ${Math.min(...hist)} (10 s) · ${view()}`;
       frames = 0; last = now;
     }
     requestAnimationFrame(tick);

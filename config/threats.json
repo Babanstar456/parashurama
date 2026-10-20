@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "order": ["recon", "fpv", "loiter", "swarm", "friendly", "bird", "fibre", "aiStrike", "jetOwa", "dropper", "vtol", "tacIsr", "male", "civil"],
   "echoRcs": { "Very small": 0.008, "Small": 0.02, "Medium": 0.08, "Large": 0.5 },
   "threats": {
@@ -8,88 +8,102 @@
       "rf": "Control link · 2.4 GHz", "rfOn": true, "gnss": true, "friendly": false, "hostile": true,
       "shape": "quad", "motion": "approachHover", "hoverRangeM": [800, 1100],
       "behaviour": "Slow, steady approach", "behaviourHover": "Hovering, watching the asset",
-      "deciding": "RF shows a 2.4 GHz control link, and it creeps in slowly, then hovers to watch"
+      "deciding": "RF shows a 2.4 GHz control link, and it creeps in slowly, then hovers to watch",
+      "acoustic": { "sig": "High-pitched multirotor whine, steady", "rangeM": 400 }
     },
     "fpv": {
       "label": "FPV attack drone", "short": "FPV attack", "speed": 32, "alt": [15, 60], "echo": "Very small",
       "rf": "Video link · 5.8 GHz", "rfOn": true, "gnss": false, "friendly": false, "hostile": true,
       "shape": "quad", "motion": "weave", "behaviour": "Fast, low, weaving",
-      "deciding": "RF shows a 5.8 GHz video link, and it flies fast, low and weaving"
+      "deciding": "RF shows a 5.8 GHz video link, and it flies fast, low and weaving",
+      "acoustic": { "sig": "Racing-quad scream, rising and falling with throttle", "rangeM": 350 }
     },
     "loiter": {
       "label": "Loitering munition", "short": "Loitering mun.", "speed": 42, "alt": [250, 500], "echo": "Medium",
       "rf": "No emission", "rfOn": false, "gnss": true, "friendly": false, "hostile": true,
       "shape": "wing", "motion": "straight", "behaviour": "Fast, straight at the asset",
-      "deciding": "RF shows no emission, it flies fast and straight in, and the camera shows a wing"
+      "deciding": "RF shows no emission, it flies fast and straight in, and the camera shows a wing",
+      "acoustic": { "sig": "Small propeller buzz, steady and unchanging", "rangeM": 800 }
     },
     "swarm": {
       "label": "Swarm drone", "short": "Swarm drone", "speed": 20, "alt": [60, 120], "echo": "Very small",
       "rf": "No emission", "rfOn": false, "gnss": true, "friendly": false, "hostile": true,
       "shape": "quad", "motion": "swarm", "behaviour": "Moves in formation with {n} others",
-      "deciding": "several small echoes moved together in formation"
+      "deciding": "several small echoes moved together in formation",
+      "acoustic": { "sig": "Layered hum of many small rotors", "rangeM": 500 }
     },
     "friendly": {
       "label": "Friendly UAV", "short": "Friendly UAV", "speed": 16, "alt": [150, 300], "echo": "Medium",
       "rf": "Own-force link", "rfOn": true, "gnss": true, "friendly": true, "hostile": false,
       "shape": "wing", "motion": "orbit", "orbitRadiusM": [1300, 2100], "behaviour": "Orbits a set route",
-      "deciding": "the friendly check matched a flight plan"
+      "deciding": "the friendly check matched a flight plan",
+      "acoustic": { "sig": "Steady fixed-wing engine drone", "rangeM": 1200 }
     },
     "bird": {
       "label": "Bird / clutter", "short": "Bird / clutter", "speed": 8, "alt": [20, 180], "echo": "Very small",
       "rf": "No emission", "rfOn": false, "gnss": false, "friendly": false, "hostile": false,
       "shape": "bird", "motion": "wander", "behaviour": "Erratic, keeps changing direction",
-      "deciding": "erratic path, tiny echo, no radio emission"
+      "deciding": "erratic path, tiny echo, no radio emission",
+      "acoustic": { "sig": "No motor sound; wing beats and calls only", "rangeM": 150 }
     },
     "fibre": {
       "label": "Fibre-optic FPV", "short": "Fibre-optic FPV", "speed": 28, "alt": [10, 50], "echo": "Very small",
       "rf": "No emission · fibre-optic cable", "rfOn": false, "gnss": false, "friendly": false, "hostile": true,
       "shape": "quad", "motion": "weave", "behaviour": "Fast, low, weaving, yet silent on RF",
-      "deciding": "it flies like an FPV (fast, low, weaving) but RF shows no emission: it is steered down a fibre-optic cable, so jamming and spoofing cannot touch it"
+      "deciding": "it flies like an FPV (fast, low, weaving) but RF shows no emission: it is steered down a fibre-optic cable, so jamming and spoofing cannot touch it",
+      "acoustic": { "sig": "Racing-quad scream, but no radio heard", "rangeM": 350 }
     },
     "aiStrike": {
       "label": "AI-guided attack drone", "short": "AI-guided attack", "speed": 36, "alt": [40, 150], "echo": "Small",
       "rf": "No emission", "rfOn": false, "gnss": false, "friendly": false, "hostile": true,
       "shape": "wing", "motion": "straight", "behaviour": "Low and straight in, on its own",
-      "deciding": "no emission and a small fixed wing flying low and straight in: it guides itself by camera, with no radio and no GNSS, so only hard-kill works"
+      "deciding": "no emission and a small fixed wing flying low and straight in: it guides itself by camera, with no radio and no GNSS, so only hard-kill works",
+      "acoustic": { "sig": "Electric pusher-prop hum, steady", "rangeM": 600 }
     },
     "jetOwa": {
       "label": "Jet one-way attack drone", "short": "Jet attack drone", "speed": 85, "alt": [300, 1200], "echo": "Medium",
       "rf": "No emission", "rfOn": false, "gnss": true, "friendly": false, "hostile": true,
       "shape": "wing", "motion": "straight", "behaviour": "Very fast, straight at the asset",
-      "deciding": "no emission, a fixed wing, and about twice as fast as a propeller loitering munition: a jet one-way attack drone, GNSS-guided"
+      "deciding": "no emission, a fixed wing, and about twice as fast as a propeller loitering munition: a jet one-way attack drone, GNSS-guided",
+      "acoustic": { "sig": "Jet engine roar", "rangeM": 3000 }
     },
     "dropper": {
       "label": "Payload-drop drone", "short": "Payload dropper", "speed": 12, "alt": [40, 120], "echo": "Medium",
       "rf": "Control link · 2.4 GHz", "rfOn": true, "gnss": true, "friendly": false, "hostile": true,
       "shape": "quad", "motion": "straight", "behaviour": "Slow and heavy, heading straight for the asset",
-      "deciding": "a 2.4 GHz control link like a recon quad, but a bigger echo and it does not stop to watch: a heavy multirotor carrying a payload to drop on the asset"
+      "deciding": "a 2.4 GHz control link like a recon quad, but a bigger echo and it does not stop to watch: a heavy multirotor carrying a payload to drop on the asset",
+      "acoustic": { "sig": "Deep, heavy multirotor hum", "rangeM": 600 }
     },
     "vtol": {
       "label": "Hybrid VTOL ISR drone", "short": "VTOL ISR", "speed": 24, "alt": [100, 400], "echo": "Small",
       "rf": "Control link · 1.4 GHz", "rfOn": true, "gnss": true, "friendly": false, "hostile": true,
       "shape": "wing", "motion": "approachHover", "hoverRangeM": [900, 1300],
       "behaviour": "Flies in like a plane", "behaviourHover": "Switched to rotors, hovering to watch",
-      "deciding": "a fixed wing on a 1.4 GHz control link that flew in, then stopped and hovered: a hybrid VTOL surveillance drone"
+      "deciding": "a fixed wing on a 1.4 GHz control link that flew in, then stopped and hovered: a hybrid VTOL surveillance drone",
+      "acoustic": { "sig": "Rotor hum on the hover, pusher-prop drone in forward flight", "rangeM": 800 }
     },
     "tacIsr": {
       "label": "Tactical ISR fixed-wing", "short": "Tactical ISR wing", "speed": 28, "alt": [300, 1000], "echo": "Small",
       "rf": "Control link · 868–900 MHz", "rfOn": true, "gnss": true, "friendly": false, "hostile": true,
       "shape": "wing", "motion": "surveil", "orbitRadiusM": [1300, 1800],
       "behaviour": "Small wing flying in", "behaviourHover": "Circling at a distance, spotting for artillery",
-      "deciding": "a small fixed wing on an 868–900 MHz control link that circles at a distance with no flight plan (the friendly check fails): an enemy artillery spotter"
+      "deciding": "a small fixed wing on an 868–900 MHz control link that circles at a distance with no flight plan (the friendly check fails): an enemy artillery spotter",
+      "acoustic": { "sig": "Small piston engine, like a moped", "rangeM": 1500 }
     },
     "male": {
       "label": "Large military UAV (MALE)", "short": "Large mil. UAV", "speed": 50, "alt": [1500, 3000], "echo": "Large",
       "rf": "Satellite / line-of-sight datalink", "rfOn": true, "gnss": true, "friendly": false, "hostile": true,
       "shape": "wing", "motion": "surveil", "orbitRadiusM": [1500, 1950],
       "behaviour": "Large echo, flying in high", "behaviourHover": "Circling high at standoff range, watching the asset",
-      "deciding": "a large radar echo, high up, on a datalink, circling at standoff range: a medium-altitude long-endurance (MALE) military UAV"
+      "deciding": "a large radar echo, high up, on a datalink, circling at standoff range: a medium-altitude long-endurance (MALE) military UAV",
+      "acoustic": { "sig": "Faint, distant engine drone from high altitude", "rangeM": 1200 }
     },
     "civil": {
       "label": "Civil drone (registered)", "short": "Civil drone", "speed": 9, "alt": [30, 120], "echo": "Small",
       "rf": "Control link · 2.4 GHz (registered)", "rfOn": true, "gnss": true, "friendly": false, "hostile": false, "civil": true,
       "shape": "quad", "motion": "wander", "behaviour": "Drifting about, not heading for the asset",
-      "deciding": "a registered 2.4 GHz link and an aimless path that never closes on the asset: a civil drone; report it and keep watching, never engage"
+      "deciding": "a registered 2.4 GHz link and an aimless path that never closes on the asset: a civil drone; report it and keep watching, never engage",
+      "acoustic": { "sig": "High-pitched multirotor whine, steady", "rangeM": 400 }
     }
   }
 }
