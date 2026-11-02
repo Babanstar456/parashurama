@@ -690,3 +690,11 @@ body.gunOn{overflow:hidden}
 
 .gnMain .fdTip{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 22px;background:rgba(10,14,12,.72);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;font:500 14px var(--cond);text-align:center;pointer-events:none;max-width:80%}
 .gnMain .fdTip b{font:700 20px var(--cond);letter-spacing:.08em}
+
+/* Urban patrol drill */
+.ptDrill .gnMain{overflow:hidden;background:#000}
+.ptLoad{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 18px var(--cond);letter-spacing:.1em;color:var(--nm)}
+.ptObj{list-style:none;margin:0;padding:0;font:500 14px var(--cond)}
+.ptObj li{padding:3px 0;border-bottom:1px solid var(--nl)}
+.ptObj li.ok{color:#9fe0a8}.ptObj li.bad{color:#FF5C61}
+.gnPatrol{border-color:var(--gun)}

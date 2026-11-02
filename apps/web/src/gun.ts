@@ -12,6 +12,7 @@ import { app, hooks } from './app';
 import { $ } from './dom';
 import { toast } from './toast';
 import { initGcs, startGcs, stopGcs } from './gcs';
+import { patrolActive, patrolHistory, startPatrol, stopPatrol } from './patrol';
 import { hasWebGL, mountField, type FieldView } from './field3d';
 
 const KEY = 'parashurama.gunH';
@@ -102,7 +103,7 @@ function pumpRadio() {
 
 // ---------- lobby ----------
 function lobby() {
-  stop(); stopGcs();
+  stop(); stopGcs(); stopPatrol();
   const m = gunMastery(H);
   const card = (g: GunGame, title: string, sub: string, body: string) => {
     const p = planGun(H, g), mine = H.filter((h) => h.game === g), last = mine[mine.length - 1];
@@ -123,6 +124,8 @@ function lobby() {
     </div>
     <div class="gnPractice"><b>Reload drill</b><span>Timed practice: ${RELOAD_REPS} reloads against the time standard, every step in the right order. The step buttons are shuffled, so you must know the drill.</span>
       <button class="smallBtn" data-practice="zu23">ZU-23-2 →</button><button class="smallBtn" data-practice="zsu234">ZSU-23-4 →</button></div>
+    <div class="gnPractice gnPatrol"><b>Urban patrol · drive the ZSU-23-4</b><span>Drive a Shilka through an old town on a patrol route. Drones come in low over the rooftops: report, identify, radar-lock and engage only hostiles, on the move, without putting rounds into the buildings or hitting traffic. ${patrolHistory().length ? `${patrolHistory().length} patrols · last ${patrolHistory()[patrolHistory().length - 1].total}` : 'Not tried yet'}.</span>
+      <button class="smallBtn solid" id="gnPatrol">Start a patrol →</button></div>
     ${gunsOf(getConfig()).uav ? `<div class="gnPractice"><b>UAV strike drill</b><span>Ground-control station: pre-flight, take-off clearance, corridor, find and lock the target, CLEAR TO ENGAGE, Master Arm, release on the impact point, assessment, SAFE, return. <i>Extension beyond the counter-drone PS.</i></span>
       <button class="smallBtn" id="gnUav">Fly a mission →</button></div>` : ''}
     <div class="gnCrew" id="gnCrew">${me ? '<p class="gnNote">Loading crew drills…</p>' : '<p class="gnNote"><b>Crew drill over the LAN:</b> open the app from the unit server to train as a crew (one PC in the Control Room, one on the gun).</p>'}</div>
@@ -133,6 +136,7 @@ function lobby() {
   document.querySelectorAll<HTMLElement>('#gunApp [data-game]').forEach((b) => (b.onclick = () => start(b.dataset.game as GunGame)));
   document.querySelectorAll<HTMLElement>('#gunApp [data-fgun]').forEach((b) => (b.onclick = () => { const p = planGun(H, 'field'); start('field', { ...p.cfg, gun: b.dataset.fgun!, ...(b.dataset.fgun === 'zu23' ? { time: 'day' as const } : {}) }); }));
   document.querySelectorAll<HTMLElement>('#gunApp [data-practice]').forEach((b) => (b.onclick = () => startReload(b.dataset.practice!)));
+  const pat = document.getElementById('gnPatrol'); if (pat) pat.onclick = () => { stop(); void startPatrol(lobby); };
   const uav = document.getElementById('gnUav'); if (uav) uav.onclick = () => { stop(); startGcs(lobby); };
   (document.querySelector('#gunApp [data-game]') as HTMLElement)?.focus();
   if (me) { renderCrews(); renderBoard(); }
@@ -714,7 +718,7 @@ export function openGun(game?: GunGame) {
   el.classList.add('on'); open = true; document.body.classList.add('gunOn');
   if (game) start(game); else lobby();
 }
-export function closeGun() { closeFeed(); stop(); stopGcs(); open = false; $('#gunApp')?.classList.remove('on'); document.body.classList.remove('gunOn'); hooks.showHome?.(); }
+export function closeGun() { closeFeed(); stop(); stopGcs(); stopPatrol(); open = false; $('#gunApp')?.classList.remove('on'); document.body.classList.remove('gunOn'); hooks.showHome?.(); }
 const ORDER_KEYS: Record<string, OrderKind> = { r: 'rangeClear', a: 'alert', t: 'target', m: 'method', f: 'engage', c: 'cease', h: 'hold', u: 'unload', g: 'rangeGreen' };
 const GUN_KEYS: Record<string, string> = { k: 'ack', p: 'post', r: 'load', f: 'safety', l: 'lay', q: 'lock', c: 'clear', b: 'barrel', x: 'kill', u: 'unload', n: 'report' };
 export function initGun() {
@@ -722,7 +726,7 @@ export function initGun() {
   initGcs();
   void connect();
   document.addEventListener('keydown', (e) => {
-    if (!open) return;
+    if (!open || patrolActive()) return; // the urban patrol drill has its own keys (patrol.ts)
     e.stopPropagation();
     if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
     const k = e.key.toLowerCase();
@@ -768,6 +772,6 @@ export function initGun() {
     history: () => H,
   };
   const q = new URLSearchParams(location.search);
-  if (q.has('gun')) { if (q.get('gun') === 'uav') { openGun(); startGcs(lobby); } else openGun((['ground', 'control', 'field'] as const).find((g) => q.get('gun') === g)); }
+  if (q.has('gun')) { if (q.get('gun') === 'uav') { openGun(); startGcs(lobby); } else if (q.get('gun') === 'patrol') { openGun(); void startPatrol(lobby); } else openGun((['ground', 'control', 'field'] as const).find((g) => q.get('gun') === g)); }
   void engageRange; void muzzleVelocity; void inSafeArc; void hasWebGL;
 }

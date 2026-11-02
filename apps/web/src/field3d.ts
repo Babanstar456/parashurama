@@ -45,32 +45,32 @@ const dirW = (az: number, el: number, out = new THREE.Vector3()) => { const d = 
 
 // ---------- loading (cached across drills) ----------
 const gltfCache = new Map<string, Promise<THREE.Group | null>>();
-function gltf(path: string): Promise<THREE.Group | null> {
+export function gltf(path: string): Promise<THREE.Group | null> {
   if (offline) return Promise.resolve(null);
   if (!gltfCache.has(path)) gltfCache.set(path, new GLTFLoader().loadAsync(`${BASE}${path}`).then((g) => g.scene as unknown as THREE.Group).catch(() => null));
   return gltfCache.get(path)!;
 }
 const texLoader = new THREE.TextureLoader();
-function tex(path: string, srgb = true, rep = 1): THREE.Texture | null {
+export function tex(path: string, srgb = true, rep = 1): THREE.Texture | null {
   if (offline) return null;
   const t = texLoader.load(`${BASE}${path}`, undefined, undefined, () => undefined);
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep); t.anisotropy = 4;
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-function pbr(id: string, rep: number, o: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial {
+export function pbr(id: string, rep: number, o: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial {
   const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, ...o });
   const d = tex(`assets/tex/${id}/diff.jpg`, true, rep), n = tex(`assets/tex/${id}/nor.jpg`, false, rep), a = tex(`assets/tex/${id}/arm.jpg`, false, rep);
   if (d) { m.map = d; m.normalMap = n; m.roughnessMap = a; m.aoMap = a; m.normalScale.set(0.8, 0.8); } else m.color.setHex(o.color as number ?? 0x777766);
   return m;
 }
-function hdr(cond: string): Promise<THREE.DataTexture | null> {
+export function hdr(cond: string): Promise<THREE.DataTexture | null> {
   if (offline) return Promise.resolve(null);
   return new RGBELoader().loadAsync(`${BASE}assets/hdri/${cond}.hdr`).then((t) => { t.mapping = THREE.EquirectangularReflectionMapping; return t; }).catch(() => null);
 }
 
 /** Soft dot texture (specks, smoke, flashes). */
-function dotTexture(): THREE.Texture {
+export function dotTexture(): THREE.Texture {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const x = c.getContext('2d')!, gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
   gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.8)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
