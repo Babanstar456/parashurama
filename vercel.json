@@ -36,7 +36,7 @@
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     },
     {
-      "source": "/(models|audio|assets/hdri|assets/tex|assets/models)/(.*)",
+      "source": "/(models|audio|city|assets/hdri|assets/tex|assets/models)/(.*)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
     },
     {

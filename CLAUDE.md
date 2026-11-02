@@ -32,7 +32,7 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
 - **Supply chain:** run `npm run audit:prod` (CI fails on high or critical) and `npm run sbom && npm run notices`. Licence: Apache-2.0 (`LICENSE`, `NOTICE`).
 - **Capacity checks:** `npm run loadtest` (unit server, many trainees; `--url` for a real server), `npm run crewload` (LAN crew drills at the real clock) and `npm run fps` (frame rate per view, visible browser; needs `npm run build:single`).
 - `apps/web/index.html` is the Vite **source** entry page (it loads `/src/main.ts`). Never overwrite it with a built bundle.
-- **App URL flags:** `?demo`, `?reset`, `?nohome`, `?instructor` (offline editor), `?fps` (frame-rate meter), `?lite` (force Lite mode), `?lectures`, `?gun` (gun drills lobby), `?gun=ground|control|uav`.
+- **App URL flags:** `?demo`, `?reset`, `?nohome`, `?instructor` (offline editor), `?fps` (frame-rate meter), `?lite` (force Lite mode), `?lectures`, `?gun` (gun drills lobby), `?gun=ground|control|uav|patrol`.
 
 ## Engine rules to preserve
 - **Determinism.** A drill is fully defined by its seed and its time-stamped decision log. Never use `Math.random()` in the engine; use `mulberry` and `hash2` from `util.ts`. The server re-runs every drill, and the log is SHA-256 chained.
@@ -60,6 +60,11 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
   - Server: `apps/server/src/gun.ts` (`/api/gun/*`, `/api/crews/*` with Server-Sent Events; migration 4 `gun_drills`). Solo drills are re-run with the AI seat replayed by the server; crew actions are stamped with the sender's seat.
   - Web: `apps/web/src/gun.ts`, `gcs.ts`. Gun history under `parashurama.gunH`, UAV under `parashurama.uavH`.
   - Words of command are placeholders; official Indian Army drill manuals are restricted. Never present them as exact. WCS / ADW are NATO terms.
+- **Urban patrol drill** (separate module, records and keys; never mixed into the gun or radar drills):
+  - Engine `patrol.ts` (vehicle on the move, stabilised turret, radar lock, building occlusion of sight and rounds, civilian traffic, P1–P9 scoring, `patrolAI` expert). The world (`PatrolWorld`: building boxes, walls, posts, roads, lanes, landmarks) is engine input from `apps/web/public/city/city.json`.
+  - Web `apps/web/src/patrol.ts` (3D view, HUD, minimap) and `city3d.ts`. History under `parashurama.patrolH`. Automation handle `window.PARA_PATROL`.
+  - City package: `node tools/city/bake-city.mjs <path to Project-Reality>` regenerates `apps/web/public/city/` (seed 1337, area −200…200 m). Gun models from `Models_New/`: `tools/blender/shilka.py` (ZSU-23-4), `tools/blender/import_guns.py --only zu23` (ZU-23-2). The L70 is built by `tools/blender/guns.py --only l70` (the Bofors scan is not used: it is an L/60 whose shields block the layer's view).
+  - Vehicle values (`VEH`) are training values. The server does not re-run patrol drills yet.
 - **Planner options and security features:**
   - Control-group planning: `planNext(H, C, { adaptive: false })`, with a `cohort` per user.
   - Signed threat packs: `pack.ts`, `config/trust/keys.json`, `POST /api/packs`.

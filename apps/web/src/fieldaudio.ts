@@ -20,6 +20,8 @@ export interface FieldAudio {
   /** The loader: 'start' = clip in, 'done' = rammer home, gun ready. */ loader: (kind: 'start' | 'done') => void;
   /** Explosion or airburst at a distance (m): delayed by the speed of sound. */ boom: (distM: number, big: boolean) => void;
   /** Listener orientation and the drones' buzz. */ update: (E: GunEngine, t: number, az: number, el: number) => void;
+  /** The same from a list of drones (engine frame, relative to the listener; p null = not flying). */ hear: (list: { id: number; type: string; p: [number, number, number] | null }[], az: number, el: number) => void;
+  /** Vehicle engine and tracks: load 0 (idle) … 1 (full speed). */ engine: (load: number) => void;
   dispose: () => void;
 }
 
@@ -79,7 +81,8 @@ export function fieldAudio(gun: string): FieldAudio | null {
   const dronesBus = ac.createGain(); dronesBus.gain.value = 0.5; dronesBus.connect(master);
   const buzz = new Map<number, { o: OscillatorNode; o2: OscillatorNode; lfo: OscillatorNode; g: GainNode; p: PannerNode }>();
   const L = ac.listener;
-  return {
+  let eng: { o: OscillatorNode; o2: OscillatorNode; g: GainNode; ng: GainNode; f: BiquadFilterNode } | null = null;
+  const api: FieldAudio = {
     rounds: (n, dt) => {
       resume();
       const now = ac.currentTime + 0.03, start = Math.max(now, last);
@@ -107,14 +110,15 @@ export function fieldAudio(gun: string): FieldAudio | null {
       nz(t, 0.5, 'lowpass', big ? 380 : 700, 0.7, g, big ? 0.9 : 0.35, master);
       nz(t, 0.05, 'highpass', 1500, 0.7, g * 0.4, 0.05, master);
     },
-    update: (E, t, az, el) => {
+    update: (E, t, az, el) => api.hear(E.targets.map((tg) => ({ id: tg.id, type: tg.type, p: tg.state === 'live' ? targetPos(tg, t, E.dt) : null })), az, el),
+    hear: (list, az, el) => {
       // Listener at the gun, facing the aim (three.js-style axes: x east, y up, z south).
       const a = (az * Math.PI) / 180, e = (el * Math.PI) / 180, fx = Math.sin(a) * Math.cos(e), fy = Math.sin(e), fz = -Math.cos(a) * Math.cos(e);
       if (L.forwardX) { L.forwardX.value = fx; L.forwardY.value = fy; L.forwardZ.value = fz; L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0; }
       else L.setOrientation(fx, fy, fz, 0, 1, 0);
       const T = getConfig().threats.threats;
-      for (const tg of E.targets) {
-        const ty = T[tg.type], range = tg.state === 'live' ? losOf(targetPos(tg, t, E.dt)).range : Infinity;
+      for (const tg of list) {
+        const ty = T[tg.type], range = tg.p ? losOf(tg.p).range : Infinity;
         const hear = ty?.acoustic && range < ty.acoustic.rangeM * 1.3;
         let b = buzz.get(tg.id);
         if (!hear) { if (b) { b.g.gain.setTargetAtTime(0, ac.currentTime, 0.2); const x = b; setTimeout(() => { try { x.o.stop(); x.o2.stop(); x.lfo.stop(); } catch { /* stopped */ } }, 800); buzz.delete(tg.id); } continue; }
@@ -134,14 +138,29 @@ export function fieldAudio(gun: string): FieldAudio | null {
           b = { o, o2, lfo, g, p }; buzz.set(tg.id, b);
           g.gain.setTargetAtTime(jet ? 0.25 : 0.12, ac.currentTime, 0.5);
         }
-        const q = targetPos(tg, t, E.dt);
+        const q = tg.p!;
         if (b.p.positionX) { b.p.positionX.value = q[0]; b.p.positionY.value = q[2]; b.p.positionZ.value = -q[1]; } else b.p.setPosition(q[0], q[2], -q[1]);
       }
+    },
+    engine: (load) => {
+      if (!eng) {
+        // Diesel: a low firing-rate saw and its harmonic through a low-pass; track clatter as filtered noise.
+        const o = ac.createOscillator(), o2 = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain(), n = ac.createBufferSource(), nf = ac.createBiquadFilter(), ng = ac.createGain();
+        o.type = 'sawtooth'; o2.type = 'square'; f.type = 'lowpass'; f.frequency.value = 260; g.gain.value = 0;
+        n.buffer = noise; n.loop = true; nf.type = 'bandpass'; nf.frequency.value = 900; nf.Q.value = 1.5; ng.gain.value = 0;
+        o.connect(f); o2.connect(f); f.connect(g).connect(master); n.connect(nf).connect(ng).connect(master);
+        o.start(); o2.start(); n.start(); eng = { o, o2, g, ng, f };
+      }
+      const t = ac.currentTime, k = Math.max(0, Math.min(1, load));
+      eng.o.frequency.setTargetAtTime(32 + 40 * k, t, 0.3); eng.o2.frequency.setTargetAtTime(64 + 80 * k, t, 0.3); eng.f.frequency.setTargetAtTime(220 + 380 * k, t, 0.3);
+      eng.g.gain.setTargetAtTime(0.07 + 0.1 * k, t, 0.3); eng.ng.gain.setTargetAtTime(0.06 * k, t, 0.2);
     },
     dispose: () => {
       removeEventListener('pointerdown', resume); removeEventListener('keydown', resume);
       for (const b of buzz.values()) { try { b.o.stop(); b.o2.stop(); b.lfo.stop(); } catch { /* stopped */ } }
+      if (eng) { try { eng.o.stop(); eng.o2.stop(); } catch { /* stopped */ } }
       void ac.close();
     },
   };
+  return api;
 }

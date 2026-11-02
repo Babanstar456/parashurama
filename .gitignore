@@ -13,3 +13,4 @@ deploy/secrets/
 vercel-out/
 .vercel/
 tools/blender/src-assets/
+tools/city/.build/

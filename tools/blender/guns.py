@@ -201,6 +201,50 @@ def l70():
     cyl(0.05, 0.06, (-0.36, 0.49, 2.24), P['glass'], pitch, (-90, 0, 0), 16)
     cyl(0.04, 0.06, (-0.36, 0.49, 2.08), P['glass'], pitch, (-90, 0, 0), 16)
     empty('sight_eye', (-0.45, -0.1, 2.15), pitch)
+    # ---- detail pass (kept clear of the left layer's line of sight over the left housing) ----
+    for y in (1.35, 2.1, 2.9):
+        cyl(0.075, 0.05, (0, y, 1.82), P['worn'], pitch, (-90, 0, 0), 20)                       # barrel clamps
+    for y in (3.86, 3.98):
+        cyl(0.13, 0.035, (0, y, 1.82), P['steel'], pitch, (-90, 0, 0), 24)                      # muzzle-brake rings
+    cyl(0.055, 0.75, (0, 0.72, 1.98), P['olive2'], pitch, (-90, 0, 0), 16)                       # recuperator on the jacket
+    for s in (-1, 1):
+        cyl(0.1, 0.12, (s * 0.31, 0.25, 1.8), P['olive2'], pitch, (0, 90, 0), 24, bevel=0.01)     # trunnion caps
+        # Toothed elevating arc under the cradle (turns with the gun).
+        R, cy, cz = 0.5, 0.25, 1.8
+        arc = [(cy + math.cos(math.radians(a)) * R, cz + math.sin(math.radians(a)) * R) for a in range(-160, -15, 12)]
+        side_prism([(cy, cz)] + arc, 0.03, P['olive'], pitch, s * 0.26, 0.004)
+        for a in range(-158, -18, 7):
+            ca, sa = math.cos(math.radians(a)), math.sin(math.radians(a))
+            box((0.035, 0.03, 0.04), (s * 0.26, cy + ca * (R + 0.015), cz + sa * (R + 0.015)), P['worn'], pitch, (-a - 90, 0, 0), 0.0)
+        for dy in (-0.55, -0.15):
+            box((0.02, 0.04, 0.6), (s * 0.21, dy, 2.42), P['worn'], pitch, bevel=0.003)          # feed-guide rails
+    for k in range(4):                                                                           # the next clip, on the guides
+        cyl(0.021, 0.36, (-0.12 + k * 0.08, -0.33, 2.9), P['brass'], pitch, (-90, 0, 0), 10)
+        cyl(0.021, 0.1, (-0.12 + k * 0.08, -0.1, 2.9), P['olive2'], pitch, (-90, 0, 0), 10, r2=0.006)
+    box((0.34, 0.04, 0.05), (0, -0.52, 2.9), P['worn'], pitch, bevel=0.003)                      # clip spine
+    # Traversing platform: ring bolts, rounded housing tops, rails, ready racks with clips, cables.
+    for k in range(18):
+        a = k * 20 * math.pi / 180
+        cyl(0.022, 0.04, (math.cos(a) * 0.92, math.sin(a) * 0.92, 1.05), P['worn'], yaw, verts=8)
+    for s in (-1, 1):
+        cyl(0.24, 0.36, (s * 0.62, 0.15, 1.85), P['olive'], yaw, (0, 90, 0), 28, bevel=0.015)     # rounded gear housing tops
+        cyl(0.02, 1.6, (s * 0.95, -0.2, 1.35), P['olive2'], yaw, (90, 0, 0), 8)                  # hand rails
+        for y in (-0.95, 0.55):
+            cyl(0.02, 0.3, (s * 0.95, y, 1.2), P['olive2'], yaw, verts=8)
+        # Ready-round rack at each rear corner: 3 clips of 4 standing rounds.
+        box((0.42, 0.3, 0.06), (s * 0.72, -1.38, 1.12), P['olive2'], yaw, bevel=0.01)
+        box((0.42, 0.04, 0.36), (s * 0.72, -1.52, 1.3), P['olive2'], yaw, bevel=0.01)
+        for c in range(3):
+            for k in range(4):
+                x, y = s * 0.72 + (c - 1) * 0.13, -1.42 + (k - 1.5) * 0.045
+                cyl(0.019, 0.34, (x, y, 1.32), P['brass'], yaw, verts=10)
+                cyl(0.019, 0.1, (x, y, 1.54), P['olive2'], yaw, verts=10, r2=0.005)
+        torus(0.11, 0.012, (s * 0.45, -0.6, 1.12), P['rubber'], yaw)                              # cable coils
+    # Carriage: tool box, spare clip boxes and lifting eyes.
+    box((0.7, 0.32, 0.22), (0, -2.15, 0.96), P['olive2'], root, bevel=0.015)
+    for s in (-1, 1):
+        box((0.45, 0.3, 0.25), (s * 0.45, 2.2, 0.98), P['olive2'], root, bevel=0.015)
+        torus(0.05, 0.012, (s * 0.7, 0, 0.88), P['worn'], root, (90, 0, 0))
     return root, ['l70']
 
 BUILDS = {'zu23': zu23, 'zsu234': zsu234, 'l70': l70}
