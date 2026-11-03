@@ -4,6 +4,13 @@ import { resolve } from 'node:path';
 const clip = resolve(import.meta.dirname, 'fixtures/lecture.webm'); // 2 s, 160×90 test pattern
 
 test.describe('Lecture library (offline: stored in this browser)', () => {
+  test('the Learn button beside Play opens the classroom', async ({ page }) => {
+    await page.goto('/?reset');
+    await expect(page.locator('#hcPlay')).toBeVisible();
+    await page.click('#hcLearn');
+    await expect(page.locator('#lectures')).toBeVisible();
+  });
+
   test('add a lecture from the hub, play it, keep it after reload, delete it', async ({ page }) => {
     await page.goto('/?reset');
     await page.click('#hcPlay'); await page.click('#hcLectures');

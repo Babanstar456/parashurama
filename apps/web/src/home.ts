@@ -25,7 +25,10 @@ function playHtml(): string {
     <div class="homeKicker">Smart India Hackathon 2026 · SIH26247 · Ministry of Defence</div>
     <h1 class="homeTitle">PARASHURAMA</h1>
     <p class="homeTag">Train every soldier to stop hostile drones.<br><span>On any laptop. Even offline.</span></p>
-    <button class="hpPlay" id="hcPlay" aria-label="Play"><i aria-hidden="true">▶</i><b>Play</b></button>
+    <div class="hpRow">
+      <button class="hpPlay" id="hcPlay" aria-label="Play"><i aria-hidden="true">▶</i><b>Play</b></button>
+      <button class="hpPlay hpLearn" id="hcLearn" aria-label="Learn: open the classroom"><i aria-hidden="true">📖</i><b>Learn</b></button>
+    </div>
     <button class="hpDemo" id="hcDemo">or watch the 90-second demo</button>
   </div>
   <div class="homeFoot"><span>Team Dhwanik_TH06</span><span>Training values only, not equipment specifications</span></div>`;
@@ -132,6 +135,7 @@ function render() {
   const go = (f: () => void) => () => { closeHome(); markTourSeen(); f(); };
   const on = (id: string, f: () => void) => { const b = document.getElementById(id); if (b) b.onclick = f; };
   on('hcPlay', to('pick'));
+  on('hcLearn', go(() => hooks.openLectures?.()));
   on('hcDemo', () => { closeHome(); hooks.showcase?.(); });
   on('hcBack', to(UP[stage]));
   on('hcGround', to('ground'));
