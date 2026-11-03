@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test.describe('Air defence gun drills', () => {
   test('the Hub card opens the gun drills with both games', async ({ page }) => {
     await page.goto('/?reset');
-    await page.click('#hcPlay'); await page.click('#hcMore');
+    await page.click('#hcPlay'); await page.click('#hcGround');
     await page.click('#hcGun');
     await expect(page.locator('#gunApp')).toHaveClass(/on/);
     await expect(page.locator('[data-game=control]')).toBeVisible();
