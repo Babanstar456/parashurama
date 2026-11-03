@@ -700,32 +700,6 @@ body.gunOn{overflow:hidden}
 .gnPatrol{border-color:var(--gun)}
 
 /* Guided home: one next step, a four-step path, everything else in a quiet row */
-.homeGuided{align-items:start}
-.homeGuide{display:grid;gap:16px}
-.hgNext{display:flex;flex-direction:column;gap:8px;padding:24px 26px;border-radius:12px;border:1px solid rgba(63,167,150,.65);background:linear-gradient(135deg,rgba(63,167,150,.3),rgba(16,27,34,.9))}
-.hgNext small{font:600 12.5px var(--cond);letter-spacing:.12em;text-transform:uppercase;color:#7fd8c7}
-.hgNext b{font:700 34px/1.1 var(--cond);color:#fff;letter-spacing:.02em}
-.hgNext span{font:400 16px/1.5 var(--body);color:#c9d4db;max-width:56ch}
-.hgNext strong{color:#f2c94c;font-weight:600}
-.hgGo{all:unset;box-sizing:border-box;align-self:flex-start;margin-top:8px;padding:14px 22px;border-radius:8px;background:#3fa796;color:#06100c;font:700 18px var(--cond);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;display:inline-flex;gap:10px;align-items:center;transition:transform .15s,background .15s}
-.hgGo:hover,.hgGo:focus-visible{background:#52c2af;transform:translateY(-1px)}
-.hgGo:focus-visible{outline:3px solid #fff;outline-offset:3px}
-.hgGo i{font-style:normal}
-.hgPath{padding:16px 18px;border-radius:12px;border:1px solid rgba(159,176,189,.25);background:rgba(10,17,23,.72)}
-.hgPath h3{margin:0 0 10px;font:700 14px var(--cond);letter-spacing:.14em;text-transform:uppercase;color:#9fb0bd;display:flex;justify-content:space-between}
-.hgPath h3 small{font:600 13px var(--cond);letter-spacing:.06em;color:#3fa796;text-transform:none}
-.hgPath ol{list-style:none;margin:0;padding:0;display:grid;gap:6px}
-.hgStep{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:12px;padding:9px 12px;border-radius:8px;cursor:pointer;border:1px solid transparent}
-.hgStep:hover,.hgStep:focus-visible{background:rgba(20,36,44,.95);border-color:rgba(63,167,150,.5)}
-.hgStep:focus-visible{outline:2px solid #3fa796;outline-offset:1px}
-.hgStep i{font-style:normal;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;border:1.5px solid #5b6d79;color:#9fb0bd;font:700 15px var(--cond)}
-.hgStep b{display:block;font:600 17px var(--cond);color:#e8eef2;letter-spacing:.02em}
-.hgStep small{display:block;font:500 13px var(--body);color:#8fa1ad}
-.hgStep em{font:700 12px var(--cond);font-style:normal;letter-spacing:.1em;text-transform:uppercase;color:#f2c94c}
-.hgStep.done i{background:#3fa796;border-color:#3fa796;color:#06100c}
-.hgStep.done b{color:#9fb0bd}
-.hgStep.now{border-color:rgba(242,201,76,.55);background:rgba(242,201,76,.07)}
-.hgStep.now i{border-color:#f2c94c;color:#f2c94c}
 .homeMore{position:relative;max-width:1440px;width:100%;margin:0 auto;padding:4px 64px 8px;box-sizing:border-box;display:grid;gap:14px}
 .hmRow{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px}
 .hmRow h4{flex-basis:100%;margin:6px 0 0;font:700 13px var(--cond);letter-spacing:.14em;text-transform:uppercase;color:#6f8290}
@@ -735,8 +709,6 @@ body.gunOn{overflow:hidden}
 .hq b{font:600 16px var(--cond);color:#fff;letter-spacing:.02em}
 .hq small{font:400 13px/1.35 var(--body);color:#8fa1ad}
 .hmRow .hm{flex:1 1 220px;grid-template-columns:30px 1fr}
-@media (max-width:1000px){.homeMore{padding:4px 22px 8px}.hgNext b{font-size:28px}}
-@media (max-width:640px){.homeMore{padding:4px 18px 8px}.hgGo{align-self:stretch;justify-content:center}}
 /* Guided gun lobby */
 .gnMain4{grid-template-columns:1fr 1fr}
 .gnMain4 .gnField{display:flex;flex-direction:column;gap:8px}
@@ -749,7 +721,45 @@ body.gunOn{overflow:hidden}
 .gnMore>summary small{margin-left:10px;font:500 13px var(--cond);letter-spacing:.04em;text-transform:none;color:var(--nm)}
 .gnMore[open]{padding-bottom:12px}
 @media (max-width:900px){.gnMain4{grid-template-columns:1fr}}
-.homeHow{list-style:none;margin:0;padding:0;display:grid;gap:10px;max-width:44ch}
-.homeHow li{font:400 16px/1.45 var(--body);color:#b9c6cf;padding-left:18px;position:relative}
-.homeHow li::before{content:'';position:absolute;left:0;top:.6em;width:7px;height:7px;border-radius:50%;background:#3fa796}
-.homeHow b{color:#fff;font-weight:600}
+
+/* Home: a Play screen first, then a short list of choices */
+.homePlay{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:48px 24px;gap:6px}
+.homePlay .homeTag{margin-bottom:28px}
+.hpPlay{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:16px;padding:20px 52px 20px 30px;border-radius:999px;cursor:pointer;background:#3fa796;color:#06100c;box-shadow:0 0 0 0 rgba(63,167,150,.55);animation:hpPulse 2.4s ease-out infinite;transition:transform .15s,background .15s}
+.hpPlay i{font-style:normal;display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:#06100c;color:#3fa796;font-size:22px;padding-left:4px;box-sizing:border-box}
+.hpPlay b{font:700 34px var(--cond);letter-spacing:.14em;text-transform:uppercase}
+.hpPlay:hover,.hpPlay:focus-visible{background:#52c2af;transform:scale(1.03)}
+.hpPlay:focus-visible{outline:3px solid #fff;outline-offset:4px}
+@keyframes hpPulse{0%{box-shadow:0 0 0 0 rgba(63,167,150,.55)}70%{box-shadow:0 0 0 22px rgba(63,167,150,0)}100%{box-shadow:0 0 0 0 rgba(63,167,150,0)}}
+@media (prefers-reduced-motion:reduce){.hpPlay{animation:none}}
+.hpDemo{all:unset;cursor:pointer;margin-top:22px;font:500 16px var(--body);color:#9fb0bd;text-decoration:underline;text-underline-offset:4px}
+.hpDemo:hover,.hpDemo:focus-visible{color:#fff}
+.hpDemo:focus-visible{outline:2px solid #3fa796;outline-offset:4px}
+.homeMenu{position:relative;flex:1;width:100%;max-width:1180px;margin:0 auto;padding:40px 32px 28px;box-sizing:border-box}
+.hmTop{display:flex;align-items:center;gap:18px}
+.hmTop h2{margin:0;font:400 34px var(--stencil);letter-spacing:.04em;color:#fff}
+.hmBack{all:unset;cursor:pointer;padding:8px 14px;border-radius:6px;border:1px solid rgba(159,176,189,.35);font:600 14px var(--cond);letter-spacing:.06em;color:#c9d4db}
+.hmBack:hover,.hmBack:focus-visible{border-color:#3fa796;color:#fff}
+.hmLead{margin:10px 0 22px;font:400 17px/1.5 var(--body);color:#b9c6cf}
+.hmBig{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.hb{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;padding:22px 24px;border-radius:12px;cursor:pointer;border:1px solid rgba(159,176,189,.28);background:rgba(10,17,23,.82);transition:transform .15s,border-color .15s,background .15s;min-height:190px}
+.hb:hover,.hb:focus-visible{transform:translateY(-2px);border-color:#3fa796;background:rgba(20,36,44,.95)}
+.hb:focus-visible{outline:2px solid #3fa796;outline-offset:2px}
+.hb.here{border-color:rgba(63,167,150,.75);background:linear-gradient(135deg,rgba(63,167,150,.26),rgba(16,27,34,.92))}
+.hb small{display:flex;gap:8px;align-items:center}
+.hb small i{font-style:normal;padding:3px 9px;border-radius:999px;font:700 12px var(--cond);letter-spacing:.1em;text-transform:uppercase}
+.hbTag{background:rgba(159,176,189,.18);color:#c9d4db}
+.hbTag.easy{background:rgba(63,167,150,.22);color:#7fd8c7}
+.hbTag.medium{background:rgba(242,201,76,.18);color:#f2c94c}
+.hbHere{background:#f2c94c;color:#0b0f14}
+.hbDone{background:#3fa796;color:#06100c}
+.hb b{font:700 30px/1.1 var(--cond);color:#fff;letter-spacing:.02em}
+.hb span{font:400 16px/1.5 var(--body);color:#b9c6cf}
+.hb em{margin-top:auto;padding-top:6px;font:700 15px var(--cond);font-style:normal;letter-spacing:.08em;text-transform:uppercase;color:#e8eef2}
+.hmMoreBtn{all:unset;cursor:pointer;display:block;margin:22px auto 6px;padding:10px 18px;border-radius:999px;border:1px solid rgba(159,176,189,.35);font:600 15px var(--cond);letter-spacing:.08em;text-transform:uppercase;color:#c9d4db}
+.hmMoreBtn:hover,.hmMoreBtn:focus-visible{border-color:#3fa796;color:#fff}
+.homeMenu .homeMore{padding:8px 0 0;max-width:none}
+#home.menu{justify-content:flex-start}
+.gnPick .gnPickOr{margin:0 4px 0 10px;color:var(--nm)}
+@media (max-width:760px){.hmBig{grid-template-columns:minmax(0,1fr)}.homeMenu{padding:24px 18px}.hb{min-height:0}.hb b{font-size:26px}.hpPlay{padding:16px 40px 16px 22px}.hpPlay b{font-size:28px}}
+.homeMore[hidden]{display:none}
