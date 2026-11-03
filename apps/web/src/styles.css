@@ -698,3 +698,58 @@ body.gunOn{overflow:hidden}
 .ptObj li{padding:3px 0;border-bottom:1px solid var(--nl)}
 .ptObj li.ok{color:#9fe0a8}.ptObj li.bad{color:#FF5C61}
 .gnPatrol{border-color:var(--gun)}
+
+/* Guided home: one next step, a four-step path, everything else in a quiet row */
+.homeGuided{align-items:start}
+.homeGuide{display:grid;gap:16px}
+.hgNext{display:flex;flex-direction:column;gap:8px;padding:24px 26px;border-radius:12px;border:1px solid rgba(63,167,150,.65);background:linear-gradient(135deg,rgba(63,167,150,.3),rgba(16,27,34,.9))}
+.hgNext small{font:600 12.5px var(--cond);letter-spacing:.12em;text-transform:uppercase;color:#7fd8c7}
+.hgNext b{font:700 34px/1.1 var(--cond);color:#fff;letter-spacing:.02em}
+.hgNext span{font:400 16px/1.5 var(--body);color:#c9d4db;max-width:56ch}
+.hgNext strong{color:#f2c94c;font-weight:600}
+.hgGo{all:unset;box-sizing:border-box;align-self:flex-start;margin-top:8px;padding:14px 22px;border-radius:8px;background:#3fa796;color:#06100c;font:700 18px var(--cond);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;display:inline-flex;gap:10px;align-items:center;transition:transform .15s,background .15s}
+.hgGo:hover,.hgGo:focus-visible{background:#52c2af;transform:translateY(-1px)}
+.hgGo:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.hgGo i{font-style:normal}
+.hgPath{padding:16px 18px;border-radius:12px;border:1px solid rgba(159,176,189,.25);background:rgba(10,17,23,.72)}
+.hgPath h3{margin:0 0 10px;font:700 14px var(--cond);letter-spacing:.14em;text-transform:uppercase;color:#9fb0bd;display:flex;justify-content:space-between}
+.hgPath h3 small{font:600 13px var(--cond);letter-spacing:.06em;color:#3fa796;text-transform:none}
+.hgPath ol{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.hgStep{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:12px;padding:9px 12px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+.hgStep:hover,.hgStep:focus-visible{background:rgba(20,36,44,.95);border-color:rgba(63,167,150,.5)}
+.hgStep:focus-visible{outline:2px solid #3fa796;outline-offset:1px}
+.hgStep i{font-style:normal;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;border:1.5px solid #5b6d79;color:#9fb0bd;font:700 15px var(--cond)}
+.hgStep b{display:block;font:600 17px var(--cond);color:#e8eef2;letter-spacing:.02em}
+.hgStep small{display:block;font:500 13px var(--body);color:#8fa1ad}
+.hgStep em{font:700 12px var(--cond);font-style:normal;letter-spacing:.1em;text-transform:uppercase;color:#f2c94c}
+.hgStep.done i{background:#3fa796;border-color:#3fa796;color:#06100c}
+.hgStep.done b{color:#9fb0bd}
+.hgStep.now{border-color:rgba(242,201,76,.55);background:rgba(242,201,76,.07)}
+.hgStep.now i{border-color:#f2c94c;color:#f2c94c}
+.homeMore{position:relative;max-width:1440px;width:100%;margin:0 auto;padding:4px 64px 8px;box-sizing:border-box;display:grid;gap:14px}
+.hmRow{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px}
+.hmRow h4{flex-basis:100%;margin:6px 0 0;font:700 13px var(--cond);letter-spacing:.14em;text-transform:uppercase;color:#6f8290}
+.hq{all:unset;box-sizing:border-box;flex:1 1 180px;display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:8px;cursor:pointer;border:1px solid rgba(159,176,189,.25);background:rgba(10,17,23,.72);transition:border-color .15s,background .15s}
+.hq:hover,.hq:focus-visible{border-color:#3fa796;background:rgba(20,36,44,.95)}
+.hq:focus-visible{outline:2px solid #3fa796;outline-offset:1px}
+.hq b{font:600 16px var(--cond);color:#fff;letter-spacing:.02em}
+.hq small{font:400 13px/1.35 var(--body);color:#8fa1ad}
+.hmRow .hm{flex:1 1 220px;grid-template-columns:30px 1fr}
+@media (max-width:1000px){.homeMore{padding:4px 22px 8px}.hgNext b{font-size:28px}}
+@media (max-width:640px){.homeMore{padding:4px 18px 8px}.hgGo{align-self:stretch;justify-content:center}}
+/* Guided gun lobby */
+.gnMain4{grid-template-columns:1fr 1fr}
+.gnMain4 .gnField{display:flex;flex-direction:column;gap:8px}
+.gnMain4 .gnField .gnCard{flex:1}
+.gnNum{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--gun);color:#0b0f14;font:700 12px var(--cond);margin-right:8px;letter-spacing:0}
+.gnBadge{font-style:normal;margin-left:10px;padding:2px 8px;border-radius:999px;background:#f2c94c;color:#0b0f14;font:700 11px var(--cond);letter-spacing:.08em}
+.gnBadge.done{background:#3fa796}
+.gnMore{margin:18px 0 8px;border:1px solid var(--nl);border-radius:8px;padding:0 16px}
+.gnMore>summary{cursor:pointer;padding:14px 0;font:700 15px var(--cond);letter-spacing:.08em;text-transform:uppercase;color:var(--nt)}
+.gnMore>summary small{margin-left:10px;font:500 13px var(--cond);letter-spacing:.04em;text-transform:none;color:var(--nm)}
+.gnMore[open]{padding-bottom:12px}
+@media (max-width:900px){.gnMain4{grid-template-columns:1fr}}
+.homeHow{list-style:none;margin:0;padding:0;display:grid;gap:10px;max-width:44ch}
+.homeHow li{font:400 16px/1.45 var(--body);color:#b9c6cf;padding-left:18px;position:relative}
+.homeHow li::before{content:'';position:absolute;left:0;top:.6em;width:7px;height:7px;border-radius:50%;background:#3fa796}
+.homeHow b{color:#fff;font-weight:600}

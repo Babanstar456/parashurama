@@ -28,9 +28,10 @@ test.describe('Mission Hub and 3D view', () => {
     expect(await page.evaluate(() => (window as any).PARA.live.cfg.weather)).toBe('fog');
   });
 
-  test('keyboard: Enter on the hub starts the Academy, not a scored drill', async ({ page }) => {
+  test('keyboard: Enter on the hub starts the Academy (the first step of the path), not a scored drill', async ({ page }) => {
     await page.goto('/?reset');
-    await expect(page.locator('#hcAcademy')).toBeFocused();
+    await expect(page.locator('#hcNext')).toBeFocused();
+    await expect(page.locator('.hgStep.now')).toContainText('Learn the basics');
     await page.keyboard.press('Enter');
     await expect(page.locator('#fight')).toHaveClass(/on/);
     expect(await page.evaluate(() => document.body.dataset.mode)).toBe('academy');

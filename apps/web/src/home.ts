@@ -1,5 +1,6 @@
-// Mission Hub: the front door. Explains the product in one screen and gives one-click paths for
-// beginners (Academy), trainees (adaptive drill), field units (real-world missions) and commanders (readiness).
+// Mission Hub: the front door, built as a guided path. One recommended next step with a single Continue button,
+// a four-step training path that ticks itself off (lessons → first radar drill → the gun in 3D → the urban patrol),
+// and everything else one click away in a quiet "go straight to" row.
 import { SCENARIOS, WEATHER_LABEL, mulberry, mastery } from '@parashurama/engine';
 import { app, hooks } from './app';
 import { $, $$ } from './dom';
@@ -9,66 +10,76 @@ import { CERT } from './cfg';
 
 let open = false, raf = 0;
 const WX_ICON: Record<string, string> = { clear: '☀', rain: '☔', fog: '🌫', dust: '🌪' };
+const local = (k: string): any[] => { try { const v = JSON.parse(localStorage.getItem(k) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
 
-function html(): string {
+interface Step { key: string; title: string; why: string; status: string; done: boolean; cta: string; go: () => void; }
+function path(): { steps: Step[]; next: Step | null; weakName: string } {
   const done = new Set<number>(app.DB.academy?.done ?? []);
-  const next = LESSONS.find((l) => !done.has(l.n));
+  const lesson = LESSONS.find((l) => !done.has(l.n));
   const m = mastery(app.DB.H);
   const weakest = (['night', 'swarm', 'degraded', 'weather'] as const).reduce((a, b) => (m[a] <= m[b] ? a : b));
   const weakName = { night: 'night drills', swarm: 'swarm attacks', degraded: 'faulty sensors', weather: 'bad weather' }[weakest];
-  const certified = Object.values(m).filter((v) => v >= CERT.certifiedMastery).length;
+  const gunField = local('parashurama.gunH').filter((r) => r?.game === 'field'), patrols = local('parashurama.patrolH');
+  const steps: Step[] = [
+    { key: 'learn', title: 'Learn the basics', why: 'Four short lessons. A coach explains every clue and when not to fire. About 10 minutes.',
+      status: `${done.size} of ${LESSONS.length} lessons`, done: !lesson, cta: lesson ? `Start lesson ${lesson.n}: ${lesson.title}` : 'Replay a lesson',
+      go: () => { closeHome(); markTourSeen(); startLesson((lesson ?? LESSONS[0]).n); } },
+    { key: 'radar', title: 'Your first radar drill', why: 'Spot, identify and defeat drones on the radar. Two minutes, every decision scored and explained.',
+      status: app.DB.H.length ? `${app.DB.H.length} drill${app.DB.H.length === 1 ? '' : 's'} done` : 'Not tried yet', done: app.DB.H.length > 0, cta: 'Start a radar drill',
+      go: () => quickDrill() },
+    { key: 'gun', title: 'Fire the gun in 3D', why: 'Sit at a ZU-23-2 by day: search the sky, report and identify each drone, then fire only on clearance.',
+      status: gunField.length ? `${gunField.length} field drill${gunField.length === 1 ? '' : 's'} done` : 'Not tried yet', done: gunField.length > 0, cta: 'Take the gun',
+      go: () => { closeHome(); markTourSeen(); hooks.openGun?.('field'); } },
+    { key: 'patrol', title: 'Urban patrol', why: 'Drive a ZSU-23-4 through an old town. Drones pop up over the rooftops: engage only hostiles and spare the buildings.',
+      status: patrols.length ? `${patrols.length} patrol${patrols.length === 1 ? '' : 's'} · last ${patrols[patrols.length - 1].total}` : 'Not tried yet', done: patrols.length > 0, cta: 'Start the patrol',
+      go: () => { closeHome(); markTourSeen(); hooks.openGun?.('patrol'); } },
+  ];
+  return { steps, next: steps.find((x) => !x.done) ?? null, weakName };
+}
+function quickDrill() { closeHome(); app.renderBrief(); app.setPhase('brief'); if (!app.DB.tourDone) app.startTour(0); }
+
+function html(): string {
+  const { steps, next, weakName } = path();
+  const m = mastery(app.DB.H), certified = Object.values(m).filter((v) => v >= CERT.certifiedMastery).length;
+  const n = next ? steps.indexOf(next) + 1 : 0, doneN = steps.filter((x) => x.done).length;
   return `
   <canvas id="homeFx" aria-hidden="true"></canvas>
-  <div class="homeIn">
+  <div class="homeIn homeGuided">
     <div class="homeHero">
       <div class="homeKicker">Smart India Hackathon 2026 · SIH26247 · Ministry of Defence</div>
       <h1 class="homeTitle">PARASHURAMA</h1>
       <p class="homeTag">Train every soldier to stop hostile drones.<br><span>On any laptop. Even offline.</span></p>
-      <button class="homeDemo" id="hcDemo"><i aria-hidden="true">▶</i><span><b>Watch the 90-second demo</b><small>The whole product, narrated. No clicks needed.</small></span></button>
-      <ol class="homeSteps">
-        <li><i>1</i><b>Learn</b><span>Short lessons with a coach who explains every clue.</span></li>
-        <li><i>2</i><b>Fight</b><span>Live drills on radar and in 3D. The enemy AI attacks your weak spots.</span></li>
-        <li><i>3</i><b>Improve</b><span>Every decision scored and explained, replayed against an expert.</span></li>
-      </ol>
-      <p class="homeMobile">📱 Watch the demo or try a mission here. Full drills work best on a laptop or a tablet in landscape.</p>
-      <div class="homeChips"><span>Works offline</span><span>Every score explained</span><span>Night · rain · fog · dust</span><span>3D view · VR-ready</span><span>Results can't be faked</span></div>
+      <button class="homeDemo" id="hcDemo"><i aria-hidden="true">▶</i><span><b>Watch the 90-second demo</b><small>See the whole product first. No clicks needed.</small></span></button>
+      <ul class="homeHow"><li><b>Spot</b> the drone on radar, in 3D or by ear</li><li><b>Identify</b> it: hostile, friendly, civil or a bird</li><li><b>Decide</b> how to defeat it, and see why each choice scores what it does</li></ul>
     </div>
-    <div class="homeCards">
-      <button class="hc hcPrimary" id="hcAcademy">
-        <small>${next ? `New here? Start here · lesson ${next.n} of ${LESSONS.length}` : 'Academy complete ✓'}</small>
-        <b>${next ? 'Learn in 10 minutes' : 'Replay the Academy'}</b>
-        <span>${next ? `A coach walks you through every clue and decision. No experience needed.` : 'All four lessons done. Replay any lesson from the brief.'}</span>
-        <div class="hcProg">${LESSONS.map((l) => `<i class="${done.has(l.n) ? 'on' : ''}"></i>`).join('')}</div>
-        <em>${next ? `Start: ${next.title}` : 'Open lesson 1'} →</em>
-      </button>
-      <button class="hc" id="hcDrill">
-        <small>Adaptive drill</small><b>Quick drill</b>
-        <span>A 2-minute drill the enemy AI builds around your weakest skill: <strong>${weakName}</strong>.</span>
-        <em>Begin →</em>
-      </button>
-      <div class="hc hcMissions">
-        <small>Real-world missions</small><b>Defend a real kind of site</b>
-        <div class="hmList">${SCENARIOS.map((s, i) => `<button class="hm" data-hm="${i}"><span class="hmIcon" aria-hidden="true">${WX_ICON[s.cfg.weather ?? 'clear']}</span>
-          <span><b>${s.name}</b><small>${s.agency} · ${s.cfg.time === 'night' ? 'Night' : 'Day'} · ${WEATHER_LABEL[s.cfg.weather ?? 'clear']}</small></span><em>→</em></button>`).join('')}</div>
-      </div>
-      <button class="hc" id="hcUnit">
-        <small>For commanders</small><b>Unit readiness</b>
-        <span>Who in the troop is ready for tonight: night, swarm, faulty sensors or bad weather. You: ${certified} of ${Object.keys(m).length} skills certified.</span>
-        <em>Open the board →</em>
-      </button>
-      <button class="hc hcGun" id="hcGun">
-        <small>Air defence guns · ZU-23-2 / ZSU-23-4</small><b>Control Room · On Ground</b>
-        <span>Give the fire orders, or crew the gun: load, lay, set the lead and fire only on the order. Real ballistics.</span>
-        <em>Open the gun drills →</em>
-      </button>
-      <button class="hc" id="hcLectures">
-        <small>Self-study · by course</small><b>Classroom library</b>
-        <span>Videos and notes from your instructors: Control Room, On Ground, UAV GCS, live-fire safety and more.</span>
-        <em>Open the library →</em>
-      </button>
+    <div class="homeGuide">
+      <section class="hgNext" aria-labelledby="hgNextT">
+        <small>${next ? `Your next step · ${n} of ${steps.length}` : 'Training path complete ✓'}</small>
+        <b id="hgNextT">${next ? next.title : 'Keep sharp'}</b>
+        <span>${next ? next.why : `A quick drill the enemy AI builds around your weakest skill: <strong>${weakName}</strong>.`}</span>
+        <button class="hgGo" id="hcNext">${next ? next.cta : 'Start a quick drill'} <i aria-hidden="true">→</i></button>
+      </section>
+      <section class="hgPath" aria-label="Your training path">
+        <h3>Your training path <small>${doneN} of ${steps.length} done</small></h3>
+        <ol>${steps.map((x, i) => `<li><button class="hgStep ${x.done ? 'done' : ''} ${x === next ? 'now' : ''}" data-step="${x.key}">
+          <i aria-hidden="true">${x.done ? '✓' : i + 1}</i><span><b>${x.title}</b><small>${x.status}</small></span>${x === next ? '<em>You are here</em>' : ''}</button></li>`).join('')}</ol>
+      </section>
     </div>
   </div>
-  <div class="homeFoot"><span>Team Dhwanik_TH06</span><span>Vendor-neutral · indigenous · runs on hardware every unit already has</span><span>Training values only, not equipment specifications</span></div>`;
+  <div class="homeMore">
+    <div class="hmRow"><h4>Or go straight to</h4>
+      <button class="hq" id="hcDrill"><b>Quick radar drill</b><small>Built around your weakest skill: ${weakName}</small></button>
+      <button class="hq" id="hcGun"><b>Gun drills</b><small>3D field firing · Control Room · On Ground</small></button>
+      <button class="hq" id="hcPatrol"><b>Urban patrol</b><small>Drive the ZSU-23-4 through town</small></button>
+      <button class="hq" id="hcUnit"><b>Unit readiness</b><small>For commanders · you: ${certified} of ${Object.keys(m).length} skills certified</small></button>
+      <button class="hq" id="hcLectures"><b>Classroom library</b><small>Videos and notes by course</small></button>
+    </div>
+    <div class="hmRow"><h4>Real-world missions</h4>
+      ${SCENARIOS.map((sc, i) => `<button class="hm" data-hm="${i}"><span class="hmIcon" aria-hidden="true">${WX_ICON[sc.cfg.weather ?? 'clear']}</span>
+        <span><b>${sc.name}</b><small>${sc.agency} · ${sc.cfg.time === 'night' ? 'Night' : 'Day'} · ${WEATHER_LABEL[sc.cfg.weather ?? 'clear']}</small></span></button>`).join('')}
+    </div>
+  </div>
+  <div class="homeFoot"><span>Team Dhwanik_TH06</span><span>Works offline · every score explained</span><span>Training values only, not equipment specifications</span></div>`;
 }
 
 /** Animated radar backdrop: a slow sweep with drifting contacts. Purely decorative. */
@@ -107,15 +118,18 @@ export function showHome() {
   let el = $('#home');
   if (!el) { el = document.createElement('div'); el.id = 'home'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'PARASHURAMA home'); document.body.appendChild(el); }
   el.innerHTML = html(); el.classList.add('on'); open = true; document.body.classList.add('homeOn');
-  $('#hcAcademy').onclick = () => { const done = new Set<number>(app.DB.academy?.done ?? []); const nx = LESSONS.find((l) => !done.has(l.n)) ?? LESSONS[0]; closeHome(); markTourSeen(); startLesson(nx.n); };
-  $('#hcDrill').onclick = () => { closeHome(); app.renderBrief(); app.setPhase('brief'); if (!app.DB.tourDone) app.startTour(0); };
+  const { steps, next } = path();
+  $('#hcNext').onclick = () => (next ? next.go() : quickDrill());
+  $$('[data-step]').forEach((b: any) => (b.onclick = () => steps.find((x) => x.key === b.dataset.step)?.go()));
+  $('#hcDrill').onclick = quickDrill;
   $$('[data-hm]').forEach((b: any) => (b.onclick = () => { closeHome(); markTourSeen(); startScenario(SCENARIOS[+b.dataset.hm]); }));
   $('#hcDemo').onclick = () => { closeHome(); hooks.showcase?.(); };
   $('#hcLectures').onclick = () => { closeHome(); markTourSeen(); hooks.openLectures?.(); };
   $('#hcGun').onclick = () => { closeHome(); markTourSeen(); hooks.openGun?.(); };
+  $('#hcPatrol').onclick = () => { closeHome(); markTourSeen(); hooks.openGun?.('patrol'); };
   $('#hcUnit').onclick = () => { closeHome(); markTourSeen(); app.renderUnit(); app.setPhase('learn'); ($('.learnTabs [data-t=unit]') as HTMLElement).click(); };
   fx();
-  ($('#hcAcademy') as HTMLElement).focus({ preventScroll: true }); el.scrollTop = 0;
+  ($('#hcNext') as HTMLElement).focus({ preventScroll: true }); el.scrollTop = 0;
 }
 /** Choosing a guided path (Academy, mission, board) means the general tour is not needed now. */
 function markTourSeen() { if (!app.DB.tourDone) { app.DB.tourDone = true; app.saveDB(); } }

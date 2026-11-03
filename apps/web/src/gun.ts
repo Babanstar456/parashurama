@@ -102,43 +102,58 @@ function pumpRadio() {
 }
 
 // ---------- lobby ----------
+/** First field drill: the simplest gun by day (a ZU-23-2 with its plain ring sight); after that the planner chooses. */
+function startField(gun?: string) {
+  const p = planGun(H, 'field'), first = !H.some((h) => h.game === 'field'), g = gun ?? (first ? 'zu23' : p.cfg.gun);
+  start('field', { ...p.cfg, gun: g, ...(g === 'zu23' && (first || gun) ? { time: 'day' as const } : {}) });
+}
 function lobby() {
   stop(); stopGcs(); stopPatrol();
-  const m = gunMastery(H);
-  const card = (g: GunGame, title: string, sub: string, body: string) => {
+  const m = gunMastery(H), pats = patrolHistory();
+  const tried = { field: H.some((h) => h.game === 'field'), patrol: pats.length > 0, ground: H.some((h) => h.game === 'ground'), control: H.some((h) => h.game === 'control') };
+  const order = ['field', 'patrol', 'ground', 'control'] as const, here = order.find((k) => !tried[k]);
+  const badge = (k: (typeof order)[number]) => (k === here ? '<i class="gnBadge">Start here</i>' : tried[k] ? '<i class="gnBadge done">Done ✓</i>' : '');
+  const card = (g: GunGame, n: number, title: string, sub: string, body: string) => {
     const p = planGun(H, g), mine = H.filter((h) => h.game === g), last = mine[mine.length - 1];
     const gn = gunsOf(getConfig()).guns[p.cfg.gun]?.short ?? p.cfg.gun;
-    return `<button class="gnCard" data-game="${g}"><small>${sub}</small><b>${title}</b><span>${body}</span>
-      <span class="gnPlan"><i>Next drill:</i> ${esc(gn)} · ${p.cfg.time} · ${p.cfg.terrain} · WCS ${String(p.cfg.wcs ?? 'tight').toUpperCase()} · ADW ${String(p.cfg.adw ?? 'red').toUpperCase()}${p.cfg.safeArcs ? ' · safe arc' : ''} · level ${p.cfg.difficulty}<br>${esc(p.why)}</span>
-      <span class="gnSkills">${GUN_SKILLS.filter((s) => s[2] === g).map(([k, l]) => `<i title="${esc(l)}"><em style="width:${Math.round(m[k] * 100)}%"></em><u>${esc(l)}</u></i>`).join('')}</span>
-      <em>${mine.length ? `${mine.length} drills · last ${last.total}` : 'Not tried yet'} · Begin →</em></button>`;
+    // Before the first drill: just what it is. After: the planner's next drill and the skill bars.
+    const plan = mine.length
+      ? `<span class="gnPlan"><i>Next drill:</i> ${esc(gn)} · ${p.cfg.time} · ${p.cfg.terrain} · WCS ${String(p.cfg.wcs ?? 'tight').toUpperCase()} · ADW ${String(p.cfg.adw ?? 'red').toUpperCase()}${p.cfg.safeArcs ? ' · safe arc' : ''} · level ${p.cfg.difficulty}<br>${esc(p.why)}</span>
+         <span class="gnSkills">${GUN_SKILLS.filter((s) => s[2] === g).map(([k, l]) => `<i title="${esc(l)}"><em style="width:${Math.round(m[k] * 100)}%"></em><u>${esc(l)}</u></i>`).join('')}</span>`
+      : '';
+    return `<button class="gnCard" data-game="${g}"><small><span class="gnNum">${n}</span>${sub}${badge(g as any)}</small><b>${title}</b><span>${body}</span>${plan}
+      <em>${mine.length ? `${mine.length} drills · last ${last.total} · Begin →` : 'Begin →'}</em></button>`;
   };
-  $('#gunApp').innerHTML = `<div class="gnLobby">
-    <div class="gnHead"><h2>Air defence gun drills</h2><button class="smallBtn" id="gnClose">Close</button></div>
-    <p class="gnLead">The same engagement from two seats. In the <b>Control Room</b> you give the fire orders. <b>On Ground</b> you are the detachment on a ZU-23-2 or ZSU-23-4: load, lay, set the lead and fire, only on the order.</p>
-    <div class="gnCards gnField">${card('field', '3D field firing', 'Gun detachment · ZU-23-2 · ZSU-23-4 · L70', 'Search the sky, report every contact, identify it (drone type, friend, civil or bird), then lay, lead and fire on clearance. Day and night, thermal sight, weather, sensor faults, swarms, urban and rural.')}
-      <span class="gnPick">Pick the gun: ${['zu23', 'zsu234', 'l70'].filter((k) => gunsOf(getConfig()).guns[k]).map((k) => `<button class="smallBtn" data-fgun="${k}">${esc(gunsOf(getConfig()).guns[k].short)} →</button>`).join('')}</span></div>
-    <div class="gnCards">
-      ${card('control', 'Control Room', 'Fire-control officer', 'Pick the most urgent threat, give Alert → Target → Method → FIRE, respect Weapon Control Status and safe arcs, call Cease and Hold fire, close with Unload.')}
-      ${card('ground', 'On Ground', 'Gun detachment', 'Acknowledge, man the gun, load, lay on the indicated target, set speed, course and range on the sight (or lock the radar), fire short bursts on FIRE only, report, unload.')}
+  const guns = ['zu23', 'zsu234', 'l70'].filter((k) => gunsOf(getConfig()).guns[k]);
+  $('#gunApp').innerHTML = `<div class="gnLobby gnGuided">
+    <div class="gnHead"><h2>Air defence gun drills</h2><button class="smallBtn" id="gnClose">← Home</button></div>
+    <p class="gnLead">Pick one drill. <b>New here?</b> Go in order: fire the gun in 3D first, then drive the urban patrol, then crew the gun and run the control room.</p>
+    <div class="gnCards gnMain4">
+      <div class="gnField">${card('field', 1, '3D field firing', 'Sit at the gun', 'Search the sky, report each drone, identify it, then fire only when cleared. Your first drill is a ZU-23-2 by day.')}
+        <span class="gnPick">Or pick the gun: ${guns.map((k) => `<button class="smallBtn" data-fgun="${k}">${esc(gunsOf(getConfig()).guns[k].short)}</button>`).join('')}</span></div>
+      <button class="gnCard" id="gnPatrol"><small><span class="gnNum">2</span>Drive and fight${badge('patrol')}</small><b>Urban patrol</b>
+        <span>Drive a ZSU-23-4 along a route through an old town. Drones pop up over the rooftops: report, identify, lock and engage only hostiles, without hitting the buildings.</span>
+        <em>${pats.length ? `${pats.length} patrols · last ${pats[pats.length - 1].total} · Begin →` : 'Begin →'}</em></button>
+      ${card('ground', 3, 'On Ground', 'Crew the gun on orders', 'The control room gives the orders. You load, lay on the target, set the sight and fire short bursts, only on FIRE.')}
+      ${card('control', 4, 'Control Room', 'Give the fire orders', 'You are the fire-control officer: pick the most urgent drone and give Alert, Target, Method, FIRE. Call Cease or Hold fire when needed.')}
     </div>
-    <div class="gnPractice"><b>Reload drill</b><span>Timed practice: ${RELOAD_REPS} reloads against the time standard, every step in the right order. The step buttons are shuffled, so you must know the drill.</span>
-      <button class="smallBtn" data-practice="zu23">ZU-23-2 →</button><button class="smallBtn" data-practice="zsu234">ZSU-23-4 →</button></div>
-    <div class="gnPractice gnPatrol"><b>Urban patrol · drive the ZSU-23-4</b><span>Drive a Shilka through an old town on a patrol route. Drones come in low over the rooftops: report, identify, radar-lock and engage only hostiles, on the move, without putting rounds into the buildings or hitting traffic. ${patrolHistory().length ? `${patrolHistory().length} patrols · last ${patrolHistory()[patrolHistory().length - 1].total}` : 'Not tried yet'}.</span>
-      <button class="smallBtn solid" id="gnPatrol">Start a patrol →</button></div>
-    ${gunsOf(getConfig()).uav ? `<div class="gnPractice"><b>UAV strike drill</b><span>Ground-control station: pre-flight, take-off clearance, corridor, find and lock the target, CLEAR TO ENGAGE, Master Arm, release on the impact point, assessment, SAFE, return. <i>Extension beyond the counter-drone PS.</i></span>
-      <button class="smallBtn" id="gnUav">Fly a mission →</button></div>` : ''}
-    <div class="gnCrew" id="gnCrew">${me ? '<p class="gnNote">Loading crew drills…</p>' : '<p class="gnNote"><b>Crew drill over the LAN:</b> open the app from the unit server to train as a crew (one PC in the Control Room, one on the gun).</p>'}</div>
-    <div id="gnBoard"></div>
-    <p class="gnNote">Words of command are placeholders until your unit's exact drill wording is loaded (config <code>guns.json</code>). Weapon Control Status and Air Defence Warning use NATO terms. Gun, ammunition and ballistic figures are training values, not equipment specifications.</p>
+    <details class="gnMore"><summary>More drills and options <small>reload practice · UAV strike · crew over the LAN · unit readiness</small></summary>
+      <div class="gnPractice"><b>Reload drill</b><span>Timed practice: ${RELOAD_REPS} reloads against the time standard, every step in the right order. The step buttons are shuffled, so you must know the drill.</span>
+        <button class="smallBtn" data-practice="zu23">ZU-23-2 →</button><button class="smallBtn" data-practice="zsu234">ZSU-23-4 →</button></div>
+      ${gunsOf(getConfig()).uav ? `<div class="gnPractice"><b>UAV strike drill</b><span>Ground-control station: pre-flight, take-off clearance, corridor, find and lock the target, CLEAR TO ENGAGE, Master Arm, release on the impact point, assessment, SAFE, return. <i>Extension beyond the counter-drone PS.</i></span>
+        <button class="smallBtn" id="gnUav">Fly a mission →</button></div>` : ''}
+      <div class="gnCrew" id="gnCrew">${me ? '<p class="gnNote">Loading crew drills…</p>' : '<p class="gnNote"><b>Crew drill over the LAN:</b> open the app from the unit server to train as a crew (one PC in the Control Room, one on the gun).</p>'}</div>
+      <div id="gnBoard"></div>
+    </details>
+    <p class="gnNote">Words of command are placeholders until your unit's exact drill wording is loaded (config <code>guns.json</code>). Weapon Control Status (WCS) and Air Defence Warning (ADW) use NATO terms. Gun, ammunition and ballistic figures are training values, not equipment specifications.</p>
   </div>`;
   $('#gnClose').onclick = closeGun;
-  document.querySelectorAll<HTMLElement>('#gunApp [data-game]').forEach((b) => (b.onclick = () => start(b.dataset.game as GunGame)));
-  document.querySelectorAll<HTMLElement>('#gunApp [data-fgun]').forEach((b) => (b.onclick = () => { const p = planGun(H, 'field'); start('field', { ...p.cfg, gun: b.dataset.fgun!, ...(b.dataset.fgun === 'zu23' ? { time: 'day' as const } : {}) }); }));
+  document.querySelectorAll<HTMLElement>('#gunApp [data-game]').forEach((b) => (b.onclick = () => (b.dataset.game === 'field' ? startField() : start(b.dataset.game as GunGame))));
+  document.querySelectorAll<HTMLElement>('#gunApp [data-fgun]').forEach((b) => (b.onclick = () => startField(b.dataset.fgun!)));
   document.querySelectorAll<HTMLElement>('#gunApp [data-practice]').forEach((b) => (b.onclick = () => startReload(b.dataset.practice!)));
   const pat = document.getElementById('gnPatrol'); if (pat) pat.onclick = () => { stop(); void startPatrol(lobby); };
   const uav = document.getElementById('gnUav'); if (uav) uav.onclick = () => { stop(); startGcs(lobby); };
-  (document.querySelector('#gunApp [data-game]') as HTMLElement)?.focus();
+  ((here === 'patrol' ? pat : document.querySelector(`#gunApp [data-game=${here ?? 'field'}]`)) as HTMLElement)?.focus();
   if (me) { renderCrews(); renderBoard(); }
 }
 
@@ -712,11 +727,11 @@ function finish(quit: boolean) {
 }
 
 // ---------- open / close / keys ----------
-export function openGun(game?: GunGame) {
+export function openGun(game?: GunGame | 'patrol') {
   let el = $('#gunApp') as HTMLElement | null;
   if (!el) { el = document.createElement('div'); el.id = 'gunApp'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Air defence gun drills'); document.body.appendChild(el); }
   el.classList.add('on'); open = true; document.body.classList.add('gunOn');
-  if (game) start(game); else lobby();
+  if (game === 'patrol') void startPatrol(lobby); else if (game === 'field') startField(); else if (game) start(game); else lobby();
 }
 export function closeGun() { closeFeed(); stop(); stopGcs(); stopPatrol(); open = false; $('#gunApp')?.classList.remove('on'); document.body.classList.remove('gunOn'); hooks.showHome?.(); }
 const ORDER_KEYS: Record<string, OrderKind> = { r: 'rangeClear', a: 'alert', t: 'target', m: 'method', f: 'engage', c: 'cease', h: 'hold', u: 'unload', g: 'rangeGreen' };
@@ -772,6 +787,6 @@ export function initGun() {
     history: () => H,
   };
   const q = new URLSearchParams(location.search);
-  if (q.has('gun')) { if (q.get('gun') === 'uav') { openGun(); startGcs(lobby); } else if (q.get('gun') === 'patrol') { openGun(); void startPatrol(lobby); } else openGun((['ground', 'control', 'field'] as const).find((g) => q.get('gun') === g)); }
+  if (q.has('gun')) { if (q.get('gun') === 'uav') { openGun(); startGcs(lobby); } else if (q.get('gun') === 'patrol') openGun('patrol'); else openGun((['ground', 'control', 'field'] as const).find((g) => q.get('gun') === g)); }
   void engageRange; void muzzleVelocity; void inSafeArc; void hasWebGL;
 }
