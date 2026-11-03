@@ -6,7 +6,7 @@ const clip = resolve(import.meta.dirname, 'fixtures/lecture.webm'); // 2 s, 160�
 test.describe('Lecture library (offline: stored in this browser)', () => {
   test('add a lecture from the hub, play it, keep it after reload, delete it', async ({ page }) => {
     await page.goto('/?reset');
-    await page.click('#hcLectures');
+    await page.click('#hcPlay'); await page.click('#hcMore'); await page.click('#hcLectures');
     await expect(page.locator('#lectures')).toBeVisible();
     await expect(page.locator('.lecEmpty')).toContainText('No lectures yet');
     await page.setInputFiles('#lecFile', clip);
@@ -24,7 +24,7 @@ test.describe('Lecture library (offline: stored in this browser)', () => {
     await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThan(0);
     expect(Math.round(await video.evaluate((v: HTMLVideoElement) => v.duration))).toBe(2);
     await page.reload();
-    await page.click('#hcLectures');
+    await page.click('#hcPlay'); await page.click('#hcMore'); await page.click('#hcLectures');
     await expect(page.locator('.lecItem')).toHaveCount(1);
     page.once('dialog', (d) => d.accept());
     await page.click('.lecDel');
@@ -33,7 +33,7 @@ test.describe('Lecture library (offline: stored in this browser)', () => {
 
   test('notes: a text précis is added under a course and shown in the library', async ({ page }) => {
     await page.goto('/?reset');
-    await page.click('#hcLectures');
+    await page.click('#hcPlay'); await page.click('#hcMore'); await page.click('#hcLectures');
     await page.setInputFiles('#lecFile', { name: 'manual-lead.txt', mimeType: 'text/plain', buffer: Buffer.from('ZU-23-2 manual lead: set speed, course and range.') });
     await page.fill('#lecTitle', 'Manual lead précis');
     await page.selectOption('#lecTopic', 'On Ground (gun)');
@@ -47,7 +47,7 @@ test.describe('Lecture library (offline: stored in this browser)', () => {
 
   test('typing in the library does not trigger drill shortcuts', async ({ page }) => {
     await page.goto('/?reset');
-    await page.click('#hcLectures'); // the brief is underneath: Enter there would begin a drill
+    await page.click('#hcPlay'); await page.click('#hcMore'); await page.click('#hcLectures'); // the brief is underneath: Enter there would begin a drill
     await page.fill('#lecTitle', 'x');
     await page.press('#lecTitle', 'Enter');
     await expect(page.locator('#fight')).not.toHaveClass(/on/);

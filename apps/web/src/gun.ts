@@ -103,9 +103,15 @@ function pumpRadio() {
 
 // ---------- lobby ----------
 /** First field drill: the simplest gun by day (a ZU-23-2 with its plain ring sight); after that the planner chooses. */
-function startField(gun?: string) {
-  const p = planGun(H, 'field'), first = !H.some((h) => h.game === 'field'), g = gun ?? (first ? 'zu23' : p.cfg.gun);
-  start('field', { ...p.cfg, gun: g, ...(g === 'zu23' && (first || gun) ? { time: 'day' as const } : {}) });
+function startField(gun?: string, easy = false) {
+  const p = planGun(H, 'field'), first = !H.some((h) => h.game === 'field'), g = gun ?? (first ? 'l70' : p.cfg.gun);
+  if (easy || first) {
+    // Easy: day, clear sky, open country, level 1, sensors working, no stoppages or safe arcs, calm air.
+    const { radarFault: _rf, safeArcs: _sa, ...base } = p.cfg;
+    start('field', { ...base, gun: g, time: 'day', terrain: 'rural', weather: 'clear', difficulty: 1, stoppages: false, swarm: false, adw: 'red', wcs: 'tight', met: { ...base.met, wind: [0, 0, 0] } });
+    return;
+  }
+  start('field', { ...p.cfg, gun: g, ...(g === 'zu23' && gun ? { time: 'day' as const } : {}) });
 }
 function lobby() {
   stop(); stopGcs(); stopPatrol();
@@ -129,8 +135,9 @@ function lobby() {
     <div class="gnHead"><h2>Air defence gun drills</h2><button class="smallBtn" id="gnClose">← Home</button></div>
     <p class="gnLead">Pick one drill. <b>New here?</b> Go in order: fire the gun in 3D first, then drive the urban patrol, then crew the gun and run the control room.</p>
     <div class="gnCards gnMain4">
-      <div class="gnField">${card('field', 1, '3D field firing', 'Sit at the gun', 'Search the sky, report each drone, identify it, then fire only when cleared. Your first drill is a ZU-23-2 by day.')}
-        <span class="gnPick">Or pick the gun: ${guns.map((k) => `<button class="smallBtn" data-fgun="${k}">${esc(gunsOf(getConfig()).guns[k].short)}</button>`).join('')}</span></div>
+      <div class="gnField">${card('field', 1, '3D field firing', 'Sit at the gun', 'Search the sky, report each drone, identify it, then fire only when cleared. Your first drill is an easy L-70 by day.')}
+        <span class="gnPick">Easy start: ${['l70', 'zsu234'].filter((k) => guns.includes(k)).map((k) => `<button class="smallBtn solid" data-egun="${k}">${k === 'zsu234' ? 'Shilka' : esc(gunsOf(getConfig()).guns[k].short)} · easy</button>`).join('')}
+          <span class="gnPickOr">or any gun:</span>${['l70', 'zsu234', 'zu23'].filter((k) => guns.includes(k)).map((k) => `<button class="smallBtn" data-fgun="${k}">${esc(gunsOf(getConfig()).guns[k].short)}</button>`).join('')}</span></div>
       <button class="gnCard" id="gnPatrol"><small><span class="gnNum">2</span>Drive and fight${badge('patrol')}</small><b>Urban patrol</b>
         <span>Drive a ZSU-23-4 along a route through an old town. Drones pop up over the rooftops: report, identify, lock and engage only hostiles, without hitting the buildings.</span>
         <em>${pats.length ? `${pats.length} patrols · last ${pats[pats.length - 1].total} · Begin →` : 'Begin →'}</em></button>
@@ -150,6 +157,7 @@ function lobby() {
   $('#gnClose').onclick = closeGun;
   document.querySelectorAll<HTMLElement>('#gunApp [data-game]').forEach((b) => (b.onclick = () => (b.dataset.game === 'field' ? startField() : start(b.dataset.game as GunGame))));
   document.querySelectorAll<HTMLElement>('#gunApp [data-fgun]').forEach((b) => (b.onclick = () => startField(b.dataset.fgun!)));
+  document.querySelectorAll<HTMLElement>('#gunApp [data-egun]').forEach((b) => (b.onclick = () => startField(b.dataset.egun!, true)));
   document.querySelectorAll<HTMLElement>('#gunApp [data-practice]').forEach((b) => (b.onclick = () => startReload(b.dataset.practice!)));
   const pat = document.getElementById('gnPatrol'); if (pat) pat.onclick = () => { stop(); void startPatrol(lobby); };
   const uav = document.getElementById('gnUav'); if (uav) uav.onclick = () => { stop(); startGcs(lobby); };
@@ -727,11 +735,11 @@ function finish(quit: boolean) {
 }
 
 // ---------- open / close / keys ----------
-export function openGun(game?: GunGame | 'patrol') {
+export function openGun(game?: GunGame | 'patrol', opts: { gun?: string; easy?: boolean } = {}) {
   let el = $('#gunApp') as HTMLElement | null;
   if (!el) { el = document.createElement('div'); el.id = 'gunApp'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Air defence gun drills'); document.body.appendChild(el); }
   el.classList.add('on'); open = true; document.body.classList.add('gunOn');
-  if (game === 'patrol') void startPatrol(lobby); else if (game === 'field') startField(); else if (game) start(game); else lobby();
+  if (game === 'patrol') void startPatrol(lobby); else if (game === 'field') startField(opts.gun, opts.easy); else if (game) start(game); else lobby();
 }
 export function closeGun() { closeFeed(); stop(); stopGcs(); stopPatrol(); open = false; $('#gunApp')?.classList.remove('on'); document.body.classList.remove('gunOn'); hooks.showHome?.(); }
 const ORDER_KEYS: Record<string, OrderKind> = { r: 'rangeClear', a: 'alert', t: 'target', m: 'method', f: 'engage', c: 'cease', h: 'hold', u: 'unload', g: 'rangeGreen' };

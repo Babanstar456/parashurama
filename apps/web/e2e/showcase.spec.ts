@@ -32,7 +32,7 @@ test.describe('Showcase demo and phones', () => {
     const width = () => page.evaluate(() => document.documentElement.scrollWidth);
     await page.goto('/?reset');
     expect(await width()).toBeLessThanOrEqual(390);
-    await page.tap('#hcDrill'); await page.tap('#tourEnd');
+    await page.tap('#hcPlay'); await page.tap('#hcMore'); await page.tap('#hcDrill'); await page.tap('#tourEnd');
     expect(await width()).toBeLessThanOrEqual(390);
     await page.tap('#beginBtn');
     await expect(page.locator('#fight')).toHaveClass(/on/);

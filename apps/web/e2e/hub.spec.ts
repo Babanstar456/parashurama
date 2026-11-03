@@ -6,6 +6,12 @@ test.describe('Mission Hub and 3D view', () => {
     await expect(page.locator('#home')).toHaveClass(/on/);
     await expect(page.locator('#tour')).not.toHaveClass(/on/); // the tour waits until a path is chosen
     await expect(page.locator('.homeTitle')).toHaveText('PARASHURAMA');
+    // Only Play at first; the choices come after it, and the rest waits behind More options.
+    await expect(page.locator('#hcL70')).toHaveCount(0);
+    await page.click('#hcPlay');
+    await expect(page.locator('#hcL70')).toBeVisible();
+    await expect(page.locator('#hcDrill')).toBeHidden();
+    await page.click('#hcMore');
     await expect(page.locator('[data-hm]')).toHaveCount(4);
 
     // Quick drill: brief + first-visit tour
@@ -28,13 +34,23 @@ test.describe('Mission Hub and 3D view', () => {
     expect(await page.evaluate(() => (window as any).PARA.live.cfg.weather)).toBe('fog');
   });
 
-  test('keyboard: Enter on the hub starts the Academy (the first step of the path), not a scored drill', async ({ page }) => {
+  test('keyboard: Enter on Play shows the choices (easy L-70 first); nothing starts by itself', async ({ page }) => {
     await page.goto('/?reset');
-    await expect(page.locator('#hcNext')).toBeFocused();
-    await expect(page.locator('.hgStep.now')).toContainText('Learn the basics');
+    await expect(page.locator('#hcPlay')).toBeFocused();
     await page.keyboard.press('Enter');
-    await expect(page.locator('#fight')).toHaveClass(/on/);
-    expect(await page.evaluate(() => document.body.dataset.mode)).toBe('academy');
+    await expect(page.locator('#hcL70')).toBeFocused();
+    await expect(page.locator('#fight')).not.toHaveClass(/on/);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#hcPlay')).toBeVisible();
+  });
+
+  test('the easy L-70 opens a day, clear-sky field drill at level 1 with working sensors', async ({ page }) => {
+    await page.goto('/?reset');
+    await page.click('#hcPlay');
+    await page.click('#hcL70');
+    await expect(page.locator('.gnDrill.field')).toBeVisible();
+    const cfg = await page.evaluate(() => (window as any).PARA_GUN.engine().cfg);
+    expect([cfg.gun, cfg.time, cfg.weather, cfg.difficulty, !!cfg.radarFault]).toEqual(['l70', 'day', 'clear', 1, false]);
   });
 
   test('3D view: present in scored drills, expands with V, minimises', async ({ page }) => {
