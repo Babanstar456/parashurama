@@ -763,3 +763,14 @@ body.gunOn{overflow:hidden}
 .gnPick .gnPickOr{margin:0 4px 0 10px;color:var(--nm)}
 @media (max-width:760px){.hmBig{grid-template-columns:minmax(0,1fr)}.homeMenu{padding:24px 18px}.hb{min-height:0}.hb b{font-size:26px}.hpPlay{padding:16px 40px 16px 22px}.hpPlay b{font-size:28px}}
 .homeMore[hidden]{display:none}
+
+.hmCrumb{display:block;font:600 12px var(--cond);letter-spacing:.12em;text-transform:uppercase;color:#3fa796;margin-bottom:2px}
+.hmBig.two .hb{min-height:240px}
+.hmBig.two .hb b{font-size:38px}
+.hbTag.hard{background:rgba(229,72,77,.2);color:#ff8a8d}
+.hmSmall{margin:22px 0 0;font:400 15px/1.6 var(--body);color:#9fb0bd;text-align:center}
+.hmLink{all:unset;cursor:pointer;color:#e8eef2;text-decoration:underline;text-underline-offset:3px;font-weight:600}
+.hmLink:hover,.hmLink:focus-visible{color:#7fd8c7}
+.hmLink:focus-visible{outline:2px solid #3fa796;outline-offset:2px}
+.hb strong{color:#f2c94c;font-weight:600}
+.hmBack{white-space:nowrap}
