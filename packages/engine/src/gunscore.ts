@@ -204,6 +204,8 @@ export function scoreReload(E: GunEngine): GunScore { return finish('ground', E,
 const classOf = (E: GunEngine, type: string): string => { const t = E.C.threats.threats[type]; return !t ? 'unknown' : t.hostile ? 'hostile' : t.friendly ? 'friendly' : t.civil ? 'civil' : 'other'; };
 /** Weights of the On Ground parts inside the field drill (they add up to 55; V1–V3 add 45). The field drill ends when the
  *  last hostile is down, so making safe (G9) is not part of it. */
+/** V4: points lost when a drone strikes the gun position (attack mode). */
+export const STRUCK_PTS = 40;
 const FIELD_W: Record<string, number> = { G2: 4, G3: 2, G4: 8, G5: 5, G6: 10, G7: 17, G8: 4, G11: 2, G12: 3 };
 /**
  * Field drill (3D): the detachment finds, reports and identifies its own targets, then engages on clearance.
@@ -252,7 +254,14 @@ export function scoreField(E: GunEngine): GunScore {
   const v3 = part('V3', 'Engagement decision', 10, vis.length ? avgOr(dec) : 1, w3);
   const g = scoreGround(E);
   const parts = g.parts.filter((p) => FIELD_W[p.rule]).map((p) => { const max = FIELD_W[p.rule]; return { ...p, max, pts: p.max ? Math.round((max * p.pts) / p.max) : 0 }; });
-  return finish('field', E, [v1, v2, v3, ...parts], g.deductions);
+  // V4 Attack mode: a drone struck the gun position. The drill ended there; the hostiles still to come were never faced.
+  const ded = [...g.deductions];
+  if (E.struck) {
+    const by = E.targets.find((x) => x.id === E.struck!.cid), left = unseen(E);
+    ded.push({ rule: 'V4', label: 'Gun position struck', max: 0, pts: -STRUCK_PTS,
+      why: [`${by ? name(by) : 'A drone'} struck the gun position at ${fmt(S(E, E.struck.tick))}: the detachment is out of action −${STRUCK_PTS}${left ? ` (${left} more hostile${left === 1 ? '' : 's'} never faced)` : ''}`] });
+  }
+  return finish('field', E, [v1, v2, v3, ...parts], ded);
 }
 
 /** Control Room game: the fire-control officer's orders (F1–F8, plus G7 for the result). */

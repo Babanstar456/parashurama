@@ -40,6 +40,8 @@ export function cleanGunCfg(c: any, C: Config): GunDrillConfig {
   const pr = opt(c.practice, (x) => oneOf(x, ['reload'] as const, 'cfg.practice')); if (pr) cfg.practice = pr;
   const si = opt(c.selfId, (x) => !!x); if (si) cfg.selfId = true;
   const sw = opt(c.swarm, (x) => !!x); if (sw) cfg.swarm = true;
+  const at = opt(c.attack, (x) => !!x); if (at) cfg.attack = true;
+  const lo = opt(c.leadOnly, (x) => !!x); if (lo) cfg.leadOnly = true;
   if (c.safeArcs != null) {
     if (!Array.isArray(c.safeArcs) || c.safeArcs.length > 4) throw new BadRequest('cfg.safeArcs must be a list of at most 4 arcs');
     cfg.safeArcs = c.safeArcs.map((a: any, i: number) => [num(a?.[0], 0, 360, `cfg.safeArcs[${i}][0]`), num(a?.[1], 0, 360, `cfg.safeArcs[${i}][1]`)] as [number, number]);

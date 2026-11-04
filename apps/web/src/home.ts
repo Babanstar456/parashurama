@@ -25,6 +25,7 @@ function playHtml(): string {
     <div class="homeKicker">Smart India Hackathon 2026 · SIH26247 · Ministry of Defence</div>
     <h1 class="homeTitle">PARASHURAMA</h1>
     <p class="homeTag">Train every soldier to stop hostile drones.<br><span>On any laptop. Even offline.</span></p>
+    <div class="hpMulti"><i>MULTIPLAYER</i><span>Crew drills over your unit network · push-to-talk radio</span></div>
     <div class="hpRow">
       <button class="hpPlay" id="hcPlay" aria-label="Play"><i aria-hidden="true">▶</i><b>Play</b></button>
       <button class="hpPlay hpLearn" id="hcLearn" aria-label="Learn: open the classroom"><i aria-hidden="true">📖</i><b>Learn</b></button>
@@ -71,7 +72,7 @@ function stageHtml(): string {
       { id: 'hcL70', tag: 'Easy', tagCls: 'easy', title: 'L-70 gun', body: 'The thermal sight and laser rangefinder track the drone and work out the lead for you.', done: byGun('l70').length > 0, foot: lastOf(byGun('l70')) },
       { id: 'hcZsu', tag: 'Easy', tagCls: 'easy', title: 'Shilka (ZSU-23-4)', body: 'The radar locks on and lays the four guns for you. You report, identify and fire.', done: byGun('zsu234').length > 0, foot: lastOf(byGun('zsu234')) },
       { id: 'hcPatrol', tag: 'Medium', tagCls: 'medium', title: 'Urban patrol', body: 'Drive the Shilka through an old town. Drones pop up over the rooftops: engage only hostiles.', done: pats.length > 0, foot: lastOf(pats) },
-      { id: 'hcZu', tag: 'Harder', tagCls: 'hard', title: 'ZU-23-2 gun', body: 'A manual sight: you set the lead yourself. Try it after the L-70 and the Shilka.', done: byGun('zu23').length > 0, foot: lastOf(byGun('zu23')) },
+      { id: 'hcZu', tag: 'Medium', tagCls: 'medium', title: 'ZU-23-2 (upgraded)', body: 'The upgraded twin gun: day camera, thermal imager, laser rangefinder and a digital fire-control computer. Old manual sight under More gun drills.', done: byGun('zu23m').length > 0, foot: lastOf(byGun('zu23m')) },
     ], '<p class="hmSmall"><button class="hmLink" id="hcGun">More gun drills</button>: crew the gun on orders, run the control room, reload practice, UAV strike.</p>');
   }
   if (stage === 'radar') {
@@ -143,7 +144,7 @@ function render() {
   on('hcMissions', to('missions'));
   on('hcL70', go(() => hooks.openGun?.('field', { gun: 'l70', easy: true })));
   on('hcZsu', go(() => hooks.openGun?.('field', { gun: 'zsu234', easy: true })));
-  on('hcZu', go(() => hooks.openGun?.('field', { gun: 'zu23', easy: true })));
+  on('hcZu', go(() => hooks.openGun?.('field', { gun: 'zu23m', easy: true })));
   on('hcPatrol', go(() => hooks.openGun?.('patrol')));
   on('hcGun', go(() => hooks.openGun?.()));
   on('hcAcademy', () => { const done = new Set<number>(app.DB.academy?.done ?? []); const nx = LESSONS.find((l) => !done.has(l.n)) ?? LESSONS[0]; closeHome(); markTourSeen(); startLesson(nx.n); });

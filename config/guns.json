@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "note": "Training values from public nominal figures, not equipment specifications. DSSC to confirm.",
   "ammo": {
     "hei": {
@@ -25,6 +25,21 @@
       "slewDegS": { "az": 40, "el": 30 }, "elevDeg": [-10, 90], "effRangeM": 2500, "dispMil": 1.6,
       "heatPerRound": 1, "coolPerSec": 4, "heatLimit": 220, "stoppageP": 0.004,
       "sightFovDeg": 12,
+      "reload": [
+        { "id": "cover", "label": "Open the feed cover", "sec": 1.5 },
+        { "id": "box", "label": "Fit a full ammunition box", "sec": 3 },
+        { "id": "belt", "label": "Lay the belt on the feed tray", "sec": 3 },
+        { "id": "close", "label": "Close the feed cover", "sec": 1 },
+        { "id": "cock", "label": "Cock the gun (charging handle)", "sec": 2 }
+      ]
+    },
+    "zu23m": {
+      "label": "ZU-23-2 upgraded (EO/IR, laser rangefinder, digital fire control)", "short": "ZU-23-2 EO", "sight": "eo", "model": "zu23",
+      "barrels": 2, "rpmPerBarrel": 1800, "beltRounds": 50, "ammo": "hei",
+      "slewDegS": { "az": 40, "el": 30 }, "elevDeg": [-10, 90], "effRangeM": 2500, "dispMil": 1.6,
+      "heatPerRound": 1, "coolPerSec": 4, "heatLimit": 220, "stoppageP": 0.004,
+      "sightFovDeg": 8,
+      "eo": { "acquireRangeM": 5500, "lockSec": 2, "trackNoiseMil": 0.35, "faultP": 0 },
       "reload": [
         { "id": "cover", "label": "Open the feed cover", "sec": 1.5 },
         { "id": "box", "label": "Fit a full ammunition box", "sec": 3 },

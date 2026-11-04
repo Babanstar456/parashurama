@@ -46,11 +46,19 @@ export interface GunDrillConfig {
   selfId?: boolean;
   /** Field drill: force a swarm attack (otherwise from difficulty 3, at random). */
   swarm?: boolean;
+  /** Field drill: attack drones dive on the gun position instead of passing over it, and a strike ends the drill (rule V4).
+   *  Payload droppers stay up and bomb the position when they get overhead. Missing = false (drones pass over, as before). */
+  attack?: boolean;
+  /** Fire control gives the lead only: a lock tracks the target and computes where to aim (E.fcs), but never lays the
+   *  gun; the layer keeps the handwheels (or the mouse) and puts the barrel on the lead. Missing = false (a lock lays the
+   *  gun, as before). */
+  leadOnly?: boolean;
 }
 export type TargetState = 'pending' | 'live' | 'destroyed' | 'leaked' | 'gone';
 export interface GunTarget {
   id: number; type: string; hostile: boolean; spawnTick: number; p0: Vec3; v: Vec3; weave: number; hoverAtSec: number | null;
   /** Fixed-wing surveillance: after hoverAtSec, circle the gun at this radius (m). */ orbitR: number | null;
+  /** Attack mode: dives on the gun (true), or bombs it from overhead ('drop'). Missing = passes over, as before. */ dive?: boolean | 'drop';
   state: TargetState; hits: number; endTick: number | null; designatedTick: number | null;
 }
 export interface Round { i: number; tick: number; t0: number; az: number; el: number; mv: number; cid: number | null; miss: number; tau: number; hit: boolean; authorised: boolean; dud: boolean; }
@@ -78,10 +86,14 @@ export interface GunEngine {
   rounds: Round[]; bursts: Burst[]; pending: { tick: number; cid: number }[]; ev: GunEvent[]; fcs: AimSolution | null;
   /** Field drill: tick each target first became visible to the detachment, tick it was reported, and every identification. */
   seen: Record<number, number>; spots: Record<number, number>; idents: { tick: number; cid: number; cls: string }[];
+  /** Attack mode: tick a drone struck the gun position, and which one (null while the detachment is unhurt). */
+  struck?: { tick: number; cid: number } | null;
 }
 
 const MIL = 180 / Math.PI / 1000; // 1 mil (milliradian) in degrees
 const HORIZON_M = 4500;
+/** Attack mode: the shortest dive (m out from the gun), the height a diving drone strikes at, and the strike radius. */
+const DIVE_MIN_M = 250, STRIKE_H = 2, STRIKE_M = 15;
 
 /** Target position at absolute time t (s). Straight flight, optional weave, optional hover at a stand-off point. */
 export function targetPos(T: GunTarget, t: number, dt: number): Vec3 {
@@ -93,7 +105,10 @@ export function targetPos(T: GunTarget, t: number, dt: number): Vec3 {
   }
   if (T.hoverAtSec != null) s = Math.min(s, T.hoverAtSec);
   const p: Vec3 = [T.p0[0] + T.v[0] * s, T.p0[1] + T.v[1] * s, T.p0[2] + T.v[2] * s];
-  if (T.weave) { const sp = Math.hypot(T.v[0], T.v[1]) || 1, w = T.weave * Math.sin(s * 0.9); p[0] += (-T.v[1] / sp) * w; p[1] += (T.v[0] / sp) * w; }
+  // Attack mode: a terminal dive onto the gun from about twice its height out (about 27°); the weave tightens as it closes.
+  const h = T.dive === true ? Math.hypot(p[0], p[1]) : Infinity, close = Math.min(1, h / Math.max(DIVE_MIN_M, T.p0[2] * 2));
+  if (T.weave) { const sp = Math.hypot(T.v[0], T.v[1]) || 1, w = T.weave * Math.sin(s * 0.9) * Math.min(1, h / 150); p[0] += (-T.v[1] / sp) * w; p[1] += (T.v[0] / sp) * w; }
+  if (close < 1) p[2] = STRIKE_H + (T.p0[2] - STRIKE_H) * close * close * (3 - 2 * close);
   return p;
 }
 /** Observed velocity: averaged over the last `win` seconds, as a gunner's eye or a radar tracker smooths a weaving track. */
@@ -275,13 +290,20 @@ function spawn(E: GunEngine, sp: GunSpawn): void {
   const ty = E.C.threats.threats[sp.type], a = (sp.brg * Math.PI) / 180;
   const p0: Vec3 = [Math.sin(a) * sp.dist, Math.cos(a) * sp.dist, sp.alt];
   // Aim at a point `passM` to the side of the gun (0 = straight at it).
-  const aim: Vec3 = [Math.cos(a) * sp.passM, -Math.sin(a) * sp.passM, sp.alt];
+  const atk = attackDive(E, sp.type);
+  const aim: Vec3 = atk === true ? [0, 0, sp.alt] : [Math.cos(a) * sp.passM, -Math.sin(a) * sp.passM, sp.alt];
   const d = Math.hypot(aim[0] - p0[0], aim[1] - p0[1]), speed = ty.speed;
   const v: Vec3 = [((aim[0] - p0[0]) / d) * speed, ((aim[1] - p0[1]) / d) * speed, 0];
   const stand = ty.motion === 'approachHover' ? (ty.hoverRangeM?.[0] ?? 900) : ty.motion === 'surveil' ? (ty.orbitRadiusM?.[0] ?? 1400) : null;
   const hover = stand != null && ty.hostile ? Math.max(0, (sp.dist - stand) / speed) : null;
   E.targets.push({ id: E.targets.length + 1, type: sp.type, hostile: ty.hostile, spawnTick: E.tick, p0, v, weave: ty.motion === 'weave' || (E.cfg.selfId && ty.motion === 'wander') ? 12 : 0,
-    hoverAtSec: hover, orbitR: ty.motion === 'surveil' && stand != null ? stand : null, state: 'live', hits: 0, endTick: null, designatedTick: null });
+    hoverAtSec: hover, orbitR: ty.motion === 'surveil' && stand != null ? stand : null, state: 'live', hits: 0, endTick: null, designatedTick: null, ...(atk ? { dive: atk } : {}) });
+}
+/** Attack mode (field drill only): attackers dive on the gun, payload droppers bomb it from overhead, surveillance types stand off. */
+function attackDive(E: GunEngine, type: string): boolean | 'drop' | undefined {
+  const ty = E.C.threats.threats[type];
+  if (!E.cfg.attack || !E.cfg.selfId || !ty?.hostile || ty.motion === 'approachHover' || ty.motion === 'surveil') return undefined;
+  return ty.payload ? 'drop' : true;
 }
 
 function fire(E: GunEngine): void {
@@ -347,8 +369,9 @@ export function stepGun(E: GunEngine, acts: GunAction[]): void {
   // Laying: coarse lay on a designated target, powered radar laying on a lock, or the layer's handwheels.
   const sAz = gun.slewDegS.az * E.dt, sEl = gun.slewDegS.el * E.dt;
   let wantAz: number | null = null, wantEl: number | null = null;
-  if (gun.sight !== 'manual' && !E.cfg.radarFault && g.lockCid != null) { E.fcs = sightSolution(E, E.fcs); if (E.fcs?.ok) { wantAz = E.fcs.az; wantEl = E.fcs.el; } }
-  else if (g.layCid != null) { const T = tgt(E, g.layCid); if (T && T.state === 'live') { const L = losOf(targetPos(T, t, E.dt)); wantAz = L.az; wantEl = L.el; } else g.layCid = null; }
+  const fcsOn = gun.sight !== 'manual' && !E.cfg.radarFault && g.lockCid != null;
+  if (fcsOn) { E.fcs = sightSolution(E, E.fcs); if (E.fcs?.ok && !E.cfg.leadOnly) { wantAz = E.fcs.az; wantEl = E.fcs.el; } }
+  if ((!fcsOn || E.cfg.leadOnly) && g.layCid != null) { const T = tgt(E, g.layCid); if (T && T.state === 'live') { const L = losOf(targetPos(T, t, E.dt)); wantAz = L.az; wantEl = L.el; } else g.layCid = null; }
   if (wantAz != null && wantEl != null) {
     const dA = angDiff(wantAz, g.az), dE = wantEl - g.el;
     g.az = (g.az + clamp(dA, -sAz, sAz) + 360) % 360; g.el += clamp(dE, -sEl, sEl);
@@ -368,7 +391,12 @@ export function stepGun(E: GunEngine, acts: GunAction[]): void {
   const R0 = E.C.training.sim.assetRadiusM;
   for (const T of live(E)) {
     const p = targetPos(T, t, E.dt), h = Math.hypot(p[0], p[1]);
-    if (T.hostile && h < R0) { T.state = 'leaked'; T.endTick = E.tick; E.ev.push({ tick: E.tick, k: 'leaked', cid: T.id }); }
+    if (T.dive && (T.dive === true ? h < STRIKE_M && p[2] < STRIKE_H + 10 : h < R0)) {
+      T.state = 'leaked'; T.endTick = E.tick; E.ev.push({ tick: E.tick, k: 'leaked', cid: T.id });
+      if (!E.struck) { E.struck = { tick: E.tick, cid: T.id }; E.ev.push({ tick: E.tick, k: 'gunStruck', cid: T.id }); }
+    }
+    else if (T.dive) { if (h > HORIZON_M + 200) { T.state = 'gone'; T.endTick = E.tick; } }
+    else if (T.hostile && h < R0) { T.state = 'leaked'; T.endTick = E.tick; E.ev.push({ tick: E.tick, k: 'leaked', cid: T.id }); }
     else if (h > HORIZON_M + 200) { T.state = 'gone'; T.endTick = E.tick; }
     else if (!T.hostile) { const s = t - T.spawnTick * E.dt; if (s > 2 && h > Math.hypot(T.p0[0], T.p0[1]) + 50) { T.state = 'gone'; T.endTick = E.tick; } }
   }
@@ -390,6 +418,8 @@ export const engageRange = (E: GunEngine, T: GunTarget): number => Math.min(E.gu
 /** Drill over: every target resolved, cease fire given, and the gun unloaded and reported (or time is up). */
 export function gunDone(E: GunEngine): boolean {
   if (E.tick >= gunMaxTicks(E)) return true;
+  // Attack mode: the gun position was hit. The drill ends 3 s later (time for the strike to be seen).
+  if (E.struck) return E.tick >= E.struck.tick + sec(E, 3);
   if (E.cfg.practice === 'reload') return E.reloads.filter((r) => r.end != null).length >= RELOAD_REPS;
   // Field drill: over 3 s after the last hostile is destroyed (or gets through); the friendly and the bird do not count.
   if (E.cfg.selfId) {

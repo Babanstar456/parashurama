@@ -7,7 +7,7 @@ test.describe('Air defence gun drills', () => {
     await page.click('#hcGun');
     await expect(page.locator('#gunApp')).toHaveClass(/on/);
     await expect(page.locator('[data-game=control]')).toBeVisible();
-    await expect(page.locator('[data-game=ground]')).toBeVisible();
+    await expect(page.locator('[data-game=ground]')).toHaveCount(0); // On Ground removed from the lobby (still at ?gun=ground)
   });
 
   test('On Ground: a drill plays to a verified debrief and does not touch the radar history', async ({ page }) => {
