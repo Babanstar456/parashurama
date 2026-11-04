@@ -809,3 +809,14 @@ body.gunOn{overflow:hidden}
 @keyframes micPulse{0%{box-shadow:0 0 0 0 rgba(198,47,53,.6)}100%{box-shadow:0 0 0 16px rgba(198,47,53,0)}}
 @media (prefers-reduced-motion:reduce){#micBtn.on{animation:none}}
 @media (max-width:520px){#micInfo{display:none}#micBtn{width:44px;height:44px}.homeFoot{padding-bottom:64px}}
+
+/* Field drill coach: one instruction at a time over the 3D view */
+#gnCoach{position:absolute;top:78px;left:50%;transform:translateX(-50%);z-index:5;width:min(560px,calc(100% - 32px));box-sizing:border-box;padding:12px 16px 14px;border-radius:10px;background:rgba(8,14,18,.86);border:1px solid rgba(242,201,76,.55);box-shadow:0 8px 24px rgba(0,0,0,.45);color:#e8eef2;pointer-events:none;text-align:center}
+#gnCoach small{display:block;font:700 11px var(--cond);letter-spacing:.14em;color:#f2c94c;margin-bottom:4px}
+#gnCoach b{display:block;font:700 24px/1.15 var(--cond);letter-spacing:.02em}
+#gnCoach span{display:block;margin-top:6px;font:500 14px/1.4 var(--body);color:#b9c7d0}
+#gnCoach kbd{display:inline-block;min-width:1.4em;padding:1px 7px;margin:0 2px;border-radius:5px;background:#f2c94c;color:#0b0f12;font:700 .9em var(--cond);box-shadow:0 2px 0 #9b7d22}
+#gnCoach.done{border-color:#3cff7a}#gnCoach.done small{color:#3cff7a}
+.gnCoachBar{display:block;height:4px;margin-top:10px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}
+.gnCoachBar em{display:block;height:100%;background:#f2c94c;transition:width .3s}
+#gnCoach.done .gnCoachBar em{background:#3cff7a}

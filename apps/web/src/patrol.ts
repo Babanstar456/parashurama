@@ -55,7 +55,7 @@ export async function startPatrol(onExit: () => void, cfg?: PatrolCfg) {
       <span class="gnClock num" id="ptClock">0:00</span><button class="smallBtn" id="ptQuit">End drill</button></div>
     <div class="gnMain" id="ptMain"><div class="ptLoad" id="ptLoad">Loading the town…</div></div>
     <aside class="gnSide"><div class="gnBox" id="ptObj"></div><div class="gnBox" id="ptId"></div><div class="gnBox gnRadioBox"><h4>Radio net</h4><div class="gnRadio" id="ptRadio"></div></div>
-      <div class="gnBox"><p class="gnHelp"><kbd>W</kbd><kbd>S</kbd> throttle · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> crawl · mouse lays the turret · <kbd>Space</kbd>/left button fire · right button gunner's sight · <kbd>Q</kbd> radar lock · <kbd>E</kbd> report contact in the middle · <kbd>1</kbd>–<kbd>0</kbd> identify · <kbd>/</kbd> Unknown · <kbd>Tab</kbd> next contact · <kbd>R</kbd> reload · <kbd>V</kbd> camera · <kbd>Esc</kbd> release the mouse</p>
+      <div class="gnBox"><p class="gnHelp"><kbd>W</kbd><kbd>S</kbd> throttle · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> crawl · mouse lays the turret · left click fire · right button gunner's sight · <kbd>Q</kbd> radar lock · <kbd>E</kbd> report contact in the middle · <kbd>1</kbd>–<kbd>0</kbd> identify · <kbd>/</kbd> Unknown · <kbd>Tab</kbd> next contact · <kbd>R</kbd> reload · <kbd>V</kbd> camera · <kbd>Esc</kbd> release the mouse</p>
       <p class="gnNote">Town: a snippet of the PROJECT REALISM city. Vehicle, gun and drone values are training values, not equipment specifications.</p></div></aside></div>`;
   ($('#ptQuit') as HTMLElement).onclick = () => finish(true);
   let E: PatrolEngine;
@@ -255,7 +255,7 @@ async function mountView(host: HTMLElement, E0: PatrolEngine, lite: boolean): Pr
   const cv = renderer.domElement; cv.className = 'fdGl';
   const hud = document.createElement('canvas'); hud.className = 'fdHud';
   const tip = document.createElement('div'); tip.className = 'fdTip';
-  tip.innerHTML = '<b>Click to take command</b><span>W/S throttle · A/D steer · mouse lays the turret · Space or left button fire · right button sight · Q lock · E report · V camera · Esc releases the mouse</span>';
+  tip.innerHTML = '<b>Click to take command</b><span>W/S throttle · A/D steer · mouse lays the turret · left click fire · right button sight · Q lock · E report · V camera · Esc releases the mouse</span>';
   host.append(cv, hud, tip);
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(65, 1, 0.1, 9000);
   const sky = await hdr(night ? 'night' : wx === 'clear' ? 'day' : wx === 'rain' ? 'overcast' : wx);
