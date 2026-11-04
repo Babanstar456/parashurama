@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  controlRoomAI, createGun, defaultConfig, defaultGunCfg, detectRangeM, driveGun, gunCrewAI, observeGun, planGun, runGun, scoreField, validateConfig,
+  controlRoomAI, createGun, defaultConfig, defaultGunCfg, detectRangeM, driveGun, gunCrewAI, observeGun, planGun, runGun, scoreField, stepGun, STRUCK_PTS, targetPos, validateConfig,
   type Config, type GunAction, type GunDrillConfig, type GunEngine,
 } from '../src';
 
@@ -123,6 +123,84 @@ describe('field drill (V rules)', () => {
     delete old.guns!.detect; for (const r of ['V1', 'V2', 'V3']) delete old.doctrine.rules[r];
     expect(validateConfig(old).ok).toBe(true);
     expect(scoreField(play(field({ seed: 1, gun: 'l70' })).E).total).toBeGreaterThan(0);
+  });
+  it('attack mode: attack drones dive on the gun; an idle detachment is struck, the drill ends, and V4 costs 40', () => {
+    const T = defaultConfig.threats.threats;
+    for (const seed of [1, 2, 3]) {
+      const cfg = field({ seed, gun: 'l70', attack: true }), E = createGun(cfg);
+      driveGun(E, []);
+      expect(E.struck).toBeTruthy();
+      const by = E.targets.find((t) => t.id === E.struck!.cid)!;
+      expect(T[by.type].hostile).toBe(true);
+      expect(E.tick - E.struck!.tick).toBeLessThanOrEqual(31);
+      const s = scoreField(E);
+      expect(s.deductions.find((d) => d.rule === 'V4')!.pts).toBe(-STRUCK_PTS);
+      expect(s.rules).toContain('V4');
+    }
+    // Without attack mode the same drill is unchanged: nothing strikes the gun.
+    const E0 = createGun(field({ seed: 1, gun: 'l70' })); driveGun(E0, []);
+    expect(E0.struck ?? null).toBe(null);
+    expect(E0.targets.some((t) => t.dive)).toBe(false);
+  });
+  it('attack mode: diving drones come down onto the gun; stand-off types still stand off', () => {
+    const E = createGun(field({ seed: 4, gun: 'zsu234', attack: true, swarm: true })); driveGun(E, [controlRoomAI, crew]);
+    const T = defaultConfig.threats.threats;
+    for (const t of E.targets) {
+      if (!t.dive) { expect(!T[t.type].hostile || ['approachHover', 'surveil'].includes(T[t.type].motion) || !!t.dive).toBe(true); continue; }
+      if (t.dive !== true) continue;
+      const far = targetPos(t, t.spawnTick * E.dt, E.dt), near = targetPos(t, t.spawnTick * E.dt + Math.hypot(t.p0[0], t.p0[1]) / Math.hypot(t.v[0], t.v[1]) - 0.1, E.dt);
+      expect(near[2]).toBeLessThan(far[2]);
+      expect(Math.hypot(near[0], near[1])).toBeLessThan(15);
+    }
+  });
+  it('attack mode is deterministic and the expert detachment usually survives it', () => {
+    let survived = 0, n = 0;
+    for (const gun of ['zsu234', 'l70']) for (let seed = 1; seed <= 6; seed++) {
+      const cfg = field({ seed, gun, attack: true, difficulty: 1 }), { E, log } = play(cfg);
+      const R = runGun(cfg, { actions: log, until: E.tick });
+      expect(JSON.stringify(R.targets)).toBe(JSON.stringify(E.targets));
+      expect(scoreField(R).total).toBe(scoreField(E).total);
+      n++; if (!E.struck) survived++;
+    }
+    console.log(`EVIDENCE field drill attack mode, expert detachment, difficulty 1: survived ${survived}/${n}`);
+    expect(survived / n).toBeGreaterThanOrEqual(0.75);
+  });
+  it('upgraded ZU-23-2 (zu23m): EO/IR sight with lock, the ZU model and ballistics; the planner never picks it on its own', () => {
+    const G = defaultConfig.guns!.guns;
+    expect(G.zu23m.sight).toBe('eo'); expect(G.zu23m.model).toBe('zu23'); expect(G.zu23m.ammo).toBe(G.zu23.ammo);
+    const totals: number[] = [];
+    for (let seed = 1; seed <= 5; seed++) {
+      const { E } = play(field({ seed, gun: 'zu23m', attack: true, difficulty: 1 }));
+      expect(E.bursts.filter((b) => b.authorised).every((b) => b.locked)).toBe(true);
+      totals.push(scoreField(E).total);
+    }
+    console.log(`EVIDENCE field drill upgraded ZU-23-2 (EO/IR), expert detachment, difficulty 1, attack mode: scores ${totals.join(', ')}`);
+    expect(planGun([], 'field').cfg.gun).not.toBe('zu23m');
+  });
+  it('lead-only fire control: a lock computes the lead but never lays the gun; old configs still lay it', () => {
+    for (const leadOnly of [true, false]) {
+      const E = createGun(field({ seed: 3, gun: 'zsu234', leadOnly }));
+      // Post and wait for a contact, then lock it and do nothing else.
+      const near = () => E.targets.find((t) => t.state === 'live' && t.hostile && Math.hypot(...targetPos(t, E.tick * E.dt, E.dt)) < 1800);
+      let T; while (!(T = near()) && E.tick < 3000) stepGun(E, E.tick === 0 ? [{ k: 'post', seat: 'gun' } as GunAction] : []);
+      stepGun(E, [{ k: 'lock', cid: T!.id, seat: 'gun' } as GunAction]);
+      const az0 = E.g.az, el0 = E.g.el;
+      for (let i = 0; i < 60; i++) stepGun(E, []);
+      expect(E.fcs?.ok).toBe(true);
+      const moved = Math.abs(E.g.az - az0) + Math.abs(E.g.el - el0);
+      if (leadOnly) expect(moved).toBe(0); else expect(moved).toBeGreaterThan(0.5);
+    }
+  });
+  it('lead-only fire control: the expert lays on the lead itself, deterministically, on every fire-control gun', () => {
+    const totals: number[] = [];
+    for (const gun of ['zsu234', 'l70', 'zu23m']) for (let seed = 1; seed <= 4; seed++) {
+      const cfg = field({ seed, gun, leadOnly: true, attack: true, difficulty: 1 }), { E, log } = play(cfg);
+      const R = runGun(cfg, { actions: log, until: E.tick });
+      expect(scoreField(R).total).toBe(scoreField(E).total);
+      totals.push(scoreField(E).total);
+    }
+    console.log(`EVIDENCE field drill lead-only fire control, expert, difficulty 1, attack mode (ZSU-23-4, L70, ZU-23-2 EO x4): ${totals.join(', ')}`);
+    expect(totals.filter((t) => t >= defaultConfig.training.certification.passMark).length / totals.length).toBeGreaterThanOrEqual(0.7);
   });
   it('EVIDENCE: field drill, expert detachment on each gun (10 drills each, difficulty 4, mixed conditions)', () => {
     const conds = [['day', 'rural', 'clear'], ['day', 'urban', 'clear'], ['day', 'urban', 'rain'], ['night', 'rural', 'clear'], ['day', 'rural', 'dust']] as const;

@@ -286,10 +286,12 @@ async function mountView(host: HTMLElement, E0: PatrolEngine, lite: boolean): Pr
 
   // ---------- drones, cars, effects ----------
   const droneLib = await gltf('models/drones.glb'), dot = dotTexture();
+  // Detailed models where they exist (tools/blender/import_drones.py); otherwise the built-in shapes.
+  const better: Record<string, THREE.Group | null> = { fpv: await gltf('models/drone_fpv.glb'), swarm: await gltf('models/drone_swarm.glb'), male: await gltf('models/drone_male.glb') };
   interface Vis { g: THREE.Object3D; props: THREE.Object3D[]; speck: THREE.Sprite; fall?: { t0: number; p: THREE.Vector3; v: THREE.Vector3 } }
   const vis = new Map<number, Vis>();
   const droneOf = (type: string): THREE.Object3D => {
-    const s = droneLib?.getObjectByName(`drone_${type}`) ?? droneLib?.getObjectByName('drone_fpv');
+    const s = better[type]?.getObjectByName(`drone_${type}`) ?? droneLib?.getObjectByName(`drone_${type}`) ?? droneLib?.getObjectByName('drone_fpv');
     if (s) { const c = s.clone(true); c.position.set(0, 0, 0); return c; }
     return new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.15, 0.4), new THREE.MeshStandardMaterial({ color: 0x333333 }));
   };

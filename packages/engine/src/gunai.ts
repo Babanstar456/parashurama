@@ -131,7 +131,20 @@ export function gunCrewAI(E: GunEngine, skill: CrewSkill = { ackSec: 1 }): GunAc
   const radar = gun.sight !== 'manual' && !E.cfg.radarFault;
   if (T && T.state === 'live') {
     const L = losOf(targetPos(T, now(E), E.dt));
-    if (radar) { if (g.lockCid !== T.id && L.range <= (fcsOf(gun)?.acquireRangeM ?? 0)) a({ k: 'lock', cid: T.id }); }
+    if (radar) {
+      if (g.lockCid !== T.id && L.range <= (fcsOf(gun)?.acquireRangeM ?? 0)) a({ k: 'lock', cid: T.id });
+      if (E.cfg.leadOnly) {
+        // Lead-only fire control: the layer lays on the target, then holds the barrel on the computed lead.
+        const far = Math.hypot(angDiff(L.az, g.az), L.el - g.el) > gun.sightFovDeg / 2 - 1;
+        if (far && g.layCid !== T.id) a({ k: 'lay', cid: T.id });
+        // This tick's fire-control solution (what the display shows the layer), so the barrel lands on the lead.
+        const sol = g.lockCid === T.id ? sightSolution(E, E.fcs) : null;
+        if (!far && g.layCid == null && sol?.ok) {
+          const rAz = clamp(angDiff(sol.az, g.az) / (gun.slewDegS.az * E.dt), -1, 1), rEl = clamp((sol.el - g.el) / (gun.slewDegS.el * E.dt), -1, 1);
+          if (Math.abs(rAz - g.rAz) > 1e-3 || Math.abs(rEl - g.rEl) > 1e-3) a({ k: 'slew', az: +rAz.toFixed(4), el: +rEl.toFixed(4) });
+        }
+      }
+    }
     else {
       const far = Math.hypot(angDiff(L.az, g.az), L.el - g.el) > gun.sightFovDeg / 2 - 1;
       if (far && g.layCid !== T.id) a({ k: 'lay', cid: T.id });

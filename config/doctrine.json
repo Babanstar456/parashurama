@@ -1,5 +1,5 @@
 {
-  "version": "1.6.0",
+  "version": "1.7.0",
   "rules": {
     "D1": "Detection: full marks within 3 s of the first radar paint, zero at 20 s.",
     "C1": "Identification: correct = 18 + 12 × confidence; wrong = 10 × (1 − confidence), +5 if friend/foe was right.",
@@ -44,6 +44,7 @@
     "V1": "Field drill: report every air contact quickly once it can be seen (or held on the gun's own radar or thermal sight).",
     "V2": "Field drill: identify each contact correctly (type, and hostile or not); say unknown rather than guess.",
     "V3": "Field drill: engage every hostile you identify; never fire on a friendly aircraft, a civil drone or a bird.",
+    "V4": "Field drill (attack mode): stop each attack drone before it reaches the gun; a strike on the gun position puts the detachment out of action and ends the drill.",
     "U1": "UAV: complete the pre-flight checks before asking for take-off clearance.",
     "U2": "UAV: take off only with clearance from range control.",
     "U3": "UAV: stay inside the safe corridor and geofence.",

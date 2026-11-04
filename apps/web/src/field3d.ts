@@ -30,6 +30,8 @@ export interface FieldView {
   /** The visible target nearest the middle of the view (for the report key). */ centreTarget: (E: GunEngine) => number | null;
   /** Point the view (demo and test automation). */ look: (az: number, el: number, binoculars?: boolean, sight?: boolean) => void;
   /** Thermal sight: white-hot / black-hot. */ polarity: () => void;
+  /** The trainee pulled the mouse hard while the fire control was laying the gun: take manual control (once per pull). */
+  overrideLock: () => boolean;
   /** Renderer statistics of the last frame (performance checks). */ info: () => { calls: number; triangles: number; ms: number };
   dispose: () => void;
 }
@@ -122,6 +124,9 @@ function fallbackGun(): THREE.Group {
 export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCallbacks, lite: boolean): Promise<FieldView> {
   const C = getConfig(), cfg = E0.cfg, night = cfg.time === 'night', urban = cfg.terrain === 'urban', wx = cfg.weather ?? 'clear', wfx = weatherFx(C, wx);
   const gunDef = E0.gun, thermalSight = gunDef.sight === 'eo' && !cfg.radarFault, radarSight = gunDef.sight === 'radar' && !cfg.radarFault;
+  // Digital fire-control suite (TV + thermal cameras, laser rangefinder, video tracker on a flat screen): the modernised
+  // ZSU-23-4 and the upgraded ZU-23-2 (zu23m). The L70 keeps its thermal-only fire-control monitor.
+  const digital = radarSight || (cfg.gun === 'zu23m' && thermalSight);
   const rng = mulberry(cfg.seed * 31 + 7);
   const renderer = new THREE.WebGLRenderer({ antialias: !lite, powerPreference: 'high-performance' });
   renderer.setPixelRatio(lite ? 0.8 : Math.min(1.5, devicePixelRatio));
@@ -330,10 +335,12 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
 
   // ---------- drones ----------
   const droneLib = await gltf('models/drones.glb');
-  interface Vis { g: THREE.Object3D; props: THREE.Object3D[]; wings: THREE.Object3D[]; speck: THREE.Sprite; mats: THREE.MeshStandardMaterial[]; fall?: { t0: number; p: THREE.Vector3; v: THREE.Vector3 } }
+  // Detailed models where they exist (tools/blender/import_drones.py); otherwise the built-in shapes from drones.py.
+  const better: Record<string, THREE.Group | null> = { fpv: await gltf('models/drone_fpv.glb'), swarm: await gltf('models/drone_swarm.glb'), male: await gltf('models/drone_male.glb') };
+  interface Vis { g: THREE.Object3D; props: THREE.Object3D[]; wings: THREE.Object3D[]; speck: THREE.Sprite; mats: THREE.MeshStandardMaterial[]; r: number; fall?: { t0: number; p: THREE.Vector3; v: THREE.Vector3 } }
   const vis = new Map<number, Vis>(), dot = dotTexture();
   const droneOf = (type: string): THREE.Object3D => {
-    const src = droneLib?.getObjectByName(`drone_${type}`) ?? droneLib?.getObjectByName('drone_fpv');
+    const src = better[type]?.getObjectByName(`drone_${type}`) ?? droneLib?.getObjectByName(`drone_${type}`) ?? droneLib?.getObjectByName('drone_fpv');
     if (src) { const c = src.clone(true); c.position.set(0, 0, 0); c.traverse((o) => { const mm = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined; if (mm) (o as THREE.Mesh).material = mm.clone(); }); return c; }
     return new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.15, 0.4), new THREE.MeshStandardMaterial({ color: 0x333333 }));
   };
@@ -371,6 +378,12 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
   const aim = { az: E0.g.az, el: Math.max(5, E0.g.el) }, ext = { th: 0.7, ph: 1.15, r: cfg.gun === 'zsu234' ? 16 : 11 };
   let drag: { x0: number; y0: number; x: number; y: number; moved: boolean } | null = null;
   let thermalOn = false, blackHot = false, tiNarrow = false;
+  // Modernised ZSU-23-4: a digital fire-control display fed by a daylight TV camera and a thermal camera (T switches
+  // TV → thermal white-hot → black-hot), with an automatic video tracker that boxes every target it can see.
+  let shChan: 'tv' | 'ti' = night ? 'ti' : 'tv';
+  const eoNow = () => (thermalSight && !digital) || (digital && shChan === 'ti');
+  // Attack mode: the strike on the gun position (time it was seen, for the flash and the banner).
+  let struckAt: number | null = null;
   // Thermal imager (L70 electro-optical fire control): the scene is rendered with "temperatures" (cold black sky,
   // ground and buildings by solar loading, hot drone motors, tracers and muzzle flash), then a post-process turns it
   // into a thermal picture: soft optics, sensor grain, fixed-pattern column noise, bloom on hot spots, vignette.
@@ -408,7 +421,7 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
     scene.environment = hot ? null : pmremEnv;
     scene.fog = hot ? fogHot : fogDay;
     // Drones: motors and electronics run hot; the airframe warms up. Same picture by day and night.
-    for (const v of vis.values()) for (const m of v.mats) { m.emissive.setHex(hot ? 0xffffff : 0x000000); m.emissiveIntensity = hot ? 7 : 1; }
+    for (const v of vis.values()) for (const m of v.mats) { if (hot) m.emissive.setHex(0xffffff); else m.emissive.copy(m.userData.lift ?? new THREE.Color(0)); m.emissiveIntensity = hot ? 7 : 1; }
     sun.intensity = hot ? (night ? 0 : 1.2) : night ? 0.25 : wx === 'clear' ? 2.6 : 0.9;
     hotLight.visible = hot;
   };
@@ -448,8 +461,11 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
     if (mode === 'gun' && locked && e.button === 1) { e.preventDefault(); const id = centre(); if (id != null) cb.pick(id); }
   });
   addEventListener('mouseup', (e) => { if (e.button === 2) ads = false; });
+  // Mouse pulled while the fire control lays the gun: a firm pull (about 80 px) breaks the lock, as an operator taking over.
+  let pull = 0, pullBreak = false;
   cv.addEventListener('mousemove', (e) => {
     if (mode !== 'gun' || !locked) return;
+    if (lastE && fcsLocked(lastE) && !cfg.leadOnly) { pull += Math.hypot(e.movementX, e.movementY); if (pull > 80) { pullBreak = true; pull = 0; } }
     const k = camera.fov / host.clientHeight * 0.9;
     aim.az = (aim.az + e.movementX * k + 360) % 360; aim.el = Math.max(gunDef.elevDeg[0], Math.min(gunDef.elevDeg[1], aim.el - e.movementY * k));
   });
@@ -471,6 +487,12 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
   const hctx = hud.getContext('2d')!;
   const fcsLocked = (E: GunEngine) => gunDef.sight !== 'manual' && !cfg.radarFault && E.g.lockCid != null && E.g.lockStart != null && E.tick - E.g.lockStart >= Math.round((fcsOf(gunDef)?.lockSec ?? 0) / E.dt);
 
+  /** Scale that keeps a distant drone at least MIN_PX across on screen (its real shape, not a dot); 1 when close. */
+  const MIN_PX = 14;
+  const minSize = (v: Vis) => {
+    const d = Math.max(1, camera.position.distanceTo(v.g.position)), ppm = host.clientHeight / (2 * Math.tan((camera.fov * D2R) / 2) * d);
+    const px = 2 * v.r * ppm; return px >= MIN_PX ? 1 : Math.min(60, MIN_PX / px);
+  };
   function syncTargets(E: GunEngine, t: number, now: number) {
     for (const T of E.targets) {
       let v = vis.get(T.id);
@@ -479,7 +501,10 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
         g.traverse((o) => { if (/^prop/.test(o.name)) props.push(o); if (/^wing/.test(o.name)) wings.push(o); const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined; if (m && (m as any).isMeshStandardMaterial) mats.push(m); });
         const speck = new THREE.Sprite(new THREE.SpriteMaterial({ map: dot, color: night ? 0x9aa2ab : 0x101010, fog: false, depthWrite: false, sizeAttenuation: false, transparent: true }));
         speck.scale.setScalar(0.0035);
-        v = { g, props, wings, speck, mats }; vis.set(T.id, v); scene.add(g, speck);
+        // Daylight lift: a little of each colour as glow, so a drone against a bright sky shows its colours, not a black blot.
+        for (const m of mats) { m.userData.lift = night ? new THREE.Color(0x000000) : m.color.clone().multiplyScalar(0.35); m.emissive.copy(m.userData.lift); }
+        const r = new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3()).length() / 2 || 0.3;
+        v = { g, props, wings, speck, mats, r }; vis.set(T.id, v); scene.add(g, speck);
         if (thermalOn) for (const m of mats) { m.emissive.setHex(0xffffff); m.emissiveIntensity = 7; }
       }
       if (T.state === 'destroyed' || T.state === 'leaked') {
@@ -487,7 +512,7 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
         if (!v.fall) { const p = W(targetPos(T, T.endTick * E.dt, E.dt)); v.fall = { t0: T.endTick * E.dt, p, v: new THREE.Vector3((rng() - 0.5) * 6, 2, (rng() - 0.5) * 6) }; puff(p, t, 'flash', big ? 9 : 6, 0.35); puff(p, t, 'smoke', big ? 7 : 5, 5, 0x2a2622); }
         const s = t - v.fall.t0, y = v.fall.p.y + v.fall.v.y * s - 4.9 * s * s;
         v.g.visible = y > 0 && s < 15; v.speck.visible = false;
-        v.g.position.set(v.fall.p.x + v.fall.v.x * s, Math.max(0, y), v.fall.p.z + v.fall.v.z * s); v.g.rotation.x += 0.12; v.g.rotation.z += 0.08;
+        v.g.position.set(v.fall.p.x + v.fall.v.x * s, Math.max(0, y), v.fall.p.z + v.fall.v.z * s); v.g.rotation.x += 0.12; v.g.rotation.z += 0.08; v.g.scale.setScalar(minSize(v));
         if (y > 0 && Math.random() < 0.3) puff(v.g.position.clone(), t, 'smoke', 1.5, 2, 0x222222);
         continue;
       }
@@ -496,7 +521,9 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
       W(p, v.g.position); v.speck.position.copy(v.g.position);
       const hd = Math.atan2(q2[0] - p[0], q2[1] - p[1]);
       v.g.rotation.set(0, -hd, Math.sin(now * 0.002 + T.id) * 0.05);
-      v.g.visible = a > 0; v.speck.visible = a > 0; v.speck.material.opacity = a * 0.9;
+      v.g.scale.setScalar(minSize(v));
+      // The model itself (held at a readable size) is the picture; the dot is only for night, when the airframe is unlit.
+      v.g.visible = a > 0; v.speck.visible = a > 0 && night && !thermalOn; v.speck.material.opacity = Math.min(1, 0.35 + a);
       v.speck.material.color.setHex(thermalOn ? 0xffffff : night ? 0x9aa2ab : 0x101010);
       for (const r of v.props) r.rotateY(1.9);
       for (const [i, f] of v.wings.entries()) f.rotation.y = Math.sin(now * 0.014 + T.id) * 0.7 * (i ? -1 : 1);
@@ -521,6 +548,14 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
       const e = E.ev[evSeen], T = e.k === 'destroyed' ? E.targets.find((x) => x.id === e.cid) : undefined;
       if (T) { if (snd) snd.boom(losOf(targetPos(T, t, E.dt)).range, true); else bang(0.4, 400); }
       if (e.k === 'loading') snd?.loader('start'); else if (e.k === 'loaded') snd?.loader('done');
+      if (e.k === 'gunStruck') {
+        // A drone has hit the gun position: blast and smoke on the gun, a red flash and the banner (alerts()).
+        struckAt = t; const at = new THREE.Vector3(2, 1, -2);
+        puff(at, t, 'flash', 16, 0.6); puff(at, t, 'flash', 9, 0.9);
+        for (let k = 0; k < 6; k++) puff(at.clone().add(new THREE.Vector3((rng() - 0.5) * 6, rng() * 2, (rng() - 0.5) * 6)), t, 'smoke', 8, 6, 0x231f1b);
+        if (snd) snd.boom(5, true); else bang(1, 200);
+        kick = 4;
+      }
     }
     let n = 0;
     for (const [i, tr] of tracers) {
@@ -555,9 +590,17 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
   /** Line of sight of the gun's sight: on a manual sight the barrel leads it, so the sight looks behind the barrel. */
   function sightLine(E: GunEngine, sol: AimSolution | null, t: number) {
     let az = curAz, el = curEl;
+    // Fire-control sights (thermal, radar, digital): while locked the camera rides the tracker onto the target (the gun
+    // carries the lead). Without a current lock it looks along the barrel. Manual sight: it looks behind the barrel by the
+    // lead set on the sight, for the target in its field of view. Offsets above a few degrees are never real (stale data).
+    let T: GunTarget | undefined;
     if (sol?.ok) {
-      const T = E.targets.find((x) => x.id === (E.cleared ?? E.g.lockCid)) ?? E.targets.find((x) => x.state === 'live' && Math.hypot(angDiff(losOf(targetPos(x, t, E.dt)).az, E.g.az), losOf(targetPos(x, t, E.dt)).el - E.g.el) < gunDef.sightFovDeg / 2);
-      if (T && T.state === 'live') { const l = losOf(targetPos(T, t, E.dt)); az = curAz - angDiff(sol.az, l.az); el = curEl - (sol.el - l.el); }
+      if (gunDef.sight !== 'manual' && !cfg.radarFault) T = fcsLocked(E) && !cfg.leadOnly ? E.targets.find((x) => x.id === E.g.lockCid) : undefined;
+      else T = E.targets.find((x) => x.state === 'live' && Math.hypot(angDiff(losOf(targetPos(x, t, E.dt)).az, E.g.az), losOf(targetPos(x, t, E.dt)).el - E.g.el) < gunDef.sightFovDeg / 2);
+    }
+    if (sol?.ok && T && T.state === 'live') {
+      const l = losOf(targetPos(T, t, E.dt)), dA = angDiff(sol.az, l.az), dE = sol.el - l.el;
+      if (Math.abs(dA) < 8 && Math.abs(dE) < 8) { az = (curAz - dA + 360) % 360; el = curEl - dE; }
     }
     return { az, el };
   }
@@ -571,7 +614,7 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
     } else if (ads) {
       const s = sightLine(E, sol, t);
       (sightN ?? pitch).getWorldPosition(camera.position);
-      camera.fov = thermalSight ? (tiNarrow ? 3 : gunDef.sightFovDeg) : gunDef.sight === 'radar' ? gunDef.sightFovDeg : 22;
+      camera.fov = thermalSight && !digital ? (tiNarrow ? 3 : gunDef.sightFovDeg) : digital ? (tiNarrow ? Math.max(2, gunDef.sightFovDeg / 3) : gunDef.sightFovDeg) : 22;
       dirW(s.az, s.el, fwd); camera.up.set(0, 1, 0); camera.lookAt(camera.position.clone().add(fwd));
     } else {
       (eyeN ?? yaw).getWorldPosition(camera.position);
@@ -580,7 +623,10 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
       camera.up.set(0, 1, 0); camera.lookAt(camera.position.clone().add(fwd));
     }
     camera.updateProjectionMatrix();
-    setThermal(mode === 'gun' && ads && thermalSight);
+    setThermal(mode === 'gun' && ads && eoNow());
+    // TV channel: a monochrome, high-contrast daylight camera picture.
+    const tv = mode === 'gun' && ads && digital && shChan === 'tv';
+    renderer.domElement.style.filter = tv ? 'grayscale(1) contrast(1.35) brightness(1.05)' : '';
     // Hide what would block the sight picture.
     gunRoot.visible = !(ads && mode === 'gun');
   }
@@ -632,6 +678,8 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
         mask(c, w, h, [[cx, cy, Math.min(w, h) * 0.46]], 0.92);
         c.fillStyle = 'rgba(255,255,255,0.8)';
         if (E.g.sight) c.fillText(`SPEED ${E.g.sight.spd} m/s   COURSE ${E.g.sight.crs > 0 ? '+' : ''}${E.g.sight.crs}°   RANGE ${E.g.sight.rng} m   ([ ] ; ' , .)`, 14 * dp, h - 14 * dp);
+      } else if (digital) {
+        shilkaMfd(c, E, t, w, h, dp, cx, cy);
       } else {
         // Fire-control display (L70 thermal or ZSU-23-4 optical with radar): tracking gate and data.
         const lk = fcsLocked(E);
@@ -684,7 +732,7 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
     }
     // Radar scope (ZSU-23-4).
     if (radarSight && mode === 'gun') {
-      const R = 74 * dp, ox = 20 * dp + R, oy = h - R - 20 * dp, maxM = fcsOf(gunDef)?.acquireRangeM ?? 6000;
+      const R = 74 * dp, ox = (ads ? 72 : 20) * dp + R, oy = h - R - (ads ? 56 : 80) * dp, maxM = fcsOf(gunDef)?.acquireRangeM ?? 6000;
       c.fillStyle = 'rgba(6,16,10,0.85)'; c.beginPath(); c.arc(ox, oy, R, 0, 7); c.fill();
       c.strokeStyle = 'rgba(80,220,120,0.5)'; c.lineWidth = dp; for (const k of [0.33, 0.66, 1]) { c.beginPath(); c.arc(ox, oy, R * k, 0, 7); c.stroke(); }
       const sw = (t * 120) % 360; c.beginPath(); c.moveTo(ox, oy); c.lineTo(ox + Math.sin(sw * D2R) * R, oy - Math.cos(sw * D2R) * R); c.stroke();
@@ -701,9 +749,129 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
     if (E.g.stoppage) lines.push(['STOPPAGE  ·  C to clear', '#FF5C61']);
     if (E.held) lines.push(['HOLD FIRE', '#FF5C61']); else if (E.cleared != null) lines.push([`CLEARED: TARGET ${E.cleared}`, '#9fe0a8']);
     if ((E.cfg.safeArcs ?? []).some(([a, b]) => { const x = ((E.g.az % 360) + 360) % 360; return a <= b ? x >= a && x <= b : x >= a || x <= b; })) lines.push(['SAFE ARC: DO NOT FIRE', '#FF5C61']);
-    lines.forEach(([s, col], i) => { c.fillStyle = 'rgba(0,0,0,0.45)'; const tw = c.measureText(s).width; c.fillRect(w - tw - 26 * dp, h - (36 + i * 24) * dp, tw + 14 * dp, 21 * dp); c.fillStyle = col; c.fillText(s, w - tw - 19 * dp, h - (20 + i * 24) * dp); });
-    const heat = Math.min(1, E.g.heat / gunDef.heatLimit); c.fillStyle = 'rgba(0,0,0,0.45)'; c.fillRect(w - 146 * dp, h - (40 + lines.length * 24) * dp, 120 * dp, 8 * dp);
-    c.fillStyle = heat > 0.9 ? '#FF5C61' : heat > 0.6 ? '#F2C94C' : '#9fe0a8'; c.fillRect(w - 146 * dp, h - (40 + lines.length * 24) * dp, 120 * dp * heat, 8 * dp);
+    const rx = mode === 'gun' && ads && digital ? 53 * dp : 0, ry = rx ? 24 : 0;
+    lines.forEach(([s, col], i) => { c.fillStyle = 'rgba(0,0,0,0.45)'; const tw = c.measureText(s).width; c.fillRect(w - rx - tw - 26 * dp, h - (36 + ry + i * 24) * dp, tw + 14 * dp, 21 * dp); c.fillStyle = col; c.fillText(s, w - rx - tw - 19 * dp, h - (20 + ry + i * 24) * dp); });
+    const heat = Math.min(1, E.g.heat / gunDef.heatLimit); c.fillStyle = 'rgba(0,0,0,0.45)'; c.fillRect(w - rx - 146 * dp, h - (40 + ry + lines.length * 24) * dp, 120 * dp, 8 * dp);
+    c.fillStyle = heat > 0.9 ? '#FF5C61' : heat > 0.6 ? '#F2C94C' : '#9fe0a8'; c.fillRect(w - rx - 146 * dp, h - (40 + ry + lines.length * 24) * dp, 120 * dp * heat, 8 * dp);
+    if (mode === 'gun') alerts(c, E, t, w, h, dp, cx, sol);
+  }
+
+  /** Sight aid: through the sight of any gun, a ring round every drone in view (the digital sights box them instead). Attack warning: any drone diving on the gun inside 900 m. Strike: red flash and banner. */
+  function alerts(c: CanvasRenderingContext2D, E: GunEngine, t: number, w: number, h: number, dp: number, cx: number, sol: AimSolution | null) {
+    // Lead-only fire control: once locked, a diamond shows where the barrel must point (the computed lead). The layer
+    // still aims; the diamond turns green when the barrel is on it.
+    if (cfg.leadOnly && fcsLocked(E) && sol?.ok) {
+      const s = project(W(dirOf(sol.az, sol.el).map((x) => x * 1500) as Vec3)), x = s.x * dp, y = s.y * dp, r = 11 * dp;
+      const g = project(W(dirOf(curAz, curEl).map((x) => x * 1500) as Vec3)), on = Math.hypot(angDiff(sol.az, curAz), sol.el - curEl) < 0.25;
+      if (s.front) {
+        const col = on ? '#3cff7a' : '#ffb340';
+        c.strokeStyle = col; c.fillStyle = col; c.lineWidth = 2.2 * dp;
+        c.beginPath(); c.moveTo(x, y - r); c.lineTo(x + r, y); c.lineTo(x, y + r); c.lineTo(x - r, y); c.closePath(); c.stroke();
+        c.beginPath(); c.arc(x, y, 2 * dp, 0, 7); c.fill();
+        if (g.front && !on) { c.setLineDash([2 * dp, 4 * dp]); c.lineWidth = 1.2 * dp; c.beginPath(); c.moveTo(g.x * dp, g.y * dp); c.lineTo(x, y); c.stroke(); c.setLineDash([]); }
+        c.font = `700 ${12 * dp}px Barlow Condensed, sans-serif`; c.fillText(on ? 'ON LEAD · FIRE' : 'LEAD', x - 12 * dp, y + r + 14 * dp);
+      }
+    }
+    // Through the sight the view follows the barrel, which turns at the gun's real rate: show where the mouse is
+    // steering it (ring and line from the centre) until the gun catches up. Not while the fire control lays the gun.
+    if (ads && (cfg.leadOnly || !fcsLocked(E))) {
+      const s = project(W(dirOf(aim.az, aim.el).map((x) => x * 1500) as Vec3)), x = s.x * dp, y = s.y * dp, cy = h / 2;
+      if (s.front && Math.hypot(x - cx, y - cy) > 6 * dp) {
+        c.strokeStyle = 'rgba(255,255,255,0.85)'; c.lineWidth = 1.5 * dp; c.setLineDash([3 * dp, 5 * dp]);
+        c.beginPath(); c.moveTo(cx, cy); c.lineTo(x, y); c.stroke(); c.setLineDash([]);
+        c.beginPath(); c.arc(x, y, 7 * dp, 0, 7); c.stroke();
+      }
+    }
+    if (ads && !digital) {
+      c.strokeStyle = 'rgba(242,201,76,0.95)'; c.lineWidth = 2 * dp; c.setLineDash([4 * dp, 4 * dp]);
+      for (const tg of E.targets) {
+        if (tg.state !== 'live' || visibility(E, tg, t) <= 0) continue;
+        const s = project(W(targetPos(tg, t, E.dt)));
+        if (!s.front || s.x < 0 || s.x > host.clientWidth || s.y < 0 || s.y > host.clientHeight) continue;
+        c.beginPath(); c.arc(s.x * dp, s.y * dp, (20 + Math.sin(t * 4) * 3) * dp, 0, 7); c.stroke();
+      }
+      c.setLineDash([]);
+    }
+    const dive = E.targets.filter((tg) => tg.state === 'live' && tg.dive && visibility(E, tg, t) > 0)
+      .map((tg) => ({ tg, L: losOf(targetPos(tg, t, E.dt)) })).filter((x) => x.L.range < 900).sort((a, b) => a.L.range - b.L.range)[0];
+    if (dive && struckAt == null && Math.sin(t * 10) > -0.3) {
+      const msg = `⚠ INCOMING DRONE  ·  ${pad3(dive.L.az)}°  ·  ${Math.round(dive.L.range)} m`;
+      c.font = `700 ${20 * dp}px Barlow Condensed, sans-serif`; const tw = c.measureText(msg).width;
+      c.fillStyle = 'rgba(120,0,0,0.6)'; c.fillRect(cx - tw / 2 - 12 * dp, 64 * dp, tw + 24 * dp, 30 * dp);
+      c.fillStyle = '#ffdede'; c.fillText(msg, cx - tw / 2, 86 * dp);
+    }
+    if (struckAt != null) {
+      const a = Math.max(0.35, 1 - (t - struckAt) / 1.5);
+      const g = c.createRadialGradient(cx, h / 2, Math.min(w, h) * 0.2, cx, h / 2, Math.max(w, h) * 0.7);
+      g.addColorStop(0, `rgba(160,0,0,${a * 0.25})`); g.addColorStop(1, `rgba(120,0,0,${a * 0.85})`); c.fillStyle = g; c.fillRect(0, 0, w, h);
+      const msg = 'YOUR GUN POSITION WAS HIT';
+      c.font = `800 ${40 * dp}px Barlow Condensed, sans-serif`; const tw = c.measureText(msg).width;
+      c.fillStyle = '#fff'; c.fillText(msg, cx - tw / 2, h / 2 - 10 * dp);
+      const sub = 'The detachment is out of action. Stop each attack drone before it reaches you.';
+      c.font = `500 ${18 * dp}px Barlow, sans-serif`; const sw = c.measureText(sub).width;
+      c.fillText(sub, cx - sw / 2, h / 2 + 22 * dp);
+    }
+  }
+
+  /** Modernised ZSU-23-4 fire-control display: a rugged flat screen showing the TV or thermal camera picture, with a digital
+   *  reticle, automatic video-tracker boxes on every target in view, laser-rangefinder range and tracking status. */
+  function shilkaMfd(c: CanvasRenderingContext2D, E: GunEngine, t: number, w: number, h: number, dp: number, cx: number, cy: number) {
+    const lk = fcsLocked(E), green = '#3cff7a', sym = thermalOn && blackHot ? 'rgba(0,0,0,0.9)' : 'rgba(170,255,190,0.95)';
+    const B = 22 * dp, side = B * 2.4;
+    // Bezel with soft keys (three each side).
+    c.fillStyle = '#15181a'; c.fillRect(0, 0, w, B); c.fillRect(0, h - B, w, B); c.fillRect(0, 0, side, h); c.fillRect(w - side, 0, side, h);
+    c.font = `600 ${11 * dp}px Barlow Condensed, sans-serif`;
+    const keys: [string, boolean][] = [['TV', shChan === 'tv'], ['TI', shChan === 'ti'], [blackHot ? 'BLK' : 'WHT', shChan === 'ti'],
+      [tiNarrow ? 'NFOV' : 'WFOV', true], ['AUTO TRK', E.g.lockCid != null], radarSight ? ['RDR', true] : ['LRF', fcsLocked(E)]];
+    keys.forEach(([k, on], i) => {
+      const x = i < 3 ? 6 * dp : w - side + 6 * dp, y = B + 40 * dp + (i % 3) * ((h - 2 * B - 80 * dp) / 2);
+      c.fillStyle = on ? '#2a6b3f' : '#24282b'; c.fillRect(x, y - 12 * dp, side - 12 * dp, 24 * dp);
+      c.fillStyle = on ? '#d6ffe2' : '#7d8a90'; c.fillText(k, x + 6 * dp, y + 4 * dp);
+    });
+    c.fillStyle = '#7d8a90'; c.fillText('T  CHANNEL    Z  FOV    Q  TRACK', side + 8 * dp, h - 7 * dp);
+    c.fillText(`${gunDef.short}  ·  DIGITAL FIRE CONTROL`, w - side - 170 * dp, h - 7 * dp);
+    // Data lines on the picture.
+    c.font = `600 ${15 * dp}px Barlow Condensed, sans-serif`; c.fillStyle = sym;
+    const fov = tiNarrow ? Math.max(2, gunDef.sightFovDeg / 3) : gunDef.sightFovDeg;
+    c.fillText(`${shChan === 'tv' ? 'TV  DAY' : `TI  ${blackHot ? 'BLK-HOT' : 'WHT-HOT'}`}   ${tiNarrow ? 'NFOV' : 'WFOV'} ${fov.toFixed(1)}°`, side + 14 * dp, B + 22 * dp);
+    const lkd = E.g.lockCid != null ? E.targets.find((x) => x.id === E.g.lockCid && x.state === 'live') : undefined;
+    c.fillText(lkd && lk ? `LRF ${Math.round(losOf(targetPos(lkd, t, E.dt)).range)} m` : 'LRF ----', w - side - 110 * dp, B + 22 * dp);
+    c.fillText(`AZ ${E.g.az.toFixed(1)}°   EL ${E.g.el.toFixed(1)}°`, side + 14 * dp, B + 42 * dp);
+    // Digital reticle: open cross, centre dot and 5-mil ticks.
+    const pxDeg = h / camera.fov, mil = 0.0573 * pxDeg;
+    c.strokeStyle = sym; c.lineWidth = 1.6 * dp;
+    c.beginPath();
+    c.moveTo(cx - 60 * dp, cy); c.lineTo(cx - 10 * dp, cy); c.moveTo(cx + 10 * dp, cy); c.lineTo(cx + 60 * dp, cy);
+    c.moveTo(cx, cy - 60 * dp); c.lineTo(cx, cy - 10 * dp); c.moveTo(cx, cy + 10 * dp); c.lineTo(cx, cy + 60 * dp); c.stroke();
+    c.beginPath(); c.arc(cx, cy, 1.8 * dp, 0, 7); c.fillStyle = sym; c.fill();
+    for (let k = 1; k <= 4; k++) {
+      const d = k * 5 * mil; if (d > 58 * dp) break;
+      c.beginPath(); c.moveTo(cx + d, cy - 4 * dp); c.lineTo(cx + d, cy + 4 * dp); c.moveTo(cx - d, cy - 4 * dp); c.lineTo(cx - d, cy + 4 * dp);
+      c.moveTo(cx - 4 * dp, cy + d); c.lineTo(cx + 4 * dp, cy + d); c.stroke();
+    }
+    // Video tracker: a box on every target the camera can see; the locked one solid, with its laser range.
+    const SZ: Record<string, number> = { 'Very small': 0.5, Small: 0.9, Medium: 2.8, Large: 15 };
+    let inView = 0;
+    for (const tg of E.targets) {
+      if (tg.state !== 'live' || visibility(E, tg, t) <= 0) continue;
+      const p = targetPos(tg, t, E.dt), s = project(W(p));
+      if (!s.front || s.x * dp < side || s.x * dp > w - side || s.y * dp < B || s.y * dp > h - B) continue;
+      inView++;
+      const rng = losOf(p).range, size = SZ[getConfig().threats.threats[tg.type]?.echo] ?? 1;
+      const half = Math.max(18 * dp, Math.min(80 * dp, (size / rng) * (180 / Math.PI) * pxDeg * 0.9));
+      const x = s.x * dp, y = s.y * dp, isLk = tg.id === E.g.lockCid;
+      c.strokeStyle = isLk ? (lk ? green : '#F2C94C') : sym; c.lineWidth = (isLk ? 2.2 : 1.3) * dp;
+      if (isLk) c.strokeRect(x - half, y - half, half * 2, half * 2);
+      else for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { c.beginPath(); c.moveTo(x + sx * half, y + sy * half * 0.5); c.lineTo(x + sx * half, y + sy * half); c.lineTo(x + sx * half * 0.5, y + sy * half); c.stroke(); }
+      c.fillStyle = c.strokeStyle; c.font = `600 ${12 * dp}px Barlow Condensed, sans-serif`;
+      c.fillText(isLk ? `T${tg.id}  ${lk ? `TRK  ${Math.round(rng)} m` : 'ACQ'}` : `T${tg.id}`, x - half, y - half - 4 * dp);
+    }
+    // Tracking status.
+    c.font = `700 ${16 * dp}px Barlow Condensed, sans-serif`;
+    const st = lk && lkd ? `AUTO TRACK  ·  T${lkd.id} LOCKED  ·  ${cfg.leadOnly ? 'PUT THE CROSS ON THE ◇ LEAD' : 'FCS SOLUTION'}` : E.g.lockCid != null ? 'AUTO TRACK  ·  ACQUIRING…'
+      : inView ? `AUTO TRACK  ·  ${inView} IN VIEW  ·  Q TO LOCK` : 'AUTO TRACK  ·  SEARCH';
+    const tw = c.measureText(st).width; c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(cx - tw / 2 - 10 * dp, cy + 78 * dp, tw + 20 * dp, 24 * dp);
+    c.fillStyle = lk ? green : E.g.lockCid != null ? '#F2C94C' : '#d6ffe2'; c.fillText(st, cx - tw / 2, cy + 96 * dp);
   }
 
   let lastFrameMs = 0;
@@ -715,15 +883,17 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
     curAz = (prevAz + angDiff(E.g.az, prevAz) * k + 360) % 360; curEl = prevEl + (E.g.el - prevEl) * k;
     lastE = E; lastT = t;
     // When the fire-control system lays the gun itself, the aim follows the gun.
-    if (fcsLocked(E)) { aim.az = curAz; aim.el = curEl; }
+    if (fcsLocked(E) && !cfg.leadOnly) { aim.az = curAz; aim.el = curEl; }
+    pull *= 0.92;
     yaw.quaternion.copy(yaw0).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -curAz * D2R));
     pitch.quaternion.copy(pitch0).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), curEl * D2R));
     if (radarN && radarSight) radarN.rotation.y = Math.sin(now * 0.0025) * 0.9;
     syncTargets(E, t, now); syncFire(E, t);
     if (precip) { precip.position.set(camera.position.x, camera.position.y - 8 - ((now / (wx === 'rain' ? 35 : 500)) % 10), camera.position.z); }
     placeCamera(E, sol, t);
-    // Specks a constant ~4 px whatever the zoom (sprites without size attenuation scale with the view's height).
-    const sk = (2 * Math.tan((camera.fov * D2R) / 2) * 5) / Math.max(1, host.clientHeight);
+    // Specks a constant ~7 px whatever the zoom (sprites without size attenuation scale with the view's height): big
+    // enough for anyone to pick out against the sky, still only a dot until the drone is close.
+    const sk = (2 * Math.tan((camera.fov * D2R) / 2) * 8) / Math.max(1, host.clientHeight);
     for (const v of vis.values()) v.speck.scale.setScalar(sk);
     snd?.update(E, t, mode === 'gun' ? aim.az : curAz, mode === 'gun' ? aim.el : curEl);
     sun.target.position.set(camera.position.x, 0, camera.position.z); sun.position.copy(sunDir).multiplyScalar(80).add(sun.target.position);
@@ -740,11 +910,14 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
     frame,
     setMode: (m) => { mode = m; ads = binos = false; if (m === 'ext' && document.pointerLockElement === cv) document.exitPointerLock(); tip.style.display = m === 'gun' && !locked ? '' : 'none'; },
     mode: () => mode,
-    zoom: () => { if (mode === 'gun' && ads && thermalSight) tiNarrow = !tiNarrow; else if (mode === 'gun' && !ads) binos = !binos; },
-    polarity: () => { blackHot = !blackHot; },
+    zoom: () => { if (mode === 'gun' && ads && (thermalSight || radarSight)) tiNarrow = !tiNarrow; else if (mode === 'gun' && !ads) binos = !binos; },
+    polarity: () => {
+      if (!digital) { blackHot = !blackHot; return; }
+      if (shChan === 'tv') { shChan = 'ti'; blackHot = false; } else if (!blackHot) blackHot = true; else { shChan = 'tv'; blackHot = false; }
+    },
     info: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, ms: lastFrameMs }),
     rates: (E, sol) => {
-      if (mode !== 'gun' || !locked || fcsLocked(E)) return null;
+      if (mode !== 'gun' || !locked || (fcsLocked(E) && !cfg.leadOnly)) return null;
       // Barrel = aim + lead on a manual sight (the sight looks behind the barrel by the lead angle).
       let dAz = 0, dEl = 0;
       if (sol?.ok && gunDef.sight === 'manual') {
@@ -756,6 +929,7 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
       return [q(rz), q(re)];
     },
     centreTarget: () => centre(),
+    overrideLock: () => { const b = pullBreak; pullBreak = false; return b; },
     look: (az, el, b = false, sight = false) => { aim.az = az; aim.el = el; binos = b; ads = sight; mode = 'gun'; },
     dispose: () => {
       document.removeEventListener('pointerlockchange', onLock);

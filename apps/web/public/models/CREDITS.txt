@@ -1,0 +1,15 @@
+Drone models converted by tools/blender/import_drones.py (cleaned, decimated, textures cut to 512 px).
+
+drone_fpv.glb  ←  "FPV Drone" by Jeyhun1985 (https://sketchfab.com/Jeyhun1985)
+                  https://sketchfab.com/3d-models/fpv-drone-0294037f390a4351926c11caf3e5c43e
+                  Licensed CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/). Changes: decimated, re-oriented, textures resized.
+
+drone_swarm.glb  ←  "Shahed 136" by faintastic (https://sketchfab.com/faintastic)
+                  https://sketchfab.com/3d-models/shahed-136-bc8754128c9d48c48baadeff1db8f0c7
+                  Licensed CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/). Changes: decimated, re-oriented, scaled to 3.5 m.
+
+drone_male.glb  ←  "Bayraktar TB2" by Kellot (https://sketchfab.com/Kellot)
+                  https://sketchfab.com/3d-models/bayraktar-tb2-097dbe6815c24f31957c111cd922a7cd
+                  Licensed CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/). Changes: decimated, re-oriented, scaled to a 12 m span.
+
+The other models in this folder are built by the scripts in tools/blender/.
