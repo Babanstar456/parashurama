@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { SimplifyModifier } from 'three/examples/jsm/modifiers/SimplifyModifier.js';
 import {
   angDiff, detectable, detectRangeM, dirOf, fcsOf, fly, getConfig, losOf, mulberry, targetPos, weatherFx,
   type AimSolution, type GunEngine, type GunTarget, type Vec3,
@@ -21,6 +22,7 @@ export interface FieldMarks { selected: number | null; ident: (cid: number) => s
 export interface FieldCallbacks {
   /** A click landed on a visible target (spotted or not). */ pick: (cid: number) => void;
   /** Old mouse-drag joystick (kept for touch screens): slew rates −1…1, or null when released. */ joystick: (r: [number, number] | null) => void;
+  /** Left mouse button held / released while the gun is taken: the trigger. */ fire: (on: boolean) => void;
 }
 export interface FieldView {
   frame: (E: GunEngine, sol: AimSolution | null, frac: number, marks: FieldMarks) => void;
@@ -224,13 +226,32 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
   };
   /** Place copies as instanced meshes, split into 8 compass sectors so what is behind you is not drawn. */
   const SECTORS = 8;
+  // Far copies (beyond FAR_M from the gun, where the camera always stands) use a simplified mesh: a shrub or rock there
+  // covers a few pixels, so a quarter of the triangles looks the same. Built once per model; the full mesh if it fails.
+  const FAR_M = 120, farCache = new Map<THREE.BufferGeometry, THREE.BufferGeometry>();
+  const farGeo = (geo: THREE.BufferGeometry) => {
+    let g = farCache.get(geo);
+    if (!g) {
+      g = geo;
+      const n = (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
+      if (n > 400) try { const s = new SimplifyModifier().modify(geo, Math.floor(geo.attributes.position.count * 0.7)); if (s.attributes.position.count > 12) { s.computeBoundingSphere(); g = s; } } catch { /* keep the full mesh */ }
+      farCache.set(geo, g);
+    }
+    return g;
+  };
   const addInstances = (parts: { geo: THREE.BufferGeometry; mat: THREE.Material }[], mats: THREE.Matrix4[], shadows = false) => {
     if (!parts.length || !mats.length) return false;
-    const bins: THREE.Matrix4[][] = Array.from({ length: SECTORS }, () => []);
-    for (const m of mats) { const x = m.elements[12], z = m.elements[14], near = Math.hypot(x, z) < 30; bins[near ? 0 : Math.floor(((Math.atan2(x, -z) / (2 * Math.PI) + 1) % 1) * SECTORS)].push(m); }
-    for (const bin of bins) {
+    // Sectors 0–7 near, 8–15 far (same compass sectors), plus the ring round the gun.
+    const bins: THREE.Matrix4[][] = Array.from({ length: SECTORS * 2 + 1 }, () => []);
+    for (const m of mats) {
+      const x = m.elements[12], z = m.elements[14], d = Math.hypot(x, z), sec = Math.floor(((Math.atan2(x, -z) / (2 * Math.PI) + 1) % 1) * SECTORS);
+      bins[d < 30 ? SECTORS * 2 : d < FAR_M ? sec : SECTORS + sec].push(m);
+    }
+    for (const [bi, bin] of bins.entries()) {
       if (!bin.length) continue;
-      for (const { geo, mat } of parts) {
+      const far = bi >= SECTORS && bi < SECTORS * 2;
+      for (const { geo: g0, mat } of parts) {
+        const geo = far ? farGeo(g0) : g0;
         const im = new THREE.InstancedMesh(geo, mat, bin.length);
         bin.forEach((m, k) => im.setMatrixAt(k, m));
         im.computeBoundingSphere(); im.castShadow = shadows; im.receiveShadow = true; scene.add(im);
@@ -453,14 +474,15 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
   };
   const onLock = () => { locked = document.pointerLockElement === cv; tip.style.display = locked || mode === 'ext' ? 'none' : ''; if (!locked) ads = false; };
   document.addEventListener('pointerlockchange', onLock);
-  tip.innerHTML = '<b>Click to take the gun</b><span>Mouse aims · hold right button: sight · Z binoculars · E report the contact in the middle · Space fire · Esc releases the mouse</span>';
+  tip.innerHTML = '<b>Click to take the gun</b><span>Mouse aims · hold right button: sight · Z binoculars · E report the contact in the middle · left click fire · Esc releases the mouse</span>';
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
   cv.addEventListener('mousedown', (e) => {
     if (mode === 'gun' && !locked && e.button === 0) { void cv.requestPointerLock(); return; }
+    if (mode === 'gun' && locked && e.button === 0) { cb.fire(true); return; }
     if (mode === 'gun' && locked && e.button === 2) { ads = true; binos = false; }
     if (mode === 'gun' && locked && e.button === 1) { e.preventDefault(); const id = centre(); if (id != null) cb.pick(id); }
   });
-  addEventListener('mouseup', (e) => { if (e.button === 2) ads = false; });
+  addEventListener('mouseup', (e) => { if (e.button === 2) ads = false; if (e.button === 0) cb.fire(false); });
   // Mouse pulled while the fire control lays the gun: a firm pull (about 80 px) breaks the lock, as an operator taking over.
   let pull = 0, pullBreak = false;
   cv.addEventListener('mousemove', (e) => {

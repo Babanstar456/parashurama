@@ -39,6 +39,8 @@ interface Live {
   /** Field drill (3D): the view, and the friendly-check replies the trainee asked for. */
   fv?: FieldView | null; iff?: Map<number, string>;
   /** Field drill: the loader has been ordered to load and runs the loading drill to the end. */ autoLoad?: boolean;
+  /** Field drill coach (first field drill and easy drills): step-by-step prompts until the first target is down. */
+  coach?: { on: boolean; doneAt: number | null; key: string };
 }
 let L: Live | null = null;
 let open = false;
@@ -261,10 +263,12 @@ export function start(game: GunGame, cfg?: GunDrillConfig, crew?: { code: string
   const view = $('#gnView') as HTMLCanvasElement;
   if (game === 'field') {
     L.iff = new Map();
+    L.coach = { on: !H.some((h) => h.game === 'field') || E.cfg.difficulty <= 1, doneAt: null, key: '' };
     const live = L;
     void mountField($('#gnMain') as HTMLElement, E, {
       pick: (cid) => { if (!L) return; if (E.spots[cid] == null) act({ k: 'spot', cid }); L.sel = cid; renderPanel(); },
       joystick: (r) => { if (!L) return; L.drag = r ? { x: r[0] * 160, y: -r[1] * 160, ax: 0, ay: 0 } : null; },
+      fire: (on) => { if (!L || L.done || L.E.g.trig === on) return; act({ k: 'trig', on }); },
     }, isLiteMode()).then((fv) => { if (L === live && !live.done) live.fv = fv; else fv.dispose(); });
   } else if (game === 'ground') {
     view.onpointerdown = (e) => { view.setPointerCapture(e.pointerId); L!.drag = { x: e.clientX, y: e.clientY, ax: e.clientX, ay: e.clientY }; };
@@ -354,7 +358,7 @@ function loop(now: number) {
   let n = 0;
   while (L.acc >= step && n++ < 5 && !L.done) { L.acc -= step; tick(); }
   if (L.done) return;
-  draw(); if (L.E.tick % 3 === 0) renderPanel();
+  draw(); if (L.E.tick % 3 === 0) { renderPanel(); coach(); }
   L.raf = requestAnimationFrame(loop);
 }
 
@@ -402,7 +406,7 @@ function procedureSteps(E: GunEngine, game: GunGame): Step[] {
   steps.push({ label: radar ? (E.gun.sight === 'eo' ? 'Thermal track on the target' : 'Radar lock on the indicated target') : 'Lay on the indicated target', done: !!tOrd && E.ev.some((e) => (e.k === 'laid' || e.k === 'lock') && e.tick >= tOrd.tick), key: radar ? 'Q' : 'L' });
   if (!radar) steps.push({ label: 'Set speed, course and range on the sight', done: !!tOrd && g.sightTick != null && g.sightTick >= tOrd.tick });
   steps.push({ label: 'FIRE received', done: !!eOrd });
-  steps.push({ label: 'Safety off, short bursts on the target', done: !!eOrd && E.bursts.some((b) => b.start >= eOrd.tick && b.authorised), key: 'Space' });
+  steps.push({ label: 'Safety off, short bursts on the target', done: !!eOrd && E.bursts.some((b) => b.start >= eOrd.tick && b.authorised), key: L?.game === 'field' ? 'Left click' : 'Space' });
   const down = E.targets.filter((t) => t.state === 'destroyed');
   steps.push({ label: 'Report the kill', done: down.length > 0 && down.every((t) => E.kills.some((k) => k.cid === t.id)), key: 'X' });
   steps.push({ label: 'CEASE FIRE: safety on', done: E.ceased && g.safety });
@@ -590,6 +594,44 @@ function fit(cv: HTMLCanvasElement) { const w = cv.clientWidth * devicePixelRati
 const ppi = (cv: HTMLCanvasElement, maxM = 4000) => ({ cx: cv.width / 2, cy: cv.height / 2, s: (Math.min(cv.width, cv.height) / 2 - 12) / maxM });
 const COL = { h: '#FF5C61', f: '#5DA9FF', n: '#6FCF97', grid: 'rgba(63,167,150,0.28)', text: '#DCE6EE', dim: '#8A9DAE', arc: 'rgba(255,92,97,0.16)', amber: '#F2C94C' };
 function kindCol(T: GunTarget) { const ty = getConfig().threats.threats[T.type]; return T.hostile ? COL.h : ty.friendly ? COL.f : COL.n; }
+/** Field drill coach: one clear instruction at a time over the 3D view, from taking the gun to the first kill. */
+function coach() {
+  if (!L || L.game !== 'field' || !L.coach?.on) return;
+  const host = $('#gnMain') as HTMLElement | null; if (!host) return;
+  let el = document.getElementById('gnCoach');
+  if (!el) { el = document.createElement('div'); el.id = 'gnCoach'; el.setAttribute('aria-live', 'polite'); host.appendChild(el); }
+  const E = L.E, g = E.g, T3 = getConfig().threats.threats, fcs = E.gun.sight !== 'manual' && !E.cfg.radarFault, kbd = (k: string) => `<kbd>${k}</kbd>`;
+  const t = E.tick * E.dt;
+  // Done: the first hostile is down (shown for 5 s, then the coach leaves).
+  const down = E.targets.find((x) => x.hostile && x.state === 'destroyed');
+  if (down && L.coach.doneAt == null) L.coach.doneAt = t;
+  if (L.coach.doneAt != null && t - L.coach.doneAt > 5) { L.coach.on = false; el.remove(); return; }
+  const live = (id: number | null | undefined) => E.targets.find((x) => x.id === id && x.state === 'live');
+  const focus = live(L.sel) ?? E.targets.find((x) => x.state === 'live' && E.spots[x.id] != null);
+  const idOf = (id: number) => { const m = E.idents.filter((i) => i.cid === id); return m[m.length - 1]?.cls; };
+  const steps = ['Take the gun', 'Load', 'Find the drone', 'Identify', 'Wait for FIRE', ...(fcs ? ['Lock'] : []), 'Safety off', 'Fire'];
+  let n: number, head: string, sub = '';
+  if (L.coach.doneAt != null) { n = steps.length; head = 'Target down! Well done.'; sub = `Press ${kbd('X')} to report the kill, then find the next drone. You are on your own now.`; }
+  else if (!document.pointerLockElement) { n = 1; head = `Click the view to take the gun`; sub = `The mouse then aims. ${kbd('Esc')} gives the mouse back.`; }
+  else if (!g.loaded) { n = 2; head = g.busy || L.autoLoad ? 'Loading…' : `Press ${kbd('R')} to load`; sub = 'The loader puts the ammunition on the gun. Wait until it says loaded.'; }
+  else if (!focus) { n = 3; head = 'Find the drone in the sky'; sub = `The ▲ marks on the compass at the top show where it is. Turn with the mouse, put it in the middle and press ${kbd('E')} to report it (or click it).`; }
+  else {
+    const id = idOf(focus.id), hostile = id && id !== 'unknown' && T3[id]?.hostile;
+    if (!id) { n = 4; head = `Identify target ${focus.id}`; sub = `Look at its shape and how it flies, then press its number key (list on the right). Not sure? Press ${kbd('/')} for unknown.`; }
+    else if (!hostile) { n = 3; head = id === 'unknown' ? `Target ${focus.id} is unknown: look closer` : `Target ${focus.id} is not a threat: do not fire`; sub = `Hold the right mouse button to look through the sight, or find the next drone (${kbd('Tab')} cycles contacts).`; }
+    else if (E.held) { n = 5; head = 'HOLD FIRE'; sub = 'A friendly or civil aircraft is near the line of fire. Wait for FIRE again.'; }
+    else if (E.cleared !== focus.id) { n = 5; head = 'Wait for FIRE from the control room'; sub = 'They clear you to fire on hostiles you report. Keep the gun on the drone meanwhile.'; }
+    else if (fcs && g.lockCid !== focus.id) { n = 6; head = `Press ${kbd('Q')} to lock target ${focus.id}`; sub = `Put the drone near the middle first. Once locked, a ◇ diamond shows where to aim (the lead).`; }
+    else if (g.safety) { n = steps.length - 1; head = `Press ${kbd('F')} to take the safety off`; sub = 'The gun will not fire with the safety on.'; }
+    else { n = steps.length; head = `Hold ${kbd('LEFT CLICK')} to fire`; sub = fcs ? 'Put the cross on the ◇ diamond (it turns green) and fire short bursts. Hold the right button for the sight.' : 'Put the cross a little ahead of the drone, where it is going, and fire short bursts.'; }
+  }
+  const key = `${n}|${head}|${sub}`;
+  if (key === L.coach.key) return;
+  L.coach.key = key;
+  el.innerHTML = `<small>FIRST TARGET · STEP ${n} OF ${steps.length} · ${esc(steps[n - 1])}</small><b>${head}</b><span>${sub}</span>
+    <i class="gnCoachBar"><em style="width:${Math.round((n / steps.length) * 100)}%"></em></i>`;
+  el.classList.toggle('done', L.coach.doneAt != null);
+}
 function draw() {
   if (!L) return;
   if (L.game === 'field') { const des = [...L.E.orders].reverse().find((o) => o.o === 'target'); L.fv?.frame(L.E, L.sol, L.acc / (L.E.dt * 1000), { selected: L.sel, ident: (cid) => identOf(L!.E, cid), indicated: des?.cid ?? null }); return; }

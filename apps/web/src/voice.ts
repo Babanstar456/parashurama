@@ -10,7 +10,7 @@ const SR = 16000, CHUNK_S = 0.12, KEY = 'parashurama.station';
 let online = false, net = 'unit', crewSeat: string | null = null, station = '';
 let es: EventSource | null = null, ctx: AudioContext | null = null, out: AudioNode | null = null;
 let stream: MediaStream | null = null, proc: ScriptProcessorNode | null = null, src: MediaStreamAudioSourceNode | null = null;
-let talking = false, seq = 0, pend: Int16Array[] = [], pendN = 0, peers = 0, rx = 0, tx = 0;
+let localOn = false, talking = false, seq = 0, pend: Int16Array[] = [], pendN = 0, peers = 0, rx = 0, tx = 0;
 const nextAt = new Map<string, number>(), speaking = new Map<string, number>();
 let btn: HTMLButtonElement, info: HTMLElement;
 
@@ -75,9 +75,20 @@ async function flush(force = false) {
   api(`/api/voice/${net}`, { method: 'POST', body: JSON.stringify({ station: callsign(), seq: seq++, sr: SR, pcm: b64(a) }) }).catch(() => undefined);
 }
 
+/** Without the unit server (the public website): the mic is a simple on/off switch. Switching on asks the browser for
+ *  microphone permission and holds the microphone open; switching off releases it. Nothing is sent anywhere. */
+async function toggleLocal() {
+  if (localOn) { localOn = false; stream?.getTracks().forEach((t) => t.stop()); stream = null; render(); return; }
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) { toast('The microphone needs a secure page (https).'); return; }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    localOn = true; toast('Microphone on');
+  } catch { localOn = false; toast('Microphone blocked: allow the microphone for this page in the browser.'); }
+  render();
+}
 async function start() {
   if (talking) return;
-  if (!online) { toast('Radio needs the unit server: start the app with the server to talk to your crew.'); return; }
+  if (!online) return;
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) { toast('The microphone needs a secure page: open the unit server by its https:// address.'); return; }
   talking = true; render();
   try {
@@ -116,10 +127,11 @@ function render() {
   const now = Date.now();
   for (const [k, t] of speaking) if (now - t > 1500) speaking.delete(k);
   const who = [...speaking.keys()];
-  btn.classList.toggle('on', talking); btn.classList.toggle('off', !online); btn.classList.toggle('rx', !!who.length && !talking);
-  btn.setAttribute('aria-pressed', String(talking));
-  btn.title = online ? `Hold to talk on the ${netLabel()} net (or hold the \` key). You are ${callsign()}.` : 'Radio: needs the unit server';
-  info.textContent = talking ? `TRANSMITTING · ${netLabel()}` : who.length ? `${who.join(', ')} talking` : online ? `${netLabel()} · ${peers ? `${Math.max(0, peers - 1)} other${peers === 2 ? '' : 's'} listening` : 'connecting…'}` : 'OFFLINE';
+  btn.classList.toggle('on', talking || localOn); btn.classList.toggle('rx', !!who.length && !talking);
+  btn.setAttribute('aria-pressed', String(online ? talking : localOn));
+  btn.setAttribute('aria-label', online ? 'Push to talk' : localOn ? 'Microphone on: click to turn off' : 'Microphone off: click to turn on');
+  btn.title = online ? `Hold to talk on the ${netLabel()} net (or hold the \` key). You are ${callsign()}.` : `Click (or press \`) to turn the microphone ${localOn ? 'off' : 'on'}`;
+  info.textContent = !online ? (localOn ? 'MIC ON' : 'MIC OFF') : talking ? `TRANSMITTING · ${netLabel()}` : who.length ? `${who.join(', ')} talking` : `${netLabel()} · ${peers ? `${Math.max(0, peers - 1)} other${peers === 2 ? '' : 's'} listening` : 'connecting…'}`;
 }
 
 /** Switch nets: a crew drill puts this station on its crew's net under its seat name; leaving it returns to the unit net. */
@@ -135,13 +147,13 @@ export function initVoice(o: { online: boolean }) {
   w.innerHTML = '<button id="micBtn" type="button" aria-label="Push to talk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11z"/></svg></button><span id="micInfo"></span>';
   document.body.appendChild(w);
   btn = w.querySelector('#micBtn')!; info = w.querySelector('#micInfo')!;
-  btn.addEventListener('pointerdown', (e) => { e.preventDefault(); btn.setPointerCapture(e.pointerId); void start(); });
+  btn.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!online) { void toggleLocal(); return; } btn.setPointerCapture(e.pointerId); void start(); });
   btn.addEventListener('pointerup', stop); btn.addEventListener('pointercancel', stop); btn.addEventListener('lostpointercapture', stop);
   const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
-  addEventListener('keydown', (e) => { if (e.code !== 'Backquote' || typing(e.target)) return; e.preventDefault(); e.stopImmediatePropagation(); if (!e.repeat) void start(); }, true);
+  addEventListener('keydown', (e) => { if (e.code !== 'Backquote' || typing(e.target)) return; e.preventDefault(); e.stopImmediatePropagation(); if (e.repeat) return; if (online) void start(); else void toggleLocal(); }, true);
   addEventListener('keyup', (e) => { if (e.code !== 'Backquote') return; e.preventDefault(); e.stopImmediatePropagation(); stop(); }, true);
   addEventListener('blur', stop);
   setInterval(render, 700);
   listen(); render();
-  (window as any).PARA_VOICE = { state: () => ({ online, net, station: callsign(), talking, peers, rx, tx }) };
+  (window as any).PARA_VOICE = { state: () => ({ online, net, station: callsign(), talking, localOn, peers, rx, tx }) };
 }
