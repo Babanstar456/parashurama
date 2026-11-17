@@ -1,6 +1,8 @@
 // Push-to-talk radio (bottom-left mic, on every screen). Hold the mic button, or the ` key, to talk; release to stop.
 // Speech goes live through the unit server to every other station on the same net: the whole unit ("UNIT" net), or
-// the crew in a LAN crew drill ("CREW <code>"). Nothing is recorded. Offline (no unit server) the mic says so.
+// the crew in a LAN crew drill ("CREW <code>"). In a room-code multiplayer room (multiplayer.ts) it goes over the room's
+// direct connections instead, relayed by the host's browser ("ROOM <code>"). Nothing is recorded. Otherwise, with no unit
+// server, the mic is a plain on/off switch.
 // Audio: the microphone is captured, cut to 16 kHz 16-bit mono and sent in ~0.12 s chunks; received chunks are queued
 // per station and played through a band-pass filter, so it sounds like a radio. Callsigns are anonymous (no names).
 import { api } from './online';
@@ -12,6 +14,10 @@ let es: EventSource | null = null, ctx: AudioContext | null = null, out: AudioNo
 let stream: MediaStream | null = null, proc: ScriptProcessorNode | null = null, src: MediaStreamAudioSourceNode | null = null;
 let localOn = false, talking = false, seq = 0, pend: Int16Array[] = [], pendN = 0, peers = 0, rx = 0, tx = 0;
 const nextAt = new Map<string, number>(), speaking = new Map<string, number>();
+/** Room-code multiplayer: voice travels over the room's data channels (set by multiplayer.ts). */
+export interface VoiceRoom { label: string; name: string; peers(): number; send(m: any): void; }
+let room: VoiceRoom | null = null;
+const live = () => online || !!room;
 let btn: HTMLButtonElement, info: HTMLElement;
 
 /** Anonymous callsign for this browser ("Station 4F2"), kept between visits; the crew seat replaces it in a crew drill. */
@@ -20,8 +26,32 @@ function myStation(): string {
   if (!/^Station [0-9A-F]{3}$/.test(s)) { s = `Station ${Math.floor(Math.random() * 4096).toString(16).toUpperCase().padStart(3, '0')}`; try { localStorage.setItem(KEY, s); } catch { /* ignore */ } }
   return s;
 }
-const callsign = () => crewSeat ?? station;
-const netLabel = () => (net === 'unit' ? 'UNIT' : `CREW ${net.slice(5)}`);
+const callsign = () => crewSeat ?? room?.name ?? station;
+const netLabel = () => (room && !online ? `ROOM ${room.label}` : net === 'unit' ? 'UNIT' : `CREW ${net.slice(5)}`);
+/** Send one voice message on the current net (unit server, or the room). */
+function post(body: any) {
+  if (room && !online) { room.send({ station: callsign(), ...body }); return; }
+  api(`/api/voice/${net}`, { method: 'POST', body: JSON.stringify({ station: callsign(), ...body }) }).catch(() => undefined);
+}
+function onTalk(d: any) {
+  if (d.on) speaking.set(d.from, Date.now()); else speaking.delete(d.from);
+  if (ctx) click(ctx, Math.max(ctx.currentTime, nextAt.get(d.from) ?? 0));
+  render();
+}
+function onAudio(d: any) { speaking.set(d.from, Date.now()); rx++; play(d.from, d.sr, unb64(d.pcm)); render(); }
+/** A voice message from the room (already relayed by the host, sender's name stamped as `station`). */
+export function voiceIn(m: any) {
+  if (!room || !m || typeof m.station !== 'string') return;
+  const d = { ...m, from: m.station.slice(0, 32) };
+  if (typeof m.pcm === 'string' && m.sr === SR) onAudio(d); else if (m.on != null) onTalk(d);
+}
+/** Join (or leave, with null) a multiplayer room's radio net. */
+export function setVoiceRoom(r: VoiceRoom | null) {
+  if (online) return; // the unit server's nets take precedence
+  stop(); room = r; nextAt.clear(); speaking.clear();
+  if (r && localOn) { localOn = false; stream?.getTracks().forEach((t) => t.stop()); stream = null; }
+  render();
+}
 
 function audio(): AudioContext {
   if (!ctx) {
@@ -58,13 +88,8 @@ function listen() {
   if (!online) { render(); return; }
   es = new EventSource(`/api/voice/${net}/events?station=${encodeURIComponent(callsign())}`);
   es.addEventListener('peers', (e: MessageEvent) => { peers = JSON.parse(e.data).n; render(); });
-  es.addEventListener('talk', (e: MessageEvent) => {
-    const d = JSON.parse(e.data);
-    if (d.on) speaking.set(d.from, Date.now()); else speaking.delete(d.from);
-    if (ctx) click(ctx, Math.max(ctx.currentTime, nextAt.get(d.from) ?? 0));
-    render();
-  });
-  es.addEventListener('audio', (e: MessageEvent) => { const d = JSON.parse(e.data); speaking.set(d.from, Date.now()); rx++; play(d.from, d.sr, unb64(d.pcm)); render(); });
+  es.addEventListener('talk', (e: MessageEvent) => onTalk(JSON.parse(e.data)));
+  es.addEventListener('audio', (e: MessageEvent) => onAudio(JSON.parse(e.data)));
   es.onerror = () => { peers = 0; render(); };
 }
 
@@ -72,7 +97,7 @@ async function flush(force = false) {
   if (!pendN || (!force && pendN < SR * CHUNK_S)) return;
   const a = new Int16Array(pendN); let o = 0; for (const p of pend) { a.set(p, o); o += p.length; }
   pend = []; pendN = 0; tx++;
-  api(`/api/voice/${net}`, { method: 'POST', body: JSON.stringify({ station: callsign(), seq: seq++, sr: SR, pcm: b64(a) }) }).catch(() => undefined);
+  post({ seq: seq++, sr: SR, pcm: b64(a) });
 }
 
 /** Without the unit server (the public website): the mic is a simple on/off switch. Switching on asks the browser for
@@ -88,8 +113,8 @@ async function toggleLocal() {
 }
 async function start() {
   if (talking) return;
-  if (!online) return;
-  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) { toast('The microphone needs a secure page: open the unit server by its https:// address.'); return; }
+  if (!live()) return;
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) { toast(online ? 'The microphone needs a secure page: open the unit server by its https:// address.' : 'The microphone needs a secure page (https).'); return; }
   talking = true; render();
   try {
     const c = audio();
@@ -107,7 +132,7 @@ async function start() {
     };
     const mute = c.createGain(); mute.gain.value = 0;
     src.connect(proc).connect(mute).connect(c.destination);
-    api(`/api/voice/${net}`, { method: 'POST', body: JSON.stringify({ station: callsign(), seq: seq++, on: true }) }).catch(() => undefined);
+    post({ seq: seq++, on: true });
   } catch {
     talking = false; render();
     toast('Microphone blocked: allow the microphone for this page to use the radio.');
@@ -118,7 +143,7 @@ function stop() {
   talking = false;
   void flush(true);
   proc?.disconnect(); src?.disconnect(); proc = null; src = null;
-  if (online) api(`/api/voice/${net}`, { method: 'POST', body: JSON.stringify({ station: callsign(), seq: seq++, on: false }) }).catch(() => undefined);
+  if (live()) post({ seq: seq++, on: false });
   render();
 }
 
@@ -128,10 +153,11 @@ function render() {
   for (const [k, t] of speaking) if (now - t > 1500) speaking.delete(k);
   const who = [...speaking.keys()];
   btn.classList.toggle('on', talking || localOn); btn.classList.toggle('rx', !!who.length && !talking);
-  btn.setAttribute('aria-pressed', String(online ? talking : localOn));
-  btn.setAttribute('aria-label', online ? 'Push to talk' : localOn ? 'Microphone on: click to turn off' : 'Microphone off: click to turn on');
-  btn.title = online ? `Hold to talk on the ${netLabel()} net (or hold the \` key). You are ${callsign()}.` : `Click (or press \`) to turn the microphone ${localOn ? 'off' : 'on'}`;
-  info.textContent = !online ? (localOn ? 'MIC ON' : 'MIC OFF') : talking ? `TRANSMITTING · ${netLabel()}` : who.length ? `${who.join(', ')} talking` : `${netLabel()} · ${peers ? `${Math.max(0, peers - 1)} other${peers === 2 ? '' : 's'} listening` : 'connecting…'}`;
+  const ptt = live(), peersNow = room && !online ? room.peers() : peers;
+  btn.setAttribute('aria-pressed', String(ptt ? talking : localOn));
+  btn.setAttribute('aria-label', ptt ? 'Push to talk' : localOn ? 'Microphone on: click to turn off' : 'Microphone off: click to turn on');
+  btn.title = ptt ? `Hold to talk on the ${netLabel()} net (or hold the \` key). You are ${callsign()}.` : `Click (or press \`) to turn the microphone ${localOn ? 'off' : 'on'}`;
+  info.textContent = !ptt ? (localOn ? 'MIC ON' : 'MIC OFF') : talking ? `TRANSMITTING · ${netLabel()}` : who.length ? `${who.join(', ')} talking` : `${netLabel()} · ${peersNow ? `${Math.max(0, peersNow - 1)} other${peersNow === 2 ? '' : 's'} listening` : 'connecting…'}`;
 }
 
 /** Switch nets: a crew drill puts this station on its crew's net under its seat name; leaving it returns to the unit net. */
@@ -147,13 +173,13 @@ export function initVoice(o: { online: boolean }) {
   w.innerHTML = '<button id="micBtn" type="button" aria-label="Push to talk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11z"/></svg></button><span id="micInfo"></span>';
   document.body.appendChild(w);
   btn = w.querySelector('#micBtn')!; info = w.querySelector('#micInfo')!;
-  btn.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!online) { void toggleLocal(); return; } btn.setPointerCapture(e.pointerId); void start(); });
+  btn.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!live()) { void toggleLocal(); return; } btn.setPointerCapture(e.pointerId); void start(); });
   btn.addEventListener('pointerup', stop); btn.addEventListener('pointercancel', stop); btn.addEventListener('lostpointercapture', stop);
   const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
-  addEventListener('keydown', (e) => { if (e.code !== 'Backquote' || typing(e.target)) return; e.preventDefault(); e.stopImmediatePropagation(); if (e.repeat) return; if (online) void start(); else void toggleLocal(); }, true);
+  addEventListener('keydown', (e) => { if (e.code !== 'Backquote' || typing(e.target)) return; e.preventDefault(); e.stopImmediatePropagation(); if (e.repeat) return; if (live()) void start(); else void toggleLocal(); }, true);
   addEventListener('keyup', (e) => { if (e.code !== 'Backquote') return; e.preventDefault(); e.stopImmediatePropagation(); stop(); }, true);
   addEventListener('blur', stop);
   setInterval(render, 700);
   listen(); render();
-  (window as any).PARA_VOICE = { state: () => ({ online, net, station: callsign(), talking, localOn, peers, rx, tx }) };
+  (window as any).PARA_VOICE = { state: () => ({ online, net: room && !online ? `room-${room.label}` : net, station: callsign(), talking, localOn, peers: room && !online ? room.peers() : peers, rx, tx }) };
 }
