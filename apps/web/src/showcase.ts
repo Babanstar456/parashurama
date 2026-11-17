@@ -12,7 +12,7 @@ const STEPS: Record<string, Step> = {
   detect: { k: 'detect', title: 'Detect', text: 'A blip appears on the radar. The operator starts a track on it; the clock for a decision is now running.', spot: '#contactsPanel' },
   identify: { k: 'identify', title: 'Identify', text: 'Clues arrive one by one: radar, friendly check, radio signal, behaviour, camera. The operator must say what it is, and how sure they are.', spot: '#cluePanel' },
   defeat: { k: 'defeat', title: 'Decide and defeat', text: 'Only weapons in reach are live. A radio-controlled drone is best stopped by jamming its link, and in a city the gun is a bad choice.', spot: '#defStep' },
-  view3d: { k: 'view3d', title: 'The same drill in 3D', text: 'The live drill as a 3D battlespace, ready for VR. It only shows what the sensors see, so it never gives the answer away.', spot: '#view3d' },
+  view3d: { k: 'view3d', title: 'The same drill in 3D', text: 'The live drill as a 3D battlespace, WebXR-ready (headset trial next). It only shows what the sensors see, so it never gives the answer away.', spot: '#view3d' },
   debrief: { k: 'debrief', title: 'Learn from every drill', text: 'The debrief scores every decision against doctrine, and shows the three biggest point losses with the clue that was missed.', spot: '#lessonsCard' },
   ghost: { k: 'ghost', title: 'Against the expert ghost', text: 'The drill tape replays the same seed with a perfect "expert ghost", so the trainee sees exactly where they were slower or wrong.', spot: '#tapeCard' },
   unit: { k: 'unit', title: 'For commanders', text: 'Every drill updates each soldier\'s skill model. Commanders see who is ready for tonight: night, swarm, faulty sensors or bad weather.', spot: '#tabUnit' },
