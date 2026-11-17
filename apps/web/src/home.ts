@@ -25,7 +25,7 @@ function playHtml(): string {
     <div class="homeKicker">Smart India Hackathon 2026 · SIH26247 · Ministry of Defence</div>
     <h1 class="homeTitle">PARASHURAMA</h1>
     <p class="homeTag">Train every soldier to stop hostile drones.<br><span>On any laptop. Even offline.</span></p>
-    <div class="hpMulti"><i>MULTIPLAYER</i><span>Crew drills over your unit network · push-to-talk radio</span></div>
+    <button class="hpMulti" id="hcMulti" aria-label="Multiplayer: host or join a room"><i>MULTIPLAYER</i><span>Room code · crew drills · score fights in Radar and On Ground</span></button>
     <div class="hpRow">
       <button class="hpPlay" id="hcPlay" aria-label="Play"><i aria-hidden="true">▶</i><b>Play</b></button>
       <button class="hpPlay hpLearn" id="hcLearn" aria-label="Learn: open the classroom"><i aria-hidden="true">📖</i><b>Learn</b></button>
@@ -65,7 +65,7 @@ function stageHtml(): string {
     return screen('Where do you train?', 'Pick one. You can come back and try the other at any time.', [
       { id: 'hcGround', tag: 'Guns', title: 'On Ground', body: 'Sit at the gun: L-70, Shilka or ZU-23-2. Spot the drone in the sky, identify it and fire. You can also drive the Shilka through a town.', foot: 'Choose a gun →' },
       { id: 'hcRadarTrack', tag: 'Screen', title: 'Radar', body: 'Work the radar screen: spot drones, decide friend or foe, and pick the right way to stop each one. Lessons with a coach first.', foot: 'Choose →' },
-    ], `<p class="hmSmall">For commanders and instructors: <button class="hmLink" id="hcUnit">Unit readiness</button> (you: ${certified} of ${Object.keys(m).length} skills certified) · <button class="hmLink" id="hcLectures">Classroom library</button></p>`, false);
+    ], `<p class="hmSmall">For commanders and instructors: <button class="hmLink" id="hcUnit">Unit readiness</button> (you: ${certified} of ${Object.keys(m).length} skills certified) · <button class="hmLink" id="hcLectures">Classroom library</button> · <button class="hmLink" id="hcMulti2">Multiplayer (room code)</button></p>`, false);
   }
   if (stage === 'ground') {
     return screen('Choose a gun', 'Start with an easy one: day, clear sky, sensors working. Each drill takes a few minutes, and every decision is explained at the end.', [
@@ -138,6 +138,7 @@ function render() {
   on('hcPlay', to('pick'));
   on('hcLearn', go(() => hooks.openLectures?.()));
   on('hcDemo', () => { closeHome(); hooks.showcase?.(); });
+  on('hcMulti', () => hooks.openMultiplayer?.()); on('hcMulti2', () => hooks.openMultiplayer?.());
   on('hcBack', to(UP[stage]));
   on('hcGround', to('ground'));
   on('hcRadarTrack', to('radar'));

@@ -7,7 +7,7 @@ Trainees detect, identify and defeat drone and swarm threats on a laptop. A guid
 **Live prototype:**
 - **Vercel:** builds the app from source on every push, using `vercel.json` and `scripts/vercel-build.mjs`. The app is installable and works offline after the first visit.
   - It also publishes `/comparison.html`, `/threat-library.html`, the guides under `/guides/`, and `/offline.html`, the one-file copy checked against `RELEASE.txt`.
-  - Vercel runs the app in offline mode: no sign-in and no LAN crew drills. Those need the unit server.
+  - Vercel runs the app in offline mode: no sign-in and no LAN crew drills (those need the unit server). Multiplayer works there with a **room code**: browsers connect directly (WebRTC); a public signalling broker (`wss://0.peerjs.com`, allowed in the CSP; set `VITE_CREW_BROKER` to self-host one) is used only for the handshake.
 - **GitHub Pages:** can still serve `docs/` (Settings → Pages → branch `main`, folder `/docs`).
 
 ## Who reads what
@@ -98,7 +98,7 @@ Also verified manually during development: all four Academy lessons completed by
 - **Gun drills (Home → *Control Room · On Ground*, or `?gun`):**
   - **Control Room** gives fire orders; **On Ground** crews a ZU-23-2 (manual sight) or ZSU-23-4 (radar fire control).
   - Real exterior ballistics, the live-fire procedure, and a timed reload drill.
-  - Can be played solo, or as a crew over the LAN through the unit server.
+  - Can be played solo, as a crew over the LAN through the unit server, or with a room code on the public site (crew drill, or a score fight in Radar or On Ground).
 - **UAV strike drill (`?gun=uav`):** an extension beyond the counter-drone PS.
 
 All figures are training values. Words of command are placeholders until the unit's drill wording is supplied. See [docs/GUN_FIELD_CARD.md](docs/GUN_FIELD_CARD.md).

@@ -1,7 +1,8 @@
 // Vercel build: the web app from source (installable, works offline after the first visit through its service worker),
 // plus the static pages from docs/ and the one-file offline copy. Output: vercel-out/  (see vercel.json)
 // The unit server (Fastify + SQLite, LAN crew drills) is not deployed here: it needs a long-running process and a disk.
-// On Vercel the app runs in its offline mode: history in the browser, no sign-in, no crew drills.
+// On Vercel the app runs in its offline mode: history in the browser, no sign-in, no LAN crew drills. Room-code multiplayer
+// (multiplayer.ts, p2p.ts) works here: browsers connect directly; vercel.json's CSP allows the signalling broker.
 import { execSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 
