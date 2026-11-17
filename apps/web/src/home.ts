@@ -25,7 +25,6 @@ function playHtml(): string {
     <div class="homeKicker">Smart India Hackathon 2026 · SIH26247 · Ministry of Defence</div>
     <h1 class="homeTitle">PARASHURAMA</h1>
     <p class="homeTag">Train every soldier to stop hostile drones.<br><span>On any laptop. Even offline.</span></p>
-    <button class="hpMulti" id="hcMulti" aria-label="Multiplayer: host or join a room"><i>MULTIPLAYER</i><span>Room code · crew drills · score fights in Radar and On Ground</span></button>
     <div class="hpRow">
       <button class="hpPlay" id="hcPlay" aria-label="Play"><i aria-hidden="true">▶</i><b>Play</b></button>
       <button class="hpPlay hpLearn" id="hcLearn" aria-label="Learn: open the classroom"><i aria-hidden="true">📖</i><b>Learn</b></button>
@@ -139,7 +138,7 @@ function render() {
   on('hcPlay', to('pick'));
   on('hcLearn', go(() => hooks.openLectures?.()));
   on('hcDemo', () => { closeHome(); hooks.showcase?.(); });
-  on('hcMulti', () => hooks.openMultiplayer?.()); on('hcMultiCard', () => hooks.openMultiplayer?.());
+  on('hcMultiCard', () => hooks.openMultiplayer?.());
   on('hcBack', to(UP[stage]));
   on('hcGround', to('ground'));
   on('hcRadarTrack', to('radar'));
