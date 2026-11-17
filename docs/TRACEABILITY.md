@@ -33,6 +33,11 @@ Every figure below is printed by the test suite as an `EVIDENCE …` line (`npm 
 | Untampered offline updates | Signed threat packs: `pack.ts` (`verifyPack`, `canonical`), `config/trust/keys.json`, `POST /api/packs`, editor import | `pack.test.ts` (valid accepted; changed byte, unknown or untrusted key rejected; invalid config caught), `apps/server/test/evidence.test.ts` |
 | Personnel data protection | AES-256-GCM sealing of drill records and logs (`apps/server/src/crypto.ts`), key outside the data directory, refuse-to-start in production, `migrate-encrypt` | `apps/server/test/encryption.test.ts` (ciphertext at rest, restart and CSV export with a key, migration, wrong key) |
 | Supply-chain hygiene | `docs/sbom.cdx.json`, `THIRD_PARTY_NOTICES.md`, `npm run audit:prod` in CI, `docs/RELEASE.txt` (SHA-256 of the offline file) | CI workflow `.github/workflows/ci.yml` |
+| AAR across every drill kind (radar, 3D field firing, Control Room, On Ground, urban patrol, recognition) | Unit readiness tab, *All drills* card (`apps/web/src/aar.ts`): score over time per drill kind, gun-drill and patrol readiness per operator, one CSV (`allDrillsToCsv()` in `report.ts`). Server: patrol drills re-run and stored (`apps/server/src/patrol.ts`, migration 6), `/api/patrol/readiness`, `/api/export/all.csv` | `apps/server/test/aar.test.ts` (patrol re-run, faked score flagged, one CSV, trainee scope); e2e `training.spec.ts` |
+| Recognize → classify as fast repetitions | Recognition trainer (`apps/web/src/recog.ts`): 20 drones a session by eye, binoculars, TV or thermal, day and night, sized 14–70 px; adaptive choice of the types each trainee confuses; exposure follows accuracy (1.0–2.0 s) | e2e `training.spec.ts` (20 answers, result stored) |
+| Swarms at scale, layered defence | Field drill saturation raid (`GunDrillConfig.raid`, 4–30 drones in waves) with an AI outer layer (`outerLayer`) and rule V5 (engage the most urgent first) | `field.test.ts` (raid, outer layer, V5, determinism) |
+| Instructor-led, unscripted drills | Instructor injects in the field drill (`inject` action, seat `ic`): swarm from a bearing, friendly crossing, fire-control sensor fail / restore; logged, replayed by the server | `field.test.ts` (injects replay exactly; gun seat cannot inject) |
+| Usable without an interpreter | Hindi / English switch (`apps/web/src/i18n.ts`): home menus, first-target coach, gun-drill debrief, field guide (first-draft wording for unit review) | e2e `training.spec.ts` |
 | Tamper-evident records | Server re-runs each drill (`apps/server/src/verify.ts`); SHA-256 chained log (`integrity.ts`) | `integrity.test.ts`, `server.test.ts` |
 
 ## Measured evidence (20 Oct 2026, 14-type library, radar rules up to R15, gun and UAV drills)
@@ -65,6 +70,10 @@ Every figure below is printed by the test suite as an `EVIDENCE …` line (`npm 
 | Crew drill over the LAN (test) | 2 trainees, 823 ticks streamed; control 90, gun 85; both stored and equal to each client's own replay |
 | Crew drills at once, real 10 Hz clock (dev laptop, `npm run crewload`) | 10 crews (20 clients): 149 of ~150 ticks each, spacing p50 100 ms, p99 126 ms, server CPU 10% of a core; 30 crews (60 clients): 149 of ~150, p99 135 ms, CPU 22% |
 | UAV strike drill, expert over 10 missions | all landed, all hits, miss 1.1–2.0 m (lethal radius 8 m) |
+| Field drill attack mode, expert detachment, level 1 (12 drills) | survived 11 of 12 |
+| Lead-only fire control, expert, level 1, attack mode (ZSU-23-4, L70, ZU-23-2 EO × 4 drills) | 98, 51, 95, 97, 94, 95, 97, 100, 99, 31, 97, 96 |
+| Saturation raid, 14 swarm drones, ZSU-23-4, expert, 3 seeds | without the outer layer: 14/14 held, 1/14 struck (score 39), 14/14 held; with the outer layer (5–8 defeated outside gun range): 6/6, 9/9, 8/8, all held, scores 100, 100, 99 |
+| Frame rate of the full web build (the build on Vercel), `npm run fps:web`, i3-1215U with Intel UHD graphics, visible Chromium | menus 59.9 fps (slowest 1% 50); 3D field drill, L70 looking round 58.9 fps (slowest 1% 18, 155 draw calls, 525k triangles); through the thermal sight 58.2 fps (slowest 1% 13); urban patrol driving 50.1 fps (slowest 1% 22). Radar drill: not cleanly measured on this machine (the OS throttled the window). Far vegetation simplification cut the field drill from 740k to 501k triangles per frame (looking north) |
 
 The load figures come from `npm run loadtest` on the dev laptop (i3-1005G1, 4 threads). Client and server shared that machine over loopback, each trainee on its own loopback address, with no think time, so this is a worst-case burst without real network delay. The sign-in limit (30 per address per minute) stops a class that shares one address; see the admin guide.
 
@@ -74,8 +83,9 @@ Before the 13-type library, the same suite measured 14 distinct threat mixes (th
 
 | Measure | How |
 |---|---|
-| Frame rate on the presentation laptop | `npm run build:single && npm run fps` on that laptop, or open `docs/index.html?fps`, use the menus, a drill and the 3D view (**V**), then click the meter to copy the report. Record it here. |
+| Frame rate on the presentation laptop | `npm run fps:web -- --url <the Vercel link>` on that laptop (full build: menus, radar drill, 3D field drill, sight, urban patrol), and `npm run build:single && npm run fps` for the offline copy, or or open `docs/index.html?fps`, use the menus, a drill and the 3D view (**V**), then click the meter to copy the report. Record it here. |
 | Load over a real LAN | `npm run loadtest -- --url http://<server>:8080` from a second PC against a test server. |
 | VR headset | WebXR entry is built; not yet tried on a headset. |
 | Gun, ammunition, reload and UAV values; words of command | All are training values or placeholders (`config/guns.json`). DSSC / AAD College to confirm or replace. |
-| Gun drills on the presentation laptop and a real LAN | `npm run fps` covers the radar views; open the gun drills and note the frame rate; run `npm run crewload` and a two-PC crew drill on the unit network. |
+| Gun drills on a real LAN | `npm run fps:web` now covers the gun drills and the patrol; still to do: `npm run crewload` and a two-PC crew drill (with the push-to-talk radio) on the unit network. |
+| Hindi wording | First draft in `apps/web/src/i18n.ts`; to be checked by the unit. |

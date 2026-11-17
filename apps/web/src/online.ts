@@ -32,7 +32,10 @@ async function flushOutbox(chip: HTMLElement) {
   if (box.length && !left.length) toast(`Synced ${box.length} drill${box.length > 1 ? 's' : ''} saved while offline`);
   chip.textContent = left.length ? `${left.length} waiting to sync` : 'Synced'; chip.className = 'sync ' + (left.length ? 'warn' : 'ok');
 }
+/** True once signed in to a unit server (drills are then also sent there to be re-checked and stored). */
+export let serverMode = false;
 export function initOnline(app: any, hooks: any, on: any, s: Session) {
+  serverMode = true;
   const chip = document.getElementById('syncChip')!; chip.hidden = false;
   app.TRAINEE.name = s.user.name; app.TRAINEE.unit = s.user.unit;
   document.getElementById('whoName')!.textContent = s.user.name;

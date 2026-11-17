@@ -306,7 +306,7 @@ function resultsTable(r: Round): string {
   return `<table class="mpTable"><tr><th></th><th>Player</th><th>Score</th><th>Hostiles down</th><th>Check</th></tr>${rows.map((p, i) => {
     const f = p.final, s = f ?? p.live;
     const chk = !f ? '<span class="mut">playing…</span>' : f.verified === true ? '<span class="good" title="The host re-ran this decision log and got the same score">✓ re-run matches</span>' : f.verified === false ? '<span class="bad" title="The host re-ran this decision log and got a different score">✗ re-run differs</span>' : '<span class="mut">—</span>';
-    return `<tr class="${p.id === myId ? 'me' : ''}"><td>${r.done ? ['🥇', '🥈', '🥉'][i] ?? i + 1 : i + 1}</td><td>${esc(p.name)}${p.id === myId ? ' (you)' : ''}${f?.quit ? ' <small class="bad">ended early</small>' : ''}</td><td class="num"><b>${s ? (f ? f.total : s.score) : '—'}</b></td><td class="num">${s ? `${s.kills}/${s.hostiles}` : '—'}</td><td>${chk}</td></tr>`;
+    return `<tr class="${p.id === myId ? 'me' : ''}"><td>${r.done ? ['🥇', '🥈', '🥉'][i] ?? i + 1 : i + 1}</td><td>${esc(p.name)}${p.id === myId ? ' (you)' : ''}${f?.quit ? ' <small class="bad">ended early</small>' : ''}</td><td class="num"><b>${s ? (f ? f.total : p.live?.score ?? '—') : '—'}</b></td><td class="num">${s ? `${s.kills}/${s.hostiles}` : '—'}</td><td>${chk}</td></tr>`;
   }).join('')}</table>${expert != null ? `<p class="mpNote">Expert ghost on the same drill: <b>${expert}</b>. Scores are training measures, not operational effectiveness.</p>` : ''}`;
 }
 

@@ -28,6 +28,8 @@ export interface PatrolCfg {
   /** Rounds issued; missing = 3000. */ issueRounds?: number;
   /** Weapon Control Status: tight = only identified hostiles; free = anything not identified friendly, civil or a bird. Missing = tight. */ wcs?: 'tight' | 'free';
   /** Number of patrol checkpoints; missing = 3. */ checkpoints?: number;
+  /** Civilian cars on the roads; missing = true (as before). false = empty streets (the cars are still drawn from the
+   *  random stream, so the route and the drones are the same as with traffic). */ traffic?: boolean;
 }
 export type PatrolActionKind = 'drive' | 'slew' | 'trig' | 'lock' | 'spot' | 'ident' | 'load';
 export interface PatrolAction { tick: number; k: PatrolActionKind; thr?: number; str?: number; az?: number; el?: number; on?: boolean; cid?: number; cls?: string; }
@@ -244,7 +246,7 @@ export function createPatrol(cfg: PatrolCfg, W: PatrolWorld, C: Config = getConf
     C, G, gun, am: G.ammo[gun.ammo], cfg, W, tick: 0, dt: C.training.sim.dt,
     veh: { x: s[0], y: s[1], hdg: (Math.atan2(n[0] - s[0], n[1] - s[1]) * 180) / Math.PI, v: 0, thr: 0, str: 0, odo: 0, contact: false, hits: 0 },
     g: { az: 0, el: 8, rAz: 0, rEl: 0, trig: false, ready, reserve: issue - ready, busyUntil: null, heat: 0, acc: 0, fired: 0, lockCid: null, lockStart: null, lockBlocked: 0 },
-    route, cps, cpDone: [], wp: Math.min(1, route.length - 1), spawns: [], next: 0, targets: [], cars: W.lanes.length ? cars : [], rounds: [], bursts: [], pending: [], ev: [], fcs: null,
+    route, cps, cpDone: [], wp: Math.min(1, route.length - 1), spawns: [], next: 0, targets: [], cars: W.lanes.length && cfg.traffic !== false ? cars : [], rounds: [], bursts: [], pending: [], ev: [], fcs: null,
     seen: {}, spots: {}, idents: [], collisions: [], grid: buildGrid(W),
   };
   E.g.az = E.veh.hdg;

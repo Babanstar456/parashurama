@@ -57,6 +57,7 @@ function fpsMeter() {
   // Radio (push-to-talk) first, so its ` key is handled before the drill screens' keys.
   (await import('./voice')).initVoice({ online });
   const [fg, ac, au, wi, ed, sc, v3, hm, shw, lt, lec, gn] = await Promise.all([import('./fieldguide'), import('./academy'), import('./audio'), import('./whatif'), import('./editor'), import('./scenarios'), import('./view3d'), import('./home'), import('./showcase'), import('./lite'), import('./lectures'), import('./gun')]);
+  (await import('./aar')).initAar();
   fg.initFieldGuide(); ac.initAcademy(); au.initAudio(); lt.initLite(); lec.initLectures({ online, user: session?.user ?? null }); wi.initWhatIf(); ed.initEditor({ online, user: session?.user ?? null, templates: session?.templates ?? null }); sc.initScenarios(); v3.init3D(); hm.initHome(); shw.initShowcase(); gn.initGun();
   boot();
   (await import('./multiplayer')).initMultiplayer({ online });

@@ -4,6 +4,7 @@
 //   E report the contact in the middle, 1–0 identify, / Unknown, Tab next contact, R reload, V camera (chase, commander,
 //   driver). Buildings hide drones until they clear the rooftops; rounds that hit buildings count against you.
 //   Fixed 10 Hz engine tick (deterministic, replayable); the view interpolates between ticks.
+import { api, serverMode } from './online';
 import * as THREE from 'three';
 import {
   angDiff, carPose, createPatrol, defaultPatrolCfg, dirOf, fly, getConfig, gunOrigin, losOf, mulberry, pDetectRangeM, patrolDone, patrolMaxTicks, pIdentOf,
@@ -49,7 +50,7 @@ export async function startPatrol(onExit: () => void, cfg?: PatrolCfg) {
   if (!hasWebGL()) { toast('The urban patrol drill needs WebGL (a 3D-capable browser).'); onExit(); return; }
   const r = mulberry(7211 + H.length * 131), last = H[H.length - 1];
   const diff = Math.max(1, Math.min(5, (last?.cfg.difficulty ?? 2) + (last ? (last.total >= 80 ? 1 : last.total < 60 ? -1 : 0) : 0)));
-  const c = cfg ?? defaultPatrolCfg({ seed: 70000 + Math.floor(r() * 1e6), difficulty: diff, time: r() < 0.25 ? 'night' : 'day', weather: r() < 0.7 ? 'clear' : r() < 0.5 ? 'dust' : 'rain', met: { tempC: Math.round(18 + r() * 22), pressureHpa: 1005, wind: [0, 0, 0], latitudeDeg: 26 } });
+  const c = cfg ?? defaultPatrolCfg({ seed: 70000 + Math.floor(r() * 1e6), traffic: false, difficulty: diff, time: r() < 0.25 ? 'night' : 'day', weather: r() < 0.7 ? 'clear' : r() < 0.5 ? 'dust' : 'rain', met: { tempC: Math.round(18 + r() * 22), pressureHpa: 1005, wind: [0, 0, 0], latitudeDeg: 26 } });
   $('#gunApp').innerHTML = `<div class="gnDrill field ptDrill">
     <div class="gnBar"><b>URBAN PATROL · ZSU-23-4</b><span id="ptCond"></span><span class="gnMeasures">Drive the route · report · identify · engage only identified hostiles · spare the town</span>
       <span class="gnClock num" id="ptClock">0:00</span><button class="smallBtn" id="ptQuit">End drill</button></div>
@@ -229,14 +230,19 @@ function finish(quit: boolean) {
   const me = L; if (!me || me.done) return;
   const E = me.E, sc = scorePatrol(E), onExit = me.onExit;
   me.done = true; cancelAnimationFrame(me.raf);
-  if (!quit || E.tick > 300) { H.push({ n: H.length + 1, date: Date.now(), cfg: E.cfg, total: sc.total, rules: sc.rules, metrics: sc.metrics }); save(); }
+  if (!quit || E.tick > 300) {
+    H.push({ n: H.length + 1, date: Date.now(), cfg: E.cfg, total: sc.total, rules: sc.rules, metrics: sc.metrics }); save();
+    // On a unit server: send the log to be re-run there and stored with the unit's records (after-action review).
+    if (serverMode) api('/api/patrol/drills', { method: 'POST', body: JSON.stringify({ cfg: E.cfg, actions: me.log, endTick: E.tick, clientTotal: sc.total }) })
+      .then((r) => toast(r.verified ? `Saved on the unit server: ${r.total}` : `Unit server scored ${r.total}`)).catch(() => toast('Could not save to the unit server'));
+  }
   stopPatrol();
   const pass = sc.total >= getConfig().training.certification.passMark, m = sc.metrics;
   $('#gunApp').innerHTML = `<div class="gnDebrief"><div class="gnHead"><h2>Urban patrol · debrief</h2><button class="smallBtn" id="ptBack">All drills</button><button class="smallBtn solid" id="ptAgain">Next patrol →</button></div>
     <p class="gnLead"><b class="${pass ? 'ok' : 'bad'}" style="font-size:42px">${sc.total}</b> / 100 · ${pass ? 'PASS' : 'NOT YET'} (pass mark ${getConfig().training.certification.passMark})${quit ? ' · ended early' : ''}</p>
     <div class="gnCols"><div><h4>Per contact (average)</h4><table class="gnTracks">${sc.parts.map((p) => `<tr><td>${p.rule}</td><td>${esc(p.label)}</td><td class="num">${p.pts} / ${p.max}</td></tr>`).join('')}
       ${sc.deductions.map((d) => `<tr><td>${d.rule}</td><td>${esc(d.label)}</td><td class="num bad">${d.pts}</td></tr>`).join('')}</table>
-      <h4>Measured</h4><p class="gnNote">${m.kills}/${m.hostiles} hostiles destroyed · ${m.leaked} got through · ${m.roundsFired} rounds, ${m.hits} hits · ${m.buildingRounds} rounds into buildings · checkpoints ${m.checkpoints} · ${m.distanceM} m driven · ${m.collisions} collisions, ${m.carHits} civilian vehicles hit · struck ${m.vehicleHits}×</p></div>
+      <h4>Measured</h4><p class="gnNote">${m.kills}/${m.hostiles} hostiles destroyed · ${m.leaked} got through · ${m.roundsFired} rounds, ${m.hits} hits · ${m.buildingRounds} rounds into buildings · checkpoints ${m.checkpoints} · ${m.distanceM} m driven · ${m.collisions} collisions${m.carHits ? `, ${m.carHits} civilian vehicles hit` : ''} · struck ${m.vehicleHits}×</p></div>
     <div><h4>Why</h4><ul class="gnWhy">${sc.why.map((w) => `<li>${esc(w)}</li>`).join('') || '<li>A clean patrol.</li>'}</ul>
       <h4>Rules</h4><ul class="gnWhy">${Object.entries(PATROL_RULES).map(([k, v]) => `<li class="${sc.rules.includes(k) ? 'bad' : ''}"><b>${k}</b> ${esc(v)}</li>`).join('')}</ul></div></div>
     <p class="gnNote">Simulated scores are training measures, not operational effectiveness. ${H.length} patrol drill${H.length === 1 ? '' : 's'} on this computer; the next one is set from your last score.</p></div>`;

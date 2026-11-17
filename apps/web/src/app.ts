@@ -417,6 +417,7 @@ function renderUnit(){
   $('#rosterSeg').innerHTML=[['night','Night'],['swarm','Swarm'],['degraded','Faulty sensors'],['weather','Bad weather']].map(([k,l])=>`<button data-k="${k}" class="${roster.has(k)?'on':''}">${l}</button>`).join('');
   const need=[...roster];const scored=all.map(o=>({o,min:need.length?Math.min(...need.map(k=>o.v[k]??0)):avg(BCOLS.map(([k])=>o.v[k]))})).sort((a,b)=>b.min-a.min);const ready=scored.filter(x=>x.min>=CERT.certifiedMastery);
   $('#rosterAns').innerHTML=`<div class="kicker">Ready for ${need.length?need.map(k=>({night:'night',swarm:'swarm',degraded:'faulty sensors',weather:'bad weather'}[k])).join(' + '):'any task'}</div><div class="bigAns">${ready.length} of ${all.length}</div>`;
+  hooks.renderAar?.();
   $('#rlist').innerHTML=scored.map(x=>`<div class="ritem ${x.min>=CERT.certifiedMastery?'ok':''}"><span>${x.o.n}</span><em class="num">${x.min>=CERT.certifiedMastery?'Ready':'Not yet'} · ${Math.round(x.min*100)}%</em></div>`).join('');
 }
 const pct=v=>Math.round(v*100);
