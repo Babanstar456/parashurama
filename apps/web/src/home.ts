@@ -26,7 +26,6 @@ function playHtml(): string {
     <div class="homeKicker">Smart India Hackathon 2026 · SIH26247 · Ministry of Defence</div>
     <h1 class="homeTitle">PARASHURAMA</h1>
     <p class="homeTag">${t('Train every soldier to stop hostile drones.')}<br><span>${t('On any laptop. Even offline.')}</span></p>
-    <button class="hpMulti" id="hcMulti" aria-label="Multiplayer: host or join a room"><i>${t('MULTIPLAYER')}</i><span>${t('Room code · crew drills · score fights in Radar and On Ground')}</span></button>
     <div class="hpRow">
       <button class="hpPlay" id="hcPlay" aria-label="Play"><i aria-hidden="true">▶</i><b>${t('Play')}</b></button>
       <button class="hpPlay hpLearn" id="hcLearn" aria-label="Learn: open the classroom"><i aria-hidden="true">📖</i><b>${t('Learn')}</b></button>
@@ -43,14 +42,14 @@ const cardHtml = (x: Card, here: boolean) => `<button class="hb ${here ? 'here' 
   <b>${x.title}</b><span>${x.body}</span><em>${x.foot ?? t('Start →')}</em></button>`;
 const crumbs = (s: Stage) => ({ play: '', pick: t('Play'), ground: `${t('Play')} › ${t('On Ground')}`, radar: `${t('Play')} › ${t('Radar')}`, missions: `${t('Play')} › ${t('Radar')} › ${t('Real-world missions')}` })[s];
 
-function screen(title: string, lead: string, cards: Card[], extra = '', startHere = true): string {
+function screen(title: string, lead: string, cards: Card[], extra = '', startHere = true, cls = ''): string {
   const here = startHere ? cards.find((x) => !x.done && !x.menu)?.id : undefined;
   return `
   <canvas id="homeFx" aria-hidden="true"></canvas>
   <div class="homeMenu">
     <div class="hmTop"><button class="hmBack" id="hcBack">${t('← Back')}</button><div><small class="hmCrumb">${crumbs(stage)}</small><h2>${title}</h2></div></div>
     <p class="hmLead">${lead}</p>
-    <div class="hmBig ${cards.length === 2 ? 'two' : ''}">${cards.map((x) => cardHtml(x, x.id === here)).join('')}</div>
+    <div class="hmBig ${cls || (cards.length === 2 ? 'two' : '')}">${cards.map((x) => cardHtml(x, x.id === here)).join('')}</div>
     ${extra}
   </div>`;
 }
@@ -64,10 +63,11 @@ function stageHtml(): string {
   const weakName = t({ night: 'night drills', swarm: 'swarm attacks', degraded: 'faulty sensors', weather: 'bad weather' }[weakest]);
   if (stage === 'pick') {
     const certified = Object.values(m).filter((v) => v >= CERT.certifiedMastery).length;
-    return screen(t('Where do you train?'), t('Pick one. You can come back and try the other at any time.'), [
+    return screen(t('Where do you train?'), t('Pick one. You can come back and try the others at any time.'), [
       { id: 'hcGround', tag: t('Guns'), title: t('On Ground'), body: t('Sit at the gun: L-70, Shilka or ZU-23-2. Spot the drone in the sky, identify it and fire. You can also drive the Shilka through a town.'), foot: t('Choose a gun →') },
       { id: 'hcRadarTrack', tag: t('Screen'), title: t('Radar'), body: t('Work the radar screen: spot drones, decide friend or foe, and pick the right way to stop each one. Lessons with a coach first.'), foot: t('Choose →') },
-    ], `<p class="hmSmall">${t('For commanders and instructors:')} <button class="hmLink" id="hcUnit">${t('Unit readiness')}</button> ${t('(you: {a} of {b} skills certified)', { a: certified, b: Object.keys(m).length })} · <button class="hmLink" id="hcLectures">${t('Classroom library')}</button> · <button class="hmLink" id="hcMulti2">${t('Multiplayer (room code)')}</button></p>`, false);
+      { id: 'hcMultiCard', tag: t('Online'), tagCls: 'medium', title: t('Multiplayer'), body: t('Play with others: host a room or join with a code. Crew the gun together, or fight for the top score in Radar or On Ground.'), foot: t('Host or join →') },
+    ], `<p class="hmSmall">${t('For commanders and instructors:')} <button class="hmLink" id="hcUnit">${t('Unit readiness')}</button> ${t('(you: {a} of {b} skills certified)', { a: certified, b: Object.keys(m).length })} · <button class="hmLink" id="hcLectures">${t('Classroom library')}</button></p>`, false, 'two three');
   }
   if (stage === 'ground') {
     return screen(t('Choose a gun'), t('Start with an easy one: day, clear sky, sensors working. Each drill takes a few minutes, and every decision is explained at the end.'), [
@@ -143,7 +143,7 @@ function render() {
   on('hcLang', () => { setLang(lang === 'hi' ? 'en' : 'hi'); render(); });
   on('hcLearn', go(() => hooks.openLectures?.()));
   on('hcDemo', () => { closeHome(); hooks.showcase?.(); });
-  on('hcMulti', () => hooks.openMultiplayer?.()); on('hcMulti2', () => hooks.openMultiplayer?.());
+  on('hcMultiCard', () => hooks.openMultiplayer?.());
   on('hcBack', to(UP[stage]));
   on('hcGround', to('ground'));
   on('hcRadarTrack', to('radar'));
