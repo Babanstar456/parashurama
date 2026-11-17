@@ -3,7 +3,7 @@
 ## Your tools
 
 - **Instructor panel** (top bar, *Instructor* button). Visible to instructor and admin accounts on the unit server. On a standalone laptop, open the app with `?instructor` at the end of the address (changes then stay in that browser).
-- **Readiness board** (debrief → *Unit readiness*): mastery per operator and condition; *Who can I put on the console?* answers for tonight's conditions.
+- **Readiness board** (debrief → *Unit readiness*): a summary strip for the unit; mastery per operator and condition (click a column to sort; Drills and Last score per operator); *Who can I put on the console?* answers for tonight's conditions; *Where the unit is weakest* (with a peer-coach suggestion); and your score across drills against the pass mark.
 
 ## Change doctrine and settings (no code)
 
@@ -40,6 +40,7 @@ In *Scripted drills*: give it a name, choose day/night, terrain and sensor fault
 
   Replace the placeholders with your unit's exact drill wording. Validate with `npm run validate:config`, or ship the change as a signed pack.
 - **Crew drill over the LAN:** on the unit server, one trainee creates a crew drill in the gun lobby and reads out the code; each person takes a seat (Control Room or gun); anyone seated starts it. An empty seat is played by the AI.
+- **Multiplayer with a room code** (public website; Home → *Multiplayer*): one person hosts and reads out the 5-letter code (or sends the invite link); the others join. The host picks each round: a **crew drill** (Control Room + gun, the host's browser runs the clock) or a **score fight** (everyone plays the same Radar or On Ground drill; live scores in the corner; at the end the host's PC re-runs every player's decision log and marks each score ✓ when it matches). Browsers connect directly; the host must keep the tab open and in front. A crew drill ends with a **crew debrief**: both seats' scores against the expert crew, the two biggest point losses per seat, the hand-off of every hostile (target indicated → FIRE ordered → first round, each against the expert crew) and order-acknowledgement times.
 - **Unit gun readiness** (gun lobby, instructors and admins): drills, last On Ground and Control Room scores, and the weakest gun skill for each person.
 - **Classroom library** (Home → *Classroom library*): add videos or notes (PDF, PNG/JPEG, text) under a course: Control Room, On Ground (gun), UAV GCS, Live-fire safety, and others.
 
