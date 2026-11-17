@@ -403,16 +403,81 @@ function goNext(){if(hooks.next&&hooks.next())return;renderBrief();setPhase('bri
 const OPS=[{n:'Sep Vikram Singh',v:{detect:.91,identify:.88,defeat:.86,night:.87,swarm:.72,degraded:.81,weather:0.79,roe:0.84}},{n:'Sep Imran Khan',v:{detect:.86,identify:.9,defeat:.92,night:.9,swarm:.88,degraded:.86,weather:0.83,roe:0.9}},{n:'L/Nk Deepak Thapa',v:{detect:.86,identify:.74,defeat:.7,night:.61,swarm:.55,degraded:.66,weather:0.57,roe:0.62}},{n:'Sep Rahul Yadav',v:{detect:.93,identify:.89,defeat:.9,night:.86,swarm:.9,degraded:.58,weather:0.84,roe:0.88}},{n:'Sep Kiran Patil',v:{detect:.71,identify:.66,defeat:.62,night:.48,swarm:.4,degraded:.52,weather:0.45,roe:0.47}},{n:'Nk Suresh Nair',v:{detect:.89,identify:.92,defeat:.87,night:.91,swarm:.86,degraded:.88,weather:0.82,roe:0.86}}];
 const BCOLS=[['detect','Detection'],['identify','Identification'],['defeat','Defeat'],['night','Night'],['swarm','Swarm'],['degraded','Faulty sensors'],['weather','Bad weather'],['roe','ROE']];
 const roster=new Set(['night','swarm']);
+// Board sort: null = server/default order (you first); click a header to sort, click again to flip.
+let bSort:{k:string,dir:number}|null=null;
+const ovOf=o=>avg(BCOLS.map(([k])=>(o.v[k]??0)));
 function renderUnit(){
-  const me={n:TRAINEE.name+' (you)',v:mastery(DB.H),me:true};const all: any[]=hooks.operators?hooks.operators():[me,...OPS];
+  const me={n:TRAINEE.name+' (you)',v:mastery(DB.H),me:true,d:DB.H.length,last:DB.H.length?DB.H[DB.H.length-1].total:null};const all: any[]=hooks.operators?hooks.operators():[me,...OPS];
   const stc=v=>v>=CERT.certifiedMastery?'st3':v>=CERT.developingMastery?'st2':'st1';
-  $('#board').innerHTML=`<tr><th>Operator</th>${BCOLS.map(([,l])=>`<th>${l}</th>`).join('')}<th>Overall</th></tr>`+all.map(o=>{const ov=avg(BCOLS.map(([k])=>(o.v[k]??0)));return `<tr class="${o.me?'me':''}"><td>${o.n}</td>${BCOLS.map(([k])=>`<td class="${stc((o.v[k]??0))} num">${Math.round((o.v[k]??0)*100)}</td>`).join('')}<td class="${stc(ov)} num">${Math.round(ov*100)}</td></tr>`;}).join('');
+  const sv=(o,k)=>k==='n'?o.n:k==='ov'?ovOf(o):k==='d'?(o.d??-1):k==='last'?(o.last??-1):(o.v[k]??0);
+  const rows=bSort?all.slice().sort((a,b)=>{const x=sv(a,bSort.k),y=sv(b,bSort.k);return (typeof x==='string'?x.localeCompare(y):x-y)*bSort.dir;}):all;
+  const th=(k,l)=>`<th data-sort="${k}" class="${bSort?.k===k?'sorted':''}" title="Sort by ${l}">${l}${bSort?.k===k?(bSort.dir>0?' ▲':' ▼'):''}</th>`;
+  $('#board').innerHTML=`<tr>${th('n','Operator')}${BCOLS.map(([k,l])=>th(k,l)).join('')}${th('ov','Overall')}${th('d','Drills')}${th('last','Last')}</tr>`+rows.map(o=>{const ov=ovOf(o);return `<tr class="${o.me?'me':''}"><td>${o.n}</td>${BCOLS.map(([k])=>`<td class="${stc((o.v[k]??0))} num">${Math.round((o.v[k]??0)*100)}</td>`).join('')}<td class="${stc(ov)} num">${Math.round(ov*100)}</td><td class="plain num">${o.d??'—'}</td><td class="plain num ${o.last==null?'':o.last>=CERT.passMark?'good':'bad'}">${o.last??'—'}</td></tr>`;}).join('');
+  renderUnitKpis(all);renderGaps(all);renderTrend();
   $('#rosterSeg').innerHTML=[['night','Night'],['swarm','Swarm'],['degraded','Faulty sensors'],['weather','Bad weather']].map(([k,l])=>`<button data-k="${k}" class="${roster.has(k)?'on':''}">${l}</button>`).join('');
   const need=[...roster];const scored=all.map(o=>({o,min:need.length?Math.min(...need.map(k=>o.v[k]??0)):avg(BCOLS.map(([k])=>o.v[k]))})).sort((a,b)=>b.min-a.min);const ready=scored.filter(x=>x.min>=CERT.certifiedMastery);
   $('#rosterAns').innerHTML=`<div class="kicker">Ready for ${need.length?need.map(k=>({night:'night',swarm:'swarm',degraded:'faulty sensors',weather:'bad weather'}[k])).join(' + '):'any task'}</div><div class="bigAns">${ready.length} of ${all.length}</div>`;
   hooks.renderAar?.();
   $('#rlist').innerHTML=scored.map(x=>`<div class="ritem ${x.min>=CERT.certifiedMastery?'ok':''}"><span>${x.o.n}</span><em class="num">${x.min>=CERT.certifiedMastery?'Ready':'Not yet'} · ${Math.round(x.min*100)}%</em></div>`).join('');
 }
+const pct=v=>Math.round(v*100);
+const FONT='font-family="Barlow Condensed, DejaVu Sans Condensed, sans-serif"';
+// Unit summary strip: the five numbers a commander asks first.
+function renderUnitKpis(all){
+  const C3=CERT.certifiedMastery;const full=all.filter(o=>BCOLS.every(([k])=>(o.v[k]??0)>=C3)).length;
+  const unitAvg=avg(all.map(ovOf));const sk=BCOLS.map(([k,l])=>({l,a:avg(all.map(o=>o.v[k]??0))})).sort((a,b)=>a.a-b.a)[0];
+  const known=all.every(o=>o.d!=null);const drills=known?all.reduce((s,o)=>s+o.d,0):DB.H.length;
+  const passN=DB.H.filter(h=>h.total>=CERT.passMark).length;
+  const k=(cls,v,l)=>`<div class="ukpi ${cls}"><b>${v}</b><span>${l}</span></div>`;
+  $('#unitKpis').innerHTML=k('',all.length,'Operators on the board')+
+    k(full===all.length?'ok':full===0?'warn':'',`${full}<small> / ${all.length}</small>`,'Certified in every condition')+
+    k(unitAvg>=C3?'ok':unitAvg<CERT.developingMastery?'warn':'',`${pct(unitAvg)}<small>%</small>`,'Unit average mastery')+
+    k(sk.a<CERT.developingMastery?'warn':'',`${pct(sk.a)}<small>%</small>`,`Weakest: ${sk.l}`)+
+    k('',drills,known?'Drills logged by the unit':`Your drills · ${DB.H.length?pct(passN/DB.H.length):0}% passed`);
+}
+// Where the unit is weakest: per condition, how many operators are certified / developing / not yet. Weakest first.
+function renderGaps(all){
+  const C3=CERT.certifiedMastery,C2=CERT.developingMastery,n=all.length||1;
+  const rows=BCOLS.map(([k,l])=>{const v=all.map(o=>o.v[k]??0);return{k,l,a:avg(v),c3:v.filter(x=>x>=C3).length,c2:v.filter(x=>x>=C2&&x<C3).length,c1:v.filter(x=>x<C2).length};}).sort((a,b)=>a.a-b.a);
+  const W=520,x0=118,x1=W-52,rh=26,H=rows.length*rh+30,X=c=>x0+(c/n)*(x1-x0);
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Unit skill gaps">`;
+  rows.forEach((r,i)=>{const y=8+i*rh;let x=x0;
+    s+=`<text x="${x0-8}" y="${y+14}" text-anchor="end" ${FONT} font-size="14" font-weight="600" fill="#18231D">${r.l}</text>`;
+    for(const [c,col] of [[r.c3,'#2B7746'],[r.c2,'#AD8304'],[r.c1,'#B3122A']] as [number,string][]){if(!c)continue;const w=X(c)-x0;s+=`<rect x="${x}" y="${y}" width="${Math.max(0,w-1.5)}" height="${rh-8}" rx="2" fill="${col}" opacity=".85"/>${w>16?`<text x="${x+w/2}" y="${y+13}" text-anchor="middle" ${FONT} font-size="12.5" font-weight="700" fill="#fff">${c}</text>`:''}`;x+=w;}
+    s+=`<text x="${x1+8}" y="${y+14}" ${FONT} font-size="13" fill="${r.a<C2?'#B3122A':'#46554C'}">${pct(r.a)}%</text>`;});
+  const ly=H-8;s+=[['Certified','#2B7746'],['Developing','#AD8304'],['Not yet','#B3122A']].map(([l,c],i)=>`<rect x="${x0+i*100}" y="${ly-10}" width="11" height="11" rx="2" fill="${c}"/><text x="${x0+i*100+16}" y="${ly}" ${FONT} font-size="12.5" fill="#46554C">${l}</text>`).join('')+`<text x="${x1+8}" y="${ly}" ${FONT} font-size="12" fill="#78867D">avg</text>`;
+  $('#gapSvg').innerHTML=s+'</svg>';
+  // Peer coaching: pair the strongest certified operator in the weakest condition with those not yet developing.
+  const w=rows[0];const byK=all.slice().sort((a,b)=>(b.v[w.k]??0)-(a.v[w.k]??0));const coach=byK.find(o=>(o.v[w.k]??0)>=C3);
+  const learners=byK.filter(o=>(o.v[w.k]??0)<C2).reverse().slice(0,3);
+  $('#gapCap').innerHTML=`Weakest across the unit: <b>${w.l}</b> (average ${pct(w.a)}%, ${w.c1+w.c2} of ${all.length} not yet certified). `+
+    (learners.length?coach?`Peer coach: <b>${coach.n.replace(' (you)','')}</b> (${pct(coach.v[w.k])}%) can run a ${w.l.toLowerCase()} session with ${learners.map(o=>o.n).join(', ')}.`:`No one is certified in ${w.l.toLowerCase()} yet: book an instructor-led session.`:'Everyone is at least developing here.');
+}
+// Your progress across drills (continuous record): score per drill, pass mark, rolling 3-drill average.
+function renderTrend(){
+  const H0=DB.H,H=H0.slice(-30),off=H0.length-H.length;
+  if(!H.length){$('#trendSvg').innerHTML='';$('#trendCap').innerHTML='No drills yet. Your scores appear here after your first drill.';return;}
+  const W=520,Ht=230,x0=40,x1=W-14,y0=14,h=170,Y=v=>y0+h*(1-v/100),X=i=>H.length===1?(x0+x1)/2:x0+(i/(H.length-1))*(x1-x0);
+  let s=`<svg viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Score per drill">`;
+  for(const v of [0,25,50,75,100])s+=`<line x1="${x0}" x2="${x1}" y1="${Y(v)}" y2="${Y(v)}" stroke="#D2D9CD"/><text x="${x0-6}" y="${Y(v)+4}" text-anchor="end" ${FONT} font-size="12" fill="#78867D">${v}</text>`;
+  s+=`<line x1="${x0}" x2="${x1}" y1="${Y(CERT.passMark)}" y2="${Y(CERT.passMark)}" stroke="#AD8304" stroke-width="2" stroke-dasharray="5 3"/><text x="${x1}" y="${Y(CERT.passMark)-5}" text-anchor="end" ${FONT} font-size="12" fill="#AD8304">pass ${CERT.passMark}</text>`;
+  const roll=H.map((_,i)=>avg(H.slice(Math.max(0,i-2),i+1).map(r=>r.total)));
+  if(H.length>2)s+=`<polyline points="${roll.map((v,i)=>`${X(i)},${Y(v)}`).join(' ')}" fill="none" stroke="#78867D" stroke-width="2" stroke-dasharray="4 3"/>`;
+  s+=`<polyline points="${H.map((r,i)=>`${X(i)},${Y(r.total)}`).join(' ')}" fill="none" stroke="#18231D" stroke-width="2"/>`;
+  const step=Math.ceil(H.length/12);
+  H.forEach((r,i)=>{const c=r.cfg||{};const conds=[c.time==='night'?'Night':'Day',c.pattern==='swarm'?'Swarm':'',c.fault&&c.fault!=='none'?FAULT_LABEL[c.fault]:'',c.weather&&c.weather!=='clear'?WEATHER_LABEL[c.weather]:''].filter(Boolean).join(', ');
+    const col=r.total>=CERT.passMark?'#2B7746':'#B3122A';
+    s+=`<circle cx="${X(i)}" cy="${Y(r.total)}" r="5" fill="${r.demo?'#EDF0E8':col}" stroke="${col}" stroke-width="2"><title>Drill ${off+i+1}: ${r.total} · ${conds}${r.demo?' · demo record':''}</title></circle>`;
+    if(i%step===0||i===H.length-1)s+=`<text x="${X(i)}" y="${y0+h+18}" text-anchor="middle" ${FONT} font-size="12" fill="#78867D">${off+i+1}</text>`;});
+  s+=`<text x="${(x0+x1)/2}" y="${Ht-4}" text-anchor="middle" ${FONT} font-size="12" fill="#78867D">drill number</text>`;
+  $('#trendSvg').innerHTML=s+'</svg>';
+  const T=H0.map(r=>r.total),best=Math.max(...T),last=T[T.length-1],pass=T.filter(t=>t>=CERT.passMark).length;
+  const a=avg(T.slice(-3)),b=T.length>=6?avg(T.slice(-6,-3)):null;const d=b==null?null:Math.round(a-b);
+  $('#trendCap').innerHTML=`<b>${T.length}</b> drill${T.length>1?'s':''} · best <b>${best}</b> · last <b>${last}</b> · passed <b>${pass} of ${T.length}</b>.`+
+    (d==null?'':` Last 3 drills average <b>${Math.round(a)}</b>, ${d>0?`<b class="good">up ${d}</b>`:d<0?`<b class="bad">down ${-d}</b>`:'level'} on the 3 before.`)+
+    (H.some(r=>r.demo)?' Hollow dots are demo records.':'')+(off?` Showing the last ${H.length}.`:'');
+}
+$('#board').addEventListener('click',e=>{const t=e.target.closest('th[data-sort]');if(!t)return;const k=t.dataset.sort;const d0=k==='n'?1:-1;bSort=bSort?.k===k?(bSort.dir===d0?{k,dir:-d0}:null):{k,dir:d0};renderUnit();});
 // Drill history as CSV for after-action review. Online: the server's verified records (scoped by role); offline: this browser's history.
 $('#csvBtn').addEventListener('click',()=>{
   if(hooks.exportCsv)return hooks.exportCsv();

@@ -126,15 +126,20 @@
       </div>
     </div>
     <div id="tabUnit" style="display:none">
+      <div class="unitKpis" id="unitKpis"></div>
       <div class="unitGrid">
         <div class="card"><div class="cardHead"><h3>Readiness board · AD Troop 2</h3><span>Mastery by condition</span></div>
           <div class="wrapx" style="padding:0 12px 6px"><table class="board" id="board"></table></div>
-          <div class="note">Green = certified (mastery ≥ 80%), amber = developing (55–80%), red = not yet. Other operators are demo data; your row updates after every drill.</div>
+          <div class="note">Green = certified (mastery ≥ 80%), amber = developing (55–80%), red = not yet. Click a column to sort. Other operators are demo data; your row updates after every drill.</div>
           <div class="csvRow"><button class="smallBtn" id="csvBtn">Download drill history (CSV)</button></div>
         </div>
         <div class="card"><div class="cardHead"><h3>Who can I put on the console?</h3><span>Pick tonight's conditions</span></div>
           <div class="rosterQ"><div class="seg" id="rosterSeg"></div><div id="rosterAns"></div><div class="rlist" id="rlist"></div></div>
         </div>
+      </div>
+      <div class="unitGrid unitGrid2">
+        <div class="card ana" id="gapCard"><div class="cardHead"><h3>Where the unit is weakest</h3><span>Operators per level, weakest condition first</span></div><div id="gapSvg"></div><div class="cap" id="gapCap"></div></div>
+        <div class="card ana" id="trendCard"><div class="cardHead"><h3>Your progress across drills</h3><span>Score per drill · pass mark · 3-drill average</span></div><div id="trendSvg"></div><div class="cap" id="trendCap"></div></div>
       </div>
       <div class="card aarCard" id="aarCard"></div>
     </div>

@@ -58,7 +58,7 @@ export function initOnline(app: any, hooks: any, on: any, s: Session) {
   hooks.exportCsv = () => { location.href = '/api/export/drills.csv'; };
   let board: any[] | null = null;
   const loadBoard = () => api('/api/readiness').then((r) => { board = r.operators; app.renderUnit(); }).catch(() => null);
-  hooks.operators = () => (board ? board.map((o: any) => ({ n: o.id === s.user.id ? `${o.name} (you)` : o.name, v: o.mastery, me: o.id === s.user.id })) : [{ n: `${s.user.name} (you)`, v: app.R?.after || {}, me: true }]);
+  hooks.operators = () => (board ? board.map((o: any) => ({ n: o.id === s.user.id ? `${o.name} (you)` : o.name, v: o.mastery, me: o.id === s.user.id, d: o.drills, last: o.lastTotal })) : [{ n: `${s.user.name} (you)`, v: app.R?.after || {}, me: true, d: app.DB.H.length, last: app.DB.H.length ? app.DB.H[app.DB.H.length - 1].total : null }]);
   on('finish', () => setTimeout(loadBoard, 600)); loadBoard();
   flushOutbox(chip);
 }

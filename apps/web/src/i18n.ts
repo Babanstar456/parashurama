@@ -26,6 +26,8 @@ const HI: Record<string, string> = {
   'On any laptop. Even offline.': 'किसी भी लैपटॉप पर। बिना इंटरनेट के भी।',
   'MULTIPLAYER': 'मल्टीप्लेयर',
   'Crew drills over your unit network · push-to-talk radio': 'यूनिट नेटवर्क पर क्रू ड्रिल · पुश-टू-टॉक रेडियो',
+  'Room code · crew drills · score fights in Radar and On Ground': 'रूम कोड · क्रू ड्रिल · रडार और ऑन ग्राउंड में स्कोर मुकाबला',
+  'Multiplayer (room code)': 'मल्टीप्लेयर (रूम कोड)',
   'Play': 'खेलें', 'Learn': 'सीखें',
   'or watch the 90-second demo': 'या 90 सेकंड का डेमो देखें',
   'Training values only, not equipment specifications': 'केवल प्रशिक्षण मान, उपकरण विनिर्देश नहीं',

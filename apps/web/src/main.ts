@@ -60,6 +60,7 @@ function fpsMeter() {
   (await import('./aar')).initAar();
   fg.initFieldGuide(); ac.initAcademy(); au.initAudio(); lt.initLite(); lec.initLectures({ online, user: session?.user ?? null }); wi.initWhatIf(); ed.initEditor({ online, user: session?.user ?? null, templates: session?.templates ?? null }); sc.initScenarios(); v3.init3D(); hm.initHome(); shw.initShowcase(); gn.initGun();
   boot();
+  (await import('./multiplayer')).initMultiplayer({ online });
   if (new URLSearchParams(location.search).has('fps')) fpsMeter();
   if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(() => undefined);
 })();
