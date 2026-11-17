@@ -10,7 +10,8 @@ import { clamp, hash2, mulberry } from './util';
  * Every input from either seat is a time-stamped action, so a drill is fully defined by its config and its log
  * and the unit server can re-run it. All randomness comes from the seed (hash2 / mulberry).
  */
-export type Seat = 'cr' | 'gun';
+/** cr = control room, gun = detachment, ic = instructor (live injects in a field drill). */
+export type Seat = 'cr' | 'gun' | 'ic';
 /** Fire orders in the fixed sequence Alert → Indicate (target) → Method → Executive (engage). Cease fire = stop firing,
  *  keep tracking; Hold fire = emergency stop on everything (US/NATO usage; Indian wording to be confirmed). */
 export type OrderKind = 'rangeClear' | 'alert' | 'target' | 'method' | 'engage' | 'cease' | 'hold' | 'unload' | 'rangeGreen';
@@ -19,7 +20,7 @@ export type Wcs = 'hold' | 'tight' | 'free';
 /** Air Defence Warning (NATO terms): sets how long the crew needs to be at the gun. */
 export type Adw = 'white' | 'yellow' | 'red';
 export type KillOutcome = 'destroyed' | 'noEffect';
-export type GunActionKind = 'order' | 'check' | 'uxo' | 'rstep' | 'ack' | 'post' | 'kill' | 'load' | 'safety' | 'lay' | 'slew' | 'trig' | 'sight' | 'lock' | 'clear' | 'barrel' | 'unload' | 'report' | 'spot' | 'ident';
+export type GunActionKind = 'order' | 'check' | 'uxo' | 'rstep' | 'ack' | 'post' | 'kill' | 'load' | 'safety' | 'lay' | 'slew' | 'trig' | 'sight' | 'lock' | 'clear' | 'barrel' | 'unload' | 'report' | 'spot' | 'ident' | 'inject';
 export interface GunAction {
   tick: number; seat: Seat; k: GunActionKind;
   /** order */ o?: OrderKind; cid?: number;
@@ -30,6 +31,7 @@ export interface GunAction {
   /** kill assessment */ out?: KillOutcome;
   /** live-fire check item id; unexploded round index found */ item?: string; i?: number;
   /** field drill identification: a threat type id, or 'unknown' */ cls?: string;
+  /** instructor inject (item = swarm | friendly | sensorFail | sensorOk): n = bearing (deg), i = number of drones */
 }
 export interface GunSpawn { type: string; t: number; brg: number; dist: number; alt: number; passM: number; }
 export interface GunDrillConfig {
@@ -53,17 +55,25 @@ export interface GunDrillConfig {
    *  gun; the layer keeps the handwheels (or the mouse) and puts the barrel on the lead. Missing = false (a lock lays the
    *  gun, as before). */
   leadOnly?: boolean;
+  /** Field drill: a saturation raid of this many swarm drones (4–30) in waves from one or two bearings, in place of the
+   *  three single hostiles. Its own random stream. Missing = no raid. */
+  raid?: number;
+  /** Field drill raid: an outer air-defence layer (EW and interceptors, run by the AI) defeats part of the raid before it
+   *  reaches gun range; the gun takes the leakers. Missing = false. */
+  outerLayer?: boolean;
 }
 export type TargetState = 'pending' | 'live' | 'destroyed' | 'leaked' | 'gone';
 export interface GunTarget {
   id: number; type: string; hostile: boolean; spawnTick: number; p0: Vec3; v: Vec3; weave: number; hoverAtSec: number | null;
   /** Fixed-wing surveillance: after hoverAtSec, circle the gun at this radius (m). */ orbitR: number | null;
   /** Attack mode: dives on the gun (true), or bombs it from overhead ('drop'). Missing = passes over, as before. */ dive?: boolean | 'drop';
+  /** Raid: tick the outer layer defeated it (it never reaches the gun and is not the gun's to score). */ outer?: number;
   state: TargetState; hits: number; endTick: number | null; designatedTick: number | null;
 }
 export interface Round { i: number; tick: number; t0: number; az: number; el: number; mv: number; cid: number | null; miss: number; tau: number; hit: boolean; authorised: boolean; dud: boolean; }
 export interface Burst { start: number; end: number | null; rounds: number; cid: number | null; authorised: boolean; maxRangeM: number; bestMiss: number; hits: number; safeArc: boolean; afterHold: boolean;
-  /** Sight settings and radar lock when the burst began (for the ballistic-solution score). */ sight: { spd: number; crs: number; rng: number } | null; locked: boolean; }
+  /** Sight settings and radar lock when the burst began (for the ballistic-solution score). */ sight: { spd: number; crs: number; rng: number } | null; locked: boolean;
+  /** The fire-control sensor was down (instructor inject) when the burst began: aimed by eye, so no lock was possible. */ noFcs?: boolean; }
 export interface GunEvent { tick: number; k: string; cid?: number; n?: number; o?: OrderKind; out?: KillOutcome; text?: string; }
 export interface OrderRec { tick: number; o: OrderKind; cid: number | null; ackTick: number | null; }
 export interface GunState {
@@ -88,6 +98,8 @@ export interface GunEngine {
   seen: Record<number, number>; spots: Record<number, number>; idents: { tick: number; cid: number; cls: string }[];
   /** Attack mode: tick a drone struck the gun position, and which one (null while the detachment is unhurt). */
   struck?: { tick: number; cid: number } | null;
+  /** Instructor inject: the fire-control sensor (radar or thermal tracker) is down until restored. */
+  sensorDown?: boolean;
 }
 
 const MIL = 180 / Math.PI / 1000; // 1 mil (milliradian) in degrees
@@ -143,6 +155,7 @@ export function buildGunScenario(cfg: GunDrillConfig, C: Config = getConfig()): 
  *  identified and left alone. A swarm replaces one hostile when cfg.swarm is set. Its own random stream, so the other
  *  drills are unchanged. */
 export function buildFieldScenario(cfg: GunDrillConfig, C: Config = getConfig()): GunSpawn[] {
+  if (cfg.raid && C.threats.threats.swarm) return buildRaid(cfg, C);
   const r = mulberry(cfg.seed * 7 + 2603), T = C.threats.threats, d = cfg.difficulty, out: GunSpawn[] = [];
   const pool = ['fpv', 'fibre', 'recon', 'dropper', 'loiter', 'aiStrike', 'vtol', ...(d >= 5 ? ['jetOwa'] : [])].filter((k) => T[k]);
   const attackOf = (type: string) => T[type].motion !== 'approachHover' && T[type].motion !== 'surveil';
@@ -162,6 +175,38 @@ export function buildFieldScenario(cfg: GunDrillConfig, C: Config = getConfig())
   if (T.friendly) out.push({ type: 'friendly', t: 16 + r() * 8, brg: Math.round(r() * 359), dist: 2200, alt: 180 + Math.round(r() * 80), passM: 350 + Math.round(r() * 300) });
   if (T.bird) out.push({ type: 'bird', t: 12 + r() * 10, brg: Math.round(r() * 359), dist: 650 + Math.round(r() * 300), alt: 40 + Math.round(r() * 80), passM: 150 + Math.round(r() * 250) });
   return out.sort((a, b) => a.t - b.t);
+}
+
+/** Saturation raid: `cfg.raid` swarm drones in two or three waves from one or two bearings, about 20 s apart, plus the
+ *  usual friendly aircraft and bird. Its own random stream, so no other drill changes. */
+function buildRaid(cfg: GunDrillConfig, C: Config): GunSpawn[] {
+  const r = mulberry(cfg.seed * 7 + 4001), T = C.threats.threats, S = T.swarm, n = clamp(Math.round(cfg.raid ?? 12), 4, 30), out: GunSpawn[] = [];
+  const axes = [Math.round(r() * 359)]; if (n > 8 && r() < 0.6) axes.push((axes[0] + 60 + Math.round(r() * 120)) % 360);
+  const waves = n > 14 ? 3 : 2;
+  for (let j = 0; j < n; j++) {
+    const w = j % waves, brg = axes[j % axes.length];
+    out.push({ type: 'swarm', t: 8 + w * 20 + Math.floor(j / waves) * 1.1 + r() * 0.8, brg: (brg + Math.round((r() - 0.5) * 16) + 360) % 360,
+      dist: clamp(S.speed * (34 + r() * 8) + 900, 1600, 3600), alt: S.alt[0] + r() * (S.alt[1] - S.alt[0]), passM: Math.round((r() - 0.5) * 120) });
+  }
+  if (T.friendly) out.push({ type: 'friendly', t: 20 + r() * 10, brg: Math.round(r() * 359), dist: 2200, alt: 180 + Math.round(r() * 80), passM: 350 + Math.round(r() * 300) });
+  if (T.bird) out.push({ type: 'bird', t: 12 + r() * 10, brg: Math.round(r() * 359), dist: 650 + Math.round(r() * 300), alt: 40 + Math.round(r() * 80), passM: 150 + Math.round(r() * 250) });
+  return out.sort((a, b) => a.t - b.t);
+}
+/** Raid outer layer: the share of the raid it defeats, and how soon after a drone appears (s). Training values. */
+export const OUTER_LAYER = { pKill: 0.45, afterSec: [2, 8] as [number, number] };
+
+/** Instructor inject in a field drill (seat 'ic'): a swarm from a bearing, a friendly aircraft crossing, or the
+ *  fire-control sensor failing / restored. Logged like any action, so the drill still replays exactly. */
+function inject(E: GunEngine, a: GunAction): void {
+  const T = E.C.threats.threats, brg = (((a.n ?? 0) % 360) + 360) % 360, r = mulberry(E.cfg.seed * 977 + E.tick);
+  if (a.item === 'swarm' && T.swarm) {
+    const k = clamp(Math.round(a.i ?? 6), 1, 20), S = T.swarm;
+    for (let j = 0; j < k; j++) spawn(E, { type: 'swarm', t: E.tick * E.dt, brg: (brg + Math.round((r() - 0.5) * 12) + 360) % 360, dist: 2400 + j * 90 + r() * 60, alt: S.alt[0] + r() * (S.alt[1] - S.alt[0]), passM: Math.round((r() - 0.5) * 120) });
+  } else if (a.item === 'friendly' && T.friendly) spawn(E, { type: 'friendly', t: E.tick * E.dt, brg, dist: 2200, alt: 180 + Math.round(r() * 80), passM: 350 + Math.round(r() * 200) });
+  else if (a.item === 'sensorFail') { E.sensorDown = true; E.g.lockCid = null; E.g.lockStart = null; E.fcs = null; }
+  else if (a.item === 'sensorOk') E.sensorDown = false;
+  else return;
+  E.ev.push({ tick: E.tick, k: 'inject', text: a.item, n: a.item === 'swarm' ? clamp(Math.round(a.i ?? 6), 1, 20) : brg });
 }
 
 export function defaultGunCfg(o: Partial<GunDrillConfig> = {}): GunDrillConfig {
@@ -216,7 +261,7 @@ export function inSafeArc(cfg: GunDrillConfig, az: number): boolean {
 export function sightSolution(E: GunEngine, warm?: AimSolution | null): AimSolution | null {
   const am = E.G.ammo[E.gun.ammo], mv = muzzleVelocity(am, E.cfg.met.tempC, E.G.met.stdTempC);
   const t = E.tick * E.dt;
-  if (E.gun.sight !== 'manual' && !E.cfg.radarFault && E.g.lockCid != null && E.g.lockStart != null && E.tick - E.g.lockStart >= sec(E, fcsOf(E.gun)?.lockSec ?? 0)) {
+  if (E.gun.sight !== 'manual' && !E.cfg.radarFault && !E.sensorDown && E.g.lockCid != null && E.g.lockStart != null && E.tick - E.g.lockStart >= sec(E, fcsOf(E.gun)?.lockSec ?? 0)) {
     const T = tgt(E, E.g.lockCid);
     if (!T || T.state !== 'live') return null;
     const n = (fcsOf(E.gun)?.trackNoiseMil ?? 0) * MIL * Math.PI / 180, p = targetPos(T, t, E.dt), R = Math.hypot(...p);
@@ -252,6 +297,7 @@ function apply(E: GunEngine, a: GunAction): void {
   const lfx = E.G.lfx;
   if (a.k === 'check' && lfx && a.item && E.checks[a.item] == null && (a.seat === 'gun' ? lfx.gunChecks : lfx.rangeChecks).some((c) => c.id === a.item)) { E.checks[a.item] = E.tick; E.ev.push({ tick: E.tick, k: 'check', text: a.item }); return; }
   if (a.k === 'uxo' && a.seat === 'cr' && a.i != null && unexploded(E).some((r) => r.i === a.i) && !E.uxoFound.includes(a.i)) { E.uxoFound.push(a.i); E.ev.push({ tick: E.tick, k: 'uxoFound', n: a.i }); return; }
+  if (a.k === 'inject') { if (a.seat === 'ic' && E.cfg.selfId) inject(E, a); return; }
   if (a.seat !== 'gun') return;
   switch (a.k) {
     case 'spot': { const T = tgt(E, a.cid); if (T && T.state === 'live' && E.spots[T.id] == null) { E.spots[T.id] = E.tick; E.ev.push({ tick: E.tick, k: 'spot', cid: T.id }); } return; }
@@ -278,7 +324,7 @@ function apply(E: GunEngine, a: GunAction): void {
     case 'slew': g.rAz = clamp(a.az ?? 0, -1, 1); g.rEl = clamp(a.el ?? 0, -1, 1); g.layCid = null; return;
     case 'trig': g.trig = !!a.on; return;
     case 'sight': g.sight = { spd: Math.max(0, a.spd ?? 0), crs: clamp(a.crs ?? 0, -180, 180), rng: clamp(a.rng ?? 1000, 100, 6000) }; g.sightTick = E.tick; return;
-    case 'lock': g.lockCid = a.cid ?? null; g.lockStart = a.cid != null ? E.tick : null; if (a.cid != null) E.ev.push({ tick: E.tick, k: 'lock', cid: a.cid }); return;
+    case 'lock': if (E.sensorDown && a.cid != null) { E.ev.push({ tick: E.tick, k: 'lockFail', cid: a.cid }); return; } g.lockCid = a.cid ?? null; g.lockStart = a.cid != null ? E.tick : null; if (a.cid != null) E.ev.push({ tick: E.tick, k: 'lock', cid: a.cid }); return;
     case 'clear': if (g.stoppage && !g.busy) { g.busy = 'clear'; g.busyUntil = E.tick + sec(E, P.stoppageClearSec); } return;
     case 'barrel': if (!g.busy) { g.busy = 'barrel'; g.busyUntil = E.tick + sec(E, P.barrelChangeSec); g.trig = false; } return;
     case 'unload': if (!g.busy && (g.loaded || g.ready > 0)) { g.busy = 'unload'; g.busyUntil = E.tick + sec(E, P.loadSec / 2); g.trig = false; } return;
@@ -314,7 +360,7 @@ function fire(E: GunEngine): void {
   if (!burst || burst.end != null) {
     const on = aimedTarget(E, 6);
     burst = { start: E.tick, end: null, rounds: 0, cid: on?.id ?? null, authorised: authorised(E, on?.id ?? null), maxRangeM: 0, bestMiss: Infinity, hits: 0,
-      safeArc: inSafeArc(E.cfg, g.az), afterHold: E.held, sight: g.sight ? { ...g.sight } : null,
+      safeArc: inSafeArc(E.cfg, g.az), afterHold: E.held, sight: g.sight ? { ...g.sight } : null, ...(E.sensorDown ? { noFcs: true } : {}),
       locked: g.lockCid != null && g.lockCid === (on?.id ?? -1) && g.lockStart != null && E.tick - g.lockStart >= sec(E, fcsOf(gun)?.lockSec ?? 0) };
     E.bursts.push(burst);
     E.ev.push({ tick: E.tick, k: burst.safeArc ? 'safeArcBurst' : burst.authorised ? 'burst' : 'unauthorisedBurst', cid: burst.cid ?? undefined });
@@ -369,7 +415,7 @@ export function stepGun(E: GunEngine, acts: GunAction[]): void {
   // Laying: coarse lay on a designated target, powered radar laying on a lock, or the layer's handwheels.
   const sAz = gun.slewDegS.az * E.dt, sEl = gun.slewDegS.el * E.dt;
   let wantAz: number | null = null, wantEl: number | null = null;
-  const fcsOn = gun.sight !== 'manual' && !E.cfg.radarFault && g.lockCid != null;
+  const fcsOn = gun.sight !== 'manual' && !E.cfg.radarFault && !E.sensorDown && g.lockCid != null;
   if (fcsOn) { E.fcs = sightSolution(E, E.fcs); if (E.fcs?.ok && !E.cfg.leadOnly) { wantAz = E.fcs.az; wantEl = E.fcs.el; } }
   if ((!fcsOn || E.cfg.leadOnly) && g.layCid != null) { const T = tgt(E, g.layCid); if (T && T.state === 'live') { const L = losOf(targetPos(T, t, E.dt)); wantAz = L.az; wantEl = L.el; } else g.layCid = null; }
   if (wantAz != null && wantEl != null) {
@@ -386,6 +432,13 @@ export function stepGun(E: GunEngine, acts: GunAction[]): void {
   for (const h of E.pending) if (h.tick === E.tick) {
     const T = tgt(E, h.cid);
     if (T && T.state === 'live' && ++T.hits >= (E.G.targets.hitsToKill[E.C.threats.threats[T.type].echo] ?? 1)) { T.state = 'destroyed'; T.endTick = E.tick; E.ev.push({ tick: E.tick, k: 'destroyed', cid: T.id }); }
+  }
+  // Raid outer layer: a seeded share of the raid is defeated by the outer layer soon after it appears (well out); the rest
+  // leaks to the gun.
+  if (E.cfg.raid && E.cfg.outerLayer) for (const T of live(E)) {
+    if (T.type !== 'swarm' || T.outer != null || hash2(E.cfg.seed * 131 + 17, T.id) >= OUTER_LAYER.pKill) continue;
+    const [a0, a1] = OUTER_LAYER.afterSec, at = T.spawnTick + sec(E, a0 + (a1 - a0) * hash2(E.cfg.seed * 131 + 29, T.id));
+    if (E.tick >= at) { T.state = 'gone'; T.outer = E.tick; T.endTick = E.tick; E.ev.push({ tick: E.tick, k: 'outerKill', cid: T.id }); }
   }
   // Targets reach the asset, or leave.
   const R0 = E.C.training.sim.assetRadiusM;

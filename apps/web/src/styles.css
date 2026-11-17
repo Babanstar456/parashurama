@@ -838,6 +838,68 @@ body.gunOn{overflow:hidden}
 .gnCoachBar{display:block;height:4px;margin-top:10px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}
 .gnCoachBar em{display:block;height:100%;background:#f2c94c;transition:width .3s}
 #gnCoach.done .gnCoachBar em{background:#3cff7a}
+
+/* After-action review across all drills (Unit readiness tab) */
+.aarCard{margin-top:16px}
+.aarBody{padding:4px 16px 14px}
+.aarBody h4{margin:14px 0 8px;font:700 13px var(--cond);letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
+.aarChart{width:100%;height:auto;max-height:260px;color:var(--ink2);font:11px var(--cond)}
+.aarChart text{fill:var(--ink3)}
+.aarLegend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:6px;font-size:13px;color:var(--ink2)}
+.aarLegend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.aarEmpty{color:var(--ink3);font-size:14px;margin:4px 0}
+.aarBoard td.aarNa{color:var(--ink3)}
+
+/* Recognition trainer */
+body.recogOn{overflow:hidden}
+#recogApp{position:fixed;inset:0;z-index:8000;display:grid;grid-template-rows:auto 1fr;background:#05080b;color:#e8eef2}
+.rcBar{display:flex;align-items:center;gap:18px;padding:10px 18px;background:#0b1116;border-bottom:1px solid #1d2a33;font:600 14px var(--cond);letter-spacing:.06em}
+.rcBar b{color:#f2c94c;letter-spacing:.14em}.rcBar #rcQuit{margin-left:auto}
+.rcMain{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:0}
+.rcStage{position:relative;min-height:0;overflow:hidden;background:#000}
+.rcStage canvas{display:block;width:100%;height:100%}
+.rcMsg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font:700 22px var(--cond);pointer-events:none;text-shadow:0 2px 8px #000}
+.rcMsg:empty{display:none}
+.rcMsg.ask{top:auto;bottom:24px;transform:translateX(-50%);color:#f2c94c}
+.rcMsg.ok,.rcMsg.bad{top:auto;bottom:24px;transform:translateX(-50%);padding:10px 18px;border-radius:10px;background:rgba(0,0,0,.7)}
+.rcMsg.ok{color:#3cff7a}.rcMsg.bad{color:#ff8a8e}.rcMsg small{display:block;font:500 14px var(--body);color:#cfd8de;margin-top:2px}
+.rcMsg>b{display:block}.rcMsg>span{display:block;font:500 15px var(--body);color:#b9c7d0;margin-top:6px}
+.rcMsg .rcBtns{pointer-events:auto;margin-top:14px;display:flex;gap:10px;justify-content:center}
+.rcMsg.rcRes{pointer-events:auto;width:min(520px,90%);padding:22px;border-radius:12px;background:#0b1116;border:1px solid #1d2a33;text-shadow:none}
+.rcRes>b{font-size:64px;line-height:1}.rcRes>b.ok{color:#3cff7a}.rcRes>b.bad{color:#ff8a8e}
+.rcRes h4{margin:16px 0 6px;font:700 12px var(--cond);letter-spacing:.14em;color:#f2c94c}
+.rcRes ul{margin:0;padding:0;list-style:none;font:500 15px var(--body)}.rcRes p{font:400 13px var(--body);color:#9fb0bd;margin:6px 0 0}
+.rcPer{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}.rcPer span{padding:3px 9px;border-radius:999px;background:#18222a;font:500 13px var(--body)}
+.rcPer span.ok{background:rgba(60,255,122,.15);color:#9fe0a8}.rcPer span.bad{background:rgba(229,72,77,.18);color:#ffb3b5}
+.rcFrame{position:absolute;inset:0;pointer-events:none}
+.rcFrame svg{position:absolute;inset:0;width:100%;height:100%}
+#recogApp .smallBtn{background:#141d24;color:#e8eef2;border:1px solid #3a4a55}#recogApp .smallBtn.solid{background:#3fa796;color:#06100c;border-color:#3fa796}
+.rcFrame.tv span,.rcFrame.thermal span{position:absolute;left:18px;top:14px;font:600 14px var(--cond);color:#aaffc0}
+.rcFrame.tv em,.rcFrame.thermal em{position:absolute;left:50%;top:50%;width:80px;height:80px;transform:translate(-50%,-50%);border:1.5px solid rgba(170,255,190,.7);border-width:0 1.5px}
+.rcSide{padding:16px;background:#0b1116;border-left:1px solid #1d2a33;overflow:auto}
+.rcSide h4{margin:0 0 10px;font:700 13px var(--cond);letter-spacing:.12em;color:#9fb0bd}
+.rcAns{display:grid;gap:6px}
+.rcAns button{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;background:#141d24;border:1px solid #22303a;font:600 14px var(--body)}
+.rcAns button:hover{border-color:#3fa796}.rcAns button.right{background:rgba(60,255,122,.18);border-color:#3cff7a}
+.rcAns kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:4px;background:#22303a;font:700 12px var(--cond)}
+.rcHelp{font:400 12.5px var(--body);color:#7d8a90;margin-top:12px}
+@media (max-width:800px){.rcMain{grid-template-columns:1fr;grid-template-rows:1fr auto}.rcSide{border-left:0;border-top:1px solid #1d2a33;max-height:40vh}.rcAns{grid-template-columns:1fr 1fr}}
+
+/* Instructor inject panel (field drill) */
+#gnInst{position:absolute;right:12px;top:12px;z-index:6;width:250px;padding:12px 14px;border-radius:10px;background:rgba(8,14,18,.92);border:1px solid #5da9ff;color:#e8eef2;display:grid;gap:8px;font:500 13px var(--body)}
+#gnInst h4{margin:0;display:flex;justify-content:space-between;align-items:center;font:700 13px var(--cond);letter-spacing:.12em;color:#5da9ff}
+#gnInst .gnInstX{all:unset;cursor:pointer;font-size:18px;color:#9fb0bd}
+#gnInst label{display:flex;align-items:center;gap:8px}#gnInst select,#gnInst input{flex:1}
+#gnInst button[data-inj]{all:unset;cursor:pointer;padding:7px 10px;border-radius:6px;background:#14324a;border:1px solid #2b5a80;text-align:center;font:600 13px var(--body)}
+#gnInst button[data-inj]:hover{background:#1c4566}
+#gnInst p{margin:0;font-size:11.5px;color:#7d8a90}
+.gnRadio p.INST b{color:#5da9ff}
+
+/* Hindi / English switch, and Devanagari text (the brand fonts have no Devanagari: use the system's) */
+.hpLang{all:unset;position:absolute;top:18px;right:20px;z-index:2;cursor:pointer;padding:7px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.35);color:#e8eef2;font:600 15px 'Nirmala UI','Noto Sans Devanagari','Mangal',var(--body);background:rgba(10,16,20,.6)}
+.hpLang:hover,.hpLang:focus-visible{border-color:#3fa796;color:#fff}
+:root:lang(hi) body,:root:lang(hi) button,:root:lang(hi) .hb b,:root:lang(hi) .homeTag{font-family:var(--body),'Nirmala UI','Noto Sans Devanagari','Mangal',sans-serif}
+:root:lang(hi) body *{letter-spacing:0!important}
 /* ---------- multiplayer room (multiplayer.ts) ---------- */
 button.hpMulti{cursor:pointer;font:inherit;color:inherit}
 button.hpMulti:hover,button.hpMulti:focus-visible{border-color:#f2c94c;background:rgba(242,201,76,.16);outline:none}

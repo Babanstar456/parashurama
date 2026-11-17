@@ -128,7 +128,7 @@ export function gunCrewAI(E: GunEngine, skill: CrewSkill = { ackSec: 1 }): GunAc
   for (const T of E.targets) if (T.state === 'destroyed' && !E.kills.some((k) => k.cid === T.id) && E.tick - (T.endTick ?? 0) >= sec(E, 1)) a({ k: 'kill', cid: T.id, out: 'destroyed' });
   const des = [...E.orders].reverse().find((x) => x.o === 'target');
   const T = des?.cid != null ? E.targets.find((x) => x.id === des.cid) : undefined;
-  const radar = gun.sight !== 'manual' && !E.cfg.radarFault;
+  const radar = gun.sight !== 'manual' && !E.cfg.radarFault && !E.sensorDown;
   if (T && T.state === 'live') {
     const L = losOf(targetPos(T, now(E), E.dt));
     if (radar) {

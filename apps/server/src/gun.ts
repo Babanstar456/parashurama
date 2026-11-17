@@ -42,17 +42,19 @@ export function cleanGunCfg(c: any, C: Config): GunDrillConfig {
   const sw = opt(c.swarm, (x) => !!x); if (sw) cfg.swarm = true;
   const at = opt(c.attack, (x) => !!x); if (at) cfg.attack = true;
   const lo = opt(c.leadOnly, (x) => !!x); if (lo) cfg.leadOnly = true;
+  const rd = opt(c.raid, (x) => int(x, 4, 30, 'cfg.raid')); if (rd != null) cfg.raid = rd;
+  const ol = opt(c.outerLayer, (x) => !!x); if (ol) cfg.outerLayer = true;
   if (c.safeArcs != null) {
     if (!Array.isArray(c.safeArcs) || c.safeArcs.length > 4) throw new BadRequest('cfg.safeArcs must be a list of at most 4 arcs');
     cfg.safeArcs = c.safeArcs.map((a: any, i: number) => [num(a?.[0], 0, 360, `cfg.safeArcs[${i}][0]`), num(a?.[1], 0, 360, `cfg.safeArcs[${i}][1]`)] as [number, number]);
   }
   return cfg;
 }
-const KINDS = ['order', 'check', 'uxo', 'rstep', 'ack', 'post', 'kill', 'load', 'safety', 'lay', 'slew', 'trig', 'sight', 'lock', 'clear', 'barrel', 'unload', 'report', 'spot', 'ident'] as const;
+const KINDS = ['order', 'check', 'uxo', 'rstep', 'ack', 'post', 'kill', 'load', 'safety', 'lay', 'slew', 'trig', 'sight', 'lock', 'clear', 'barrel', 'unload', 'report', 'spot', 'ident', 'inject'] as const;
 const ORDERS = ['rangeClear', 'alert', 'target', 'method', 'engage', 'cease', 'hold', 'unload', 'rangeGreen'] as const;
 /** One action, without its tick (the server stamps crew actions; solo logs carry their own). */
 export function cleanGunAction(x: any, i: number): Omit<GunAction, 'tick'> {
-  const a: any = { seat: oneOf(x?.seat, ['cr', 'gun'] as const, `actions[${i}].seat`), k: oneOf(x?.k, KINDS, `actions[${i}].k`) };
+  const a: any = { seat: oneOf(x?.seat, ['cr', 'gun', 'ic'] as const, `actions[${i}].seat`), k: oneOf(x?.k, KINDS, `actions[${i}].k`) };
   if (x.o != null) a.o = oneOf(x.o, ORDERS, `actions[${i}].o`);
   if (x.cid != null) a.cid = int(x.cid, 1, 1000, `actions[${i}].cid`);
   if (x.on != null) a.on = !!x.on;
@@ -85,7 +87,8 @@ export async function verifyGun(C: Config, p: any) {
   const game = oneOf(p?.game, ['ground', 'control', 'field'] as const, 'game');
   const cfg = cleanGunCfg(p.cfg, C), maxTick = maxTicksFor(C, cfg);
   const all = cleanGunActions(p.actions, maxTick), endTick = int(p.endTick, 1, maxTick, 'endTick');
-  const mine = all.filter((a) => a.seat === mySeat(game));
+  // The trainee's seat, plus any instructor injects in a field drill (they are part of that drill's log).
+  const mine = all.filter((a) => a.seat === mySeat(game) || (game === 'field' && a.seat === 'ic' && a.k === 'inject'));
   const ai = cfg.practice ? [] : game === 'control' ? [(E: GunEngine) => gunCrewAI(E, { ackSec: 1.5 })] : [controlRoomAI];
   const E = runGun(cfg, { actions: mine, policies: ai, until: endTick }, C);
   const sc = scoreFor(E, game), flags: string[] = [];
