@@ -36,7 +36,7 @@ const part = (rule: string, label: string, max: number, frac: number, why: strin
 const fmt = (s: number) => `${s.toFixed(1)} s`;
 
 function metrics(E: GunEngine, violations: number): GunScore['metrics'] {
-  const hostiles = E.targets.filter((t) => t.hostile), kills = hostiles.filter((t) => t.state === 'destroyed').length;
+  const hostiles = E.targets.filter((t) => t.hostile && t.outer == null), kills = hostiles.filter((t) => t.state === 'destroyed').length;
   return { roundsFired: E.rounds.length, hits: E.rounds.filter((r) => r.hit).length, kills, hostiles: hostiles.length, leaked: hostiles.filter((t) => t.state === 'leaked').length,
     ammoPerKill: kills ? Math.round(E.rounds.length / kills) : null, violations, killRatePct: hostiles.length ? Math.round((100 * kills) / hostiles.length) : 100 };
 }
@@ -102,6 +102,7 @@ export function scoreGround(E: GunEngine): GunScore {
   const w5: string[] = [], MS = E.G.manualSight;
   const firstBursts = [...new Map(E.bursts.filter((b) => b.authorised && b.cid != null).map((b) => [b.cid, b] as const)).values()];
   const sol = firstBursts.map((b) => {
+    if (radar && b.noFcs) return 1; // the fire-control sensor was down (instructor inject): no lock was possible
     if (radar) { if (!b.locked) w5.push(`Burst on target ${b.cid} fired without a ${gun.sight === 'eo' ? 'thermal-sight' : 'radar'} lock`); return b.locked ? 1 : 0.3; }
     const T = tgt(E, b.cid)!, t = b.start * E.dt, p = targetPos(T, t, E.dt), v = targetVel(T, t, E.dt), L = losOf(p);
     const spd = Math.hypot(v[0], v[1]), crs = angDiff(L.az + 180, (Math.atan2(v[0], v[1]) * 180) / Math.PI);
@@ -127,7 +128,7 @@ export function scoreGround(E: GunEngine): GunScore {
   if (acc.length) w6.push(`${acc.filter((x) => x === 1).length} of ${acc.length} bursts hit; average credit ${Math.round(a6 * 100)}%`);
   const g6 = part('G6', 'Burst accuracy', 20, a6, a6 < 1 ? w6 : []);
   // G7 Effect: hostiles ordered engaged that were destroyed before reaching the asset.
-  const ordered = [...new Set(engageOrders(E).map((o) => o.cid))].map((id) => tgt(E, id)).filter((t): t is GunTarget => !!t && t.hostile);
+  const ordered = [...new Set(engageOrders(E).map((o) => o.cid))].map((id) => tgt(E, id)).filter((t): t is GunTarget => !!t && t.hostile && t.outer == null);
   const w7 = ordered.filter((t) => t.state !== 'destroyed').map((t) => `Target ${t.id} (${E.C.threats.threats[t.type].short}) ${t.state === 'leaked' ? 'reached the asset' : 'was not destroyed'}`);
   if (!ordered.length && hasHostiles(E)) w7.push('No target was engaged');
   const g7 = part('G7', 'Targets destroyed', 20, ordered.length ? ordered.filter((t) => t.state === 'destroyed').length / ordered.length : hasHostiles(E) ? 0 : 1, w7);
@@ -206,6 +207,8 @@ const classOf = (E: GunEngine, type: string): string => { const t = E.C.threats.
  *  last hostile is down, so making safe (G9) is not part of it. */
 /** V4: points lost when a drone strikes the gun position (attack mode). */
 export const STRUCK_PTS = 40;
+/** V5: most points lost for raid priority (2 per burst on a less urgent drone). */
+export const PRIORITY_MAX = 20;
 const FIELD_W: Record<string, number> = { G2: 4, G3: 2, G4: 8, G5: 5, G6: 10, G7: 17, G8: 4, G11: 2, G12: 3 };
 /**
  * Field drill (3D): the detachment finds, reports and identifies its own targets, then engages on clearance.
@@ -215,7 +218,8 @@ export function scoreField(E: GunEngine): GunScore {
   const D = detectOf(E.G), T = E.C.threats.threats;
   const name = (x: GunTarget) => `Target ${x.id} (${T[x.type].short})`;
   // Every contact that became visible, or that the trainee reported anyway.
-  const vis = E.targets.filter((x) => E.seen[x.id] != null || E.spots[x.id] != null);
+  // (Raid drones the outer layer defeated never reached the gun: they are not the detachment's to score.)
+  const vis = E.targets.filter((x) => x.outer == null && (E.seen[x.id] != null || E.spots[x.id] != null));
   // V1 Detection: report each contact soon after it became visible.
   const w1: string[] = [];
   const det = vis.map((x) => {
@@ -256,6 +260,21 @@ export function scoreField(E: GunEngine): GunScore {
   const parts = g.parts.filter((p) => FIELD_W[p.rule]).map((p) => { const max = FIELD_W[p.rule]; return { ...p, max, pts: p.max ? Math.round((max * p.pts) / p.max) : 0 }; });
   // V4 Attack mode: a drone struck the gun position. The drill ended there; the hostiles still to come were never faced.
   const ded = [...g.deductions];
+  // V5 Raid: engage the most urgent drone first. Each burst opened on a drone while another hostile in range was clearly
+  // closer to impact (doctrine priority ratio) costs 2 points, at most 20.
+  if (E.cfg.raid) {
+    const ratio = E.C.doctrine.defeat.modifiers.priorityRatio, w5: string[] = [];
+    let n = 0;
+    for (const b of E.bursts.filter((x) => x.authorised && x.cid != null)) {
+      const T = E.targets.find((x) => x.id === b.cid); if (!T || !T.hostile) continue;
+      const mine = ttiAt(E, T, b.start);
+      const worse = E.targets.find((o) => o !== T && o.hostile && o.outer == null && o.spawnTick <= b.start && (o.endTick == null || o.endTick > b.start)
+        && E.spots[o.id] != null && E.spots[o.id] <= b.start && ttiAt(E, o, b.start) < mine * ratio && losOf(targetPos(o, b.start * E.dt, E.dt)).range <= engageRange(E, o));
+      if (worse) { n++; if (w5.length < 3) w5.push(`Fired on ${name(T)} at ${fmt(S(E, b.start))} while ${name(worse)} was closer to impact`); }
+    }
+    const pts = -Math.min(PRIORITY_MAX, 2 * n);
+    if (pts) ded.push({ rule: 'V5', label: 'Raid priority', max: 0, pts, why: [...w5, ...(n > w5.length ? [`and ${n - w5.length} more`] : []), `${n} burst${n === 1 ? '' : 's'} on a less urgent drone −${-pts}`] });
+  }
   if (E.struck) {
     const by = E.targets.find((x) => x.id === E.struck!.cid), left = unseen(E);
     ded.push({ rule: 'V4', label: 'Gun position struck', max: 0, pts: -STRUCK_PTS,

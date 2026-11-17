@@ -507,7 +507,7 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
   const am = E0.G.ammo[gunDef.ammo], big = am.caliberM > 0.03, snd = fieldAudio(cfg.gun);
   let wasFiring = false;
   const hctx = hud.getContext('2d')!;
-  const fcsLocked = (E: GunEngine) => gunDef.sight !== 'manual' && !cfg.radarFault && E.g.lockCid != null && E.g.lockStart != null && E.tick - E.g.lockStart >= Math.round((fcsOf(gunDef)?.lockSec ?? 0) / E.dt);
+  const fcsLocked = (E: GunEngine) => gunDef.sight !== 'manual' && !cfg.radarFault && !E.sensorDown && E.g.lockCid != null && E.g.lockStart != null && E.tick - E.g.lockStart >= Math.round((fcsOf(gunDef)?.lockSec ?? 0) / E.dt);
 
   /** Scale that keeps a distant drone at least MIN_PX across on screen (its real shape, not a dot); 1 when close. */
   const MIN_PX = 14;
@@ -890,7 +890,7 @@ export async function mountField(host: HTMLElement, E0: GunEngine, cb: FieldCall
     }
     // Tracking status.
     c.font = `700 ${16 * dp}px Barlow Condensed, sans-serif`;
-    const st = lk && lkd ? `AUTO TRACK  ·  T${lkd.id} LOCKED  ·  ${cfg.leadOnly ? 'PUT THE CROSS ON THE ◇ LEAD' : 'FCS SOLUTION'}` : E.g.lockCid != null ? 'AUTO TRACK  ·  ACQUIRING…'
+    const st = E.sensorDown ? 'TRACKER DOWN  ·  LAY BY EYE' : lk && lkd ? `AUTO TRACK  ·  T${lkd.id} LOCKED  ·  ${cfg.leadOnly ? 'PUT THE CROSS ON THE ◇ LEAD' : 'FCS SOLUTION'}` : E.g.lockCid != null ? 'AUTO TRACK  ·  ACQUIRING…'
       : inView ? `AUTO TRACK  ·  ${inView} IN VIEW  ·  Q TO LOCK` : 'AUTO TRACK  ·  SEARCH';
     const tw = c.measureText(st).width; c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(cx - tw / 2 - 10 * dp, cy + 78 * dp, tw + 20 * dp, 24 * dp);
     c.fillStyle = lk ? green : E.g.lockCid != null ? '#F2C94C' : '#d6ffe2'; c.fillText(st, cx - tw / 2, cy + 96 * dp);

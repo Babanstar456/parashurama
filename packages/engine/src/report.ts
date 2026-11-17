@@ -51,3 +51,13 @@ export function drillsToCsv(drills: CsvDrill[], passMark: number): string {
   });
   return [COLUMNS as readonly unknown[], ...rows].map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';
 }
+
+/** One row per drill of any kind, for an after-action review across the whole programme: radar drills, the gun drills
+ *  (3D field firing, On Ground, Control Room) and the urban patrol. */
+export interface AnyDrillRow { operator: string; unit?: string; kind: 'radar' | 'field' | 'ground' | 'control' | 'patrol' | 'recognition'; date?: number; gun?: string; time?: string; terrain?: string; weather?: string; difficulty?: number; seed?: number; total: number; verified?: boolean | null; struck?: boolean; kills?: number; hostiles?: number; }
+const ALL_COLUMNS = ['operator', 'unit', 'kind', 'date', 'gun', 'time', 'terrain', 'weather', 'difficulty', 'seed', 'total', 'pass', 'verified', 'hostiles_destroyed', 'hostiles', 'position_struck'] as const;
+export function allDrillsToCsv(rows: AnyDrillRow[], passMark: number): string {
+  const body = [...rows].sort((a, b) => (a.date ?? 0) - (b.date ?? 0)).map((r) => [r.operator, r.unit ?? '', r.kind, r.date != null ? new Date(r.date).toISOString() : '', r.gun ?? '', r.time ?? '', r.terrain ?? '', r.weather ?? 'clear',
+    r.difficulty ?? '', r.seed ?? '', r.total, r.total >= passMark ? 'yes' : 'no', r.verified == null ? '' : r.verified ? 'yes' : 'no', r.kills ?? '', r.hostiles ?? '', r.struck == null ? '' : r.struck ? 'yes' : 'no']);
+  return [ALL_COLUMNS as readonly unknown[], ...body].map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';
+}

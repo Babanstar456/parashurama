@@ -8,6 +8,7 @@ import { $, $$ } from './dom';
 import { LESSONS, startLesson } from './academy';
 import { startScenario } from './scenarios';
 import { CERT } from './cfg';
+import { lang, onLang, setLang, t } from './i18n';
 
 let open = false, raf = 0;
 type Stage = 'play' | 'pick' | 'ground' | 'radar' | 'missions';
@@ -24,29 +25,30 @@ function playHtml(): string {
   <div class="homePlay">
     <div class="homeKicker">Smart India Hackathon 2026 · SIH26247 · Ministry of Defence</div>
     <h1 class="homeTitle">PARASHURAMA</h1>
-    <p class="homeTag">Train every soldier to stop hostile drones.<br><span>On any laptop. Even offline.</span></p>
-    <div class="hpMulti"><i>MULTIPLAYER</i><span>Crew drills over your unit network · push-to-talk radio</span></div>
+    <p class="homeTag">${t('Train every soldier to stop hostile drones.')}<br><span>${t('On any laptop. Even offline.')}</span></p>
+    <div class="hpMulti"><i>${t('MULTIPLAYER')}</i><span>${t('Crew drills over your unit network · push-to-talk radio')}</span></div>
     <div class="hpRow">
-      <button class="hpPlay" id="hcPlay" aria-label="Play"><i aria-hidden="true">▶</i><b>Play</b></button>
-      <button class="hpPlay hpLearn" id="hcLearn" aria-label="Learn: open the classroom"><i aria-hidden="true">📖</i><b>Learn</b></button>
+      <button class="hpPlay" id="hcPlay" aria-label="Play"><i aria-hidden="true">▶</i><b>${t('Play')}</b></button>
+      <button class="hpPlay hpLearn" id="hcLearn" aria-label="Learn: open the classroom"><i aria-hidden="true">📖</i><b>${t('Learn')}</b></button>
     </div>
-    <button class="hpDemo" id="hcDemo">or watch the 90-second demo</button>
+    <button class="hpDemo" id="hcDemo">${t('or watch the 90-second demo')}</button>
   </div>
-  <div class="homeFoot"><span>Team Dhwanik_TH06</span><span>Training values only, not equipment specifications</span></div>`;
+  <button class="hpLang" id="hcLang" lang="${lang === 'hi' ? 'en' : 'hi'}">${lang === 'hi' ? 'English' : 'हिंदी'}</button>
+  <div class="homeFoot"><span>Team Dhwanik_TH06</span><span>${t('Training values only, not equipment specifications')}</span></div>`;
 }
 
 interface Card { id: string; tag?: string; tagCls?: string; title: string; body: string; foot?: string; done?: boolean; data?: string; /** Never "Start here" (a menu, not a drill). */ menu?: boolean; }
 const cardHtml = (x: Card, here: boolean) => `<button class="hb ${here ? 'here' : ''}" id="${x.id}"${x.data ?? ''}>
-  <small>${x.tag ? `<i class="hbTag ${x.tagCls ?? ''}">${x.tag}</i>` : ''}${here ? '<i class="hbHere">Start here</i>' : x.done ? '<i class="hbDone">Done ✓</i>' : ''}</small>
-  <b>${x.title}</b><span>${x.body}</span><em>${x.foot ?? 'Start →'}</em></button>`;
-const crumbs: Record<Stage, string> = { play: '', pick: 'Play', ground: 'Play › On Ground', radar: 'Play › Radar', missions: 'Play › Radar › Real-world missions' };
+  <small>${x.tag ? `<i class="hbTag ${x.tagCls ?? ''}">${x.tag}</i>` : ''}${here ? `<i class="hbHere">${t('Start here')}</i>` : x.done ? `<i class="hbDone">${t('Done ✓')}</i>` : ''}</small>
+  <b>${x.title}</b><span>${x.body}</span><em>${x.foot ?? t('Start →')}</em></button>`;
+const crumbs = (s: Stage) => ({ play: '', pick: t('Play'), ground: `${t('Play')} › ${t('On Ground')}`, radar: `${t('Play')} › ${t('Radar')}`, missions: `${t('Play')} › ${t('Radar')} › ${t('Real-world missions')}` })[s];
 
 function screen(title: string, lead: string, cards: Card[], extra = '', startHere = true): string {
   const here = startHere ? cards.find((x) => !x.done && !x.menu)?.id : undefined;
   return `
   <canvas id="homeFx" aria-hidden="true"></canvas>
   <div class="homeMenu">
-    <div class="hmTop"><button class="hmBack" id="hcBack">← Back</button><div><small class="hmCrumb">${crumbs[stage]}</small><h2>${title}</h2></div></div>
+    <div class="hmTop"><button class="hmBack" id="hcBack">${t('← Back')}</button><div><small class="hmCrumb">${crumbs(stage)}</small><h2>${title}</h2></div></div>
     <p class="hmLead">${lead}</p>
     <div class="hmBig ${cards.length === 2 ? 'two' : ''}">${cards.map((x) => cardHtml(x, x.id === here)).join('')}</div>
     ${extra}
@@ -56,36 +58,38 @@ function screen(title: string, lead: string, cards: Card[], extra = '', startHer
 function stageHtml(): string {
   const local = (k: string): any[] => { try { const v = JSON.parse(localStorage.getItem(k) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
   const field = local('parashurama.gunH').filter((r) => r?.game === 'field'), pats = local('parashurama.patrolH');
-  const byGun = (g: string) => field.filter((r) => r?.cfg?.gun === g), lastOf = (a: any[]) => (a.length ? `Last score ${a[a.length - 1].total} · Start →` : undefined);
+  const byGun = (g: string) => field.filter((r) => r?.cfg?.gun === g), lastOf = (a: any[]) => (a.length ? t('Last score {n} · Start →', { n: a[a.length - 1].total }) : undefined);
   const aca = new Set<number>(app.DB.academy?.done ?? []), m = mastery(app.DB.H);
   const weakest = (['night', 'swarm', 'degraded', 'weather'] as const).reduce((a, b) => (m[a] <= m[b] ? a : b));
-  const weakName = { night: 'night drills', swarm: 'swarm attacks', degraded: 'faulty sensors', weather: 'bad weather' }[weakest];
+  const weakName = t({ night: 'night drills', swarm: 'swarm attacks', degraded: 'faulty sensors', weather: 'bad weather' }[weakest]);
   if (stage === 'pick') {
     const certified = Object.values(m).filter((v) => v >= CERT.certifiedMastery).length;
-    return screen('Where do you train?', 'Pick one. You can come back and try the other at any time.', [
-      { id: 'hcGround', tag: 'Guns', title: 'On Ground', body: 'Sit at the gun: L-70, Shilka or ZU-23-2. Spot the drone in the sky, identify it and fire. You can also drive the Shilka through a town.', foot: 'Choose a gun →' },
-      { id: 'hcRadarTrack', tag: 'Screen', title: 'Radar', body: 'Work the radar screen: spot drones, decide friend or foe, and pick the right way to stop each one. Lessons with a coach first.', foot: 'Choose →' },
-    ], `<p class="hmSmall">For commanders and instructors: <button class="hmLink" id="hcUnit">Unit readiness</button> (you: ${certified} of ${Object.keys(m).length} skills certified) · <button class="hmLink" id="hcLectures">Classroom library</button></p>`, false);
+    return screen(t('Where do you train?'), t('Pick one. You can come back and try the other at any time.'), [
+      { id: 'hcGround', tag: t('Guns'), title: t('On Ground'), body: t('Sit at the gun: L-70, Shilka or ZU-23-2. Spot the drone in the sky, identify it and fire. You can also drive the Shilka through a town.'), foot: t('Choose a gun →') },
+      { id: 'hcRadarTrack', tag: t('Screen'), title: t('Radar'), body: t('Work the radar screen: spot drones, decide friend or foe, and pick the right way to stop each one. Lessons with a coach first.'), foot: t('Choose →') },
+    ], `<p class="hmSmall">${t('For commanders and instructors:')} <button class="hmLink" id="hcUnit">${t('Unit readiness')}</button> ${t('(you: {a} of {b} skills certified)', { a: certified, b: Object.keys(m).length })} · <button class="hmLink" id="hcLectures">${t('Classroom library')}</button></p>`, false);
   }
   if (stage === 'ground') {
-    return screen('Choose a gun', 'Start with an easy one: day, clear sky, sensors working. Each drill takes a few minutes, and every decision is explained at the end.', [
-      { id: 'hcL70', tag: 'Easy', tagCls: 'easy', title: 'L-70 gun', body: 'The thermal sight and laser rangefinder track the drone and work out the lead for you.', done: byGun('l70').length > 0, foot: lastOf(byGun('l70')) },
-      { id: 'hcZsu', tag: 'Easy', tagCls: 'easy', title: 'Shilka (ZSU-23-4)', body: 'The radar locks on and lays the four guns for you. You report, identify and fire.', done: byGun('zsu234').length > 0, foot: lastOf(byGun('zsu234')) },
-      { id: 'hcPatrol', tag: 'Medium', tagCls: 'medium', title: 'Urban patrol', body: 'Drive the Shilka through an old town. Drones pop up over the rooftops: engage only hostiles.', done: pats.length > 0, foot: lastOf(pats) },
-      { id: 'hcZu', tag: 'Medium', tagCls: 'medium', title: 'ZU-23-2 (upgraded)', body: 'The upgraded twin gun: day camera, thermal imager, laser rangefinder and a digital fire-control computer. Old manual sight under More gun drills.', done: byGun('zu23m').length > 0, foot: lastOf(byGun('zu23m')) },
-    ], '<p class="hmSmall"><button class="hmLink" id="hcGun">More gun drills</button>: crew the gun on orders, run the control room, reload practice, UAV strike.</p>');
+    return screen(t('Choose a gun'), t('Start with an easy one: day, clear sky, sensors working. Each drill takes a few minutes, and every decision is explained at the end.'), [
+      { id: 'hcL70', tag: t('Easy'), tagCls: 'easy', title: t('L-70 gun'), body: t('The thermal sight and laser rangefinder track the drone and work out the lead for you.'), done: byGun('l70').length > 0, foot: lastOf(byGun('l70')) },
+      { id: 'hcZsu', tag: t('Easy'), tagCls: 'easy', title: t('Shilka (ZSU-23-4)'), body: t('The radar locks on and shows you where to aim (the lead). You report, identify and fire.'), done: byGun('zsu234').length > 0, foot: lastOf(byGun('zsu234')) },
+      { id: 'hcPatrol', tag: t('Medium'), tagCls: 'medium', title: t('Urban patrol'), body: t('Drive the Shilka through an old town. Drones pop up over the rooftops: engage only hostiles.'), done: pats.length > 0, foot: lastOf(pats) },
+      { id: 'hcRaid', tag: t('Hard'), tagCls: 'hard', title: t('Saturation raid'), body: t('14 Shahed-type drones in waves. The outer layer stops some; you take the leakers, closest first, before they reach you.'), foot: t('Start →'), menu: true },
+      { id: 'hcZu', tag: t('Medium'), tagCls: 'medium', title: t('ZU-23-2 (upgraded)'), body: t('The upgraded twin gun: day camera, thermal imager, laser rangefinder and a digital fire-control computer. Old manual sight under More gun drills.'), done: byGun('zu23m').length > 0, foot: lastOf(byGun('zu23m')) },
+    ], `<p class="hmSmall"><button class="hmLink" id="hcGun">${t('More gun drills')}</button>${t(': crew the gun on orders, run the control room, reload practice, UAV strike.')}</p>`);
   }
   if (stage === 'radar') {
     const lesson = LESSONS.find((l) => !aca.has(l.n));
-    return screen('Radar training', 'New to it? Start with the lessons: a coach explains every clue and when not to fire.', [
-      { id: 'hcAcademy', tag: `${aca.size} of ${LESSONS.length} lessons`, tagCls: 'easy', title: 'Learn with a coach', body: lesson ? `Four short lessons, about 10 minutes in all. Next: ${lesson.title}.` : 'All lessons done. Replay any lesson.', done: !lesson, foot: lesson ? `Start lesson ${lesson.n} →` : 'Replay →' },
-      { id: 'hcDrill', tag: 'Scored', title: 'Quick radar drill', body: `A short drill the enemy AI builds around your weakest skill: <strong>${weakName}</strong>.`, done: app.DB.H.length > 0 },
-      { id: 'hcMissions', tag: 'Scored', title: 'Real-world missions', body: 'Defend a real kind of site: an air base at night, a border post in fog, an airport in rain, a forward post in a dust storm.', foot: 'Choose a mission →', menu: true },
+    return screen(t('Radar training'), t('New to it? Start with the lessons: a coach explains every clue and when not to fire.'), [
+      { id: 'hcAcademy', tag: t('{a} of {b} lessons', { a: aca.size, b: LESSONS.length }), tagCls: 'easy', title: t('Learn with a coach'), body: lesson ? t('Four short lessons, about 10 minutes in all. Next: {t}.', { t: lesson.title }) : t('All lessons done. Replay any lesson.'), done: !lesson, foot: lesson ? t('Start lesson {n} →', { n: lesson.n }) : t('Replay →') },
+      { id: 'hcRecog', tag: t('3 minutes'), tagCls: 'easy', title: t('Recognition trainer'), body: t('Name the drone in 1.5 seconds: by eye, binoculars, TV or thermal, day and night. The types you mix up come back more often.'), foot: t('Start →'), menu: true },
+      { id: 'hcDrill', tag: t('Scored'), title: t('Quick radar drill'), body: t('A short drill the enemy AI builds around your weakest skill: <strong>{w}</strong>.', { w: weakName }), done: app.DB.H.length > 0 },
+      { id: 'hcMissions', tag: t('Scored'), title: t('Real-world missions'), body: t('Defend a real kind of site: an air base at night, a border post in fog, an airport in rain, a forward post in a dust storm.'), foot: t('Choose a mission →'), menu: true },
     ]);
   }
   // missions
-  return screen('Choose a mission', 'Each one is a fixed, scored raid on a real kind of site.',
-    SCENARIOS.map((sc, i) => ({ id: `hcMission${i}`, data: ` data-hm="${i}"`, tag: `${sc.cfg.time === 'night' ? 'Night' : 'Day'} · ${WEATHER_LABEL[sc.cfg.weather ?? 'clear']}`, title: sc.name, body: sc.agency })), '', false);
+  return screen(t('Choose a mission'), t('Each one is a fixed, scored raid on a real kind of site.'),
+    SCENARIOS.map((sc, i) => ({ id: `hcMission${i}`, data: ` data-hm="${i}"`, tag: `${t(sc.cfg.time === 'night' ? 'Night' : 'Day')} · ${WEATHER_LABEL[sc.cfg.weather ?? 'clear']}`, title: sc.name, body: sc.agency })), '', false);
 }
 
 /** Animated radar backdrop: a slow sweep with drifting contacts. Purely decorative. */
@@ -136,6 +140,7 @@ function render() {
   const go = (f: () => void) => () => { closeHome(); markTourSeen(); f(); };
   const on = (id: string, f: () => void) => { const b = document.getElementById(id); if (b) b.onclick = f; };
   on('hcPlay', to('pick'));
+  on('hcLang', () => { setLang(lang === 'hi' ? 'en' : 'hi'); render(); });
   on('hcLearn', go(() => hooks.openLectures?.()));
   on('hcDemo', () => { closeHome(); hooks.showcase?.(); });
   on('hcBack', to(UP[stage]));
@@ -146,9 +151,11 @@ function render() {
   on('hcZsu', go(() => hooks.openGun?.('field', { gun: 'zsu234', easy: true })));
   on('hcZu', go(() => hooks.openGun?.('field', { gun: 'zu23m', easy: true })));
   on('hcPatrol', go(() => hooks.openGun?.('patrol')));
+  on('hcRaid', go(() => hooks.openGun?.('field', { gun: 'zsu234', raid: 14 })));
   on('hcGun', go(() => hooks.openGun?.()));
   on('hcAcademy', () => { const done = new Set<number>(app.DB.academy?.done ?? []); const nx = LESSONS.find((l) => !done.has(l.n)) ?? LESSONS[0]; closeHome(); markTourSeen(); startLesson(nx.n); });
   on('hcDrill', quickDrill);
+  on('hcRecog', go(() => void import('./recog').then((m) => m.openRecog(() => showHome()))));
   $$('[data-hm]').forEach((b: any) => (b.onclick = go(() => startScenario(SCENARIOS[+b.dataset.hm]))));
   on('hcLectures', go(() => hooks.openLectures?.()));
   on('hcUnit', go(() => { app.renderUnit(); app.setPhase('learn'); ($('.learnTabs [data-t=unit]') as HTMLElement).click(); }));
@@ -166,7 +173,8 @@ export function initHome() {
   hooks.showHome = showHome;
   const q = new URLSearchParams(location.search);
   // Home screen; skipped for deep links (instructor panel, tests).
-  const skip = q.has('nohome') || q.has('instructor') || q.has('demo') || q.has('gun');
+  const skip = q.has('nohome') || q.has('instructor') || q.has('demo') || q.has('gun') || q.has('recog');
+  if (q.has('recog')) void import('./recog').then((m) => m.openRecog(() => showHome()));
   hooks.holdTour = !skip || q.has('gun');
   // Home button in the header (hidden during a drill so a drill is never abandoned by accident)
   const hb = document.createElement('button'); hb.className = 'topBtn'; hb.id = 'homeBtn'; hb.textContent = 'Home';

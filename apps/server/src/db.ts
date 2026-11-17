@@ -36,6 +36,11 @@ const MIGRATIONS: string[] = [
    DROP TABLE gun_drills;
    ALTER TABLE gun_drills5 RENAME TO gun_drills;
    CREATE INDEX gun_drills_user ON gun_drills(user_id, created_at);`,
+  // 6: urban patrol drills, re-run and sealed like the gun drills.
+  `CREATE TABLE patrol_drills(id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), created_at INTEGER NOT NULL,
+     cfg TEXT NOT NULL, actions TEXT NOT NULL, end_tick INTEGER NOT NULL, total INTEGER NOT NULL, client_total INTEGER, verified INTEGER NOT NULL,
+     chain TEXT NOT NULL, flags TEXT NOT NULL, record TEXT NOT NULL, config_version INTEGER);
+   CREATE INDEX patrol_drills_user ON patrol_drills(user_id, created_at);`,
 ];
 /** Open (or create) the database and apply any pending migrations. */
 export function openDb(dataDir: string): DB {

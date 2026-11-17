@@ -202,6 +202,57 @@ describe('field drill (V rules)', () => {
     console.log(`EVIDENCE field drill lead-only fire control, expert, difficulty 1, attack mode (ZSU-23-4, L70, ZU-23-2 EO x4): ${totals.join(', ')}`);
     expect(totals.filter((t) => t >= defaultConfig.training.certification.passMark).length / totals.length).toBeGreaterThanOrEqual(0.7);
   });
+  it('saturation raid: N swarm drones in waves; the outer layer defeats a share before gun range; deterministic', () => {
+    const T = defaultConfig.threats.threats;
+    const R = createGun(field({ seed: 5, gun: 'zsu234', raid: 14 }));
+    expect(R.spawns.filter((s) => s.type === 'swarm').length).toBe(14);
+    expect(R.spawns.filter((s) => T[s.type].hostile && s.type !== 'swarm').length).toBe(0);
+    // Old configs are unchanged: no raid field, no raid.
+    expect(createGun(field({ seed: 5, gun: 'zsu234' })).spawns.filter((s) => s.type === 'swarm').length).toBeLessThan(14);
+    const results: string[] = [];
+    for (const outerLayer of [false, true]) for (const seed of [5, 6, 7]) {
+      const cfg = field({ seed, gun: 'zsu234', raid: 14, outerLayer, attack: true, leadOnly: true, difficulty: 2 }), { E, log } = play(cfg);
+      const Rr = runGun(cfg, { actions: log, until: E.tick });
+      expect(JSON.stringify(Rr.targets)).toBe(JSON.stringify(E.targets));
+      const outer = E.targets.filter((t) => t.outer != null).length, s = scoreField(E);
+      if (!outerLayer) expect(outer).toBe(0); else expect(outer).toBeGreaterThan(0);
+      expect(s.metrics.hostiles).toBe(14 - outer);
+      results.push(`${outerLayer ? 'with' : 'without'} outer layer seed ${seed}: outer ${outer}, gun ${s.metrics.kills}/${s.metrics.hostiles}, ${E.struck ? 'STRUCK' : 'held'}, score ${s.total}`);
+    }
+    console.log(`EVIDENCE field drill saturation raid (14 swarm drones, ZSU-23-4, lead-only, attack mode, expert): ${results.join('; ')}`);
+  });
+  it('V5 raid priority: firing on a far drone while a nearer one is in range costs points; no V5 outside raids', () => {
+    const cfg = field({ seed: 5, gun: 'zsu234', raid: 10, difficulty: 2 });
+    const good = scoreField(play(cfg).E);
+    // A "wrong priority" crew: always engages the reported drone that is furthest from impact.
+    const far = tweak((E, acts) => {
+      const live = E.targets.filter((t) => t.state === 'live' && t.hostile && E.spots[t.id] != null);
+      return live.length > 1 ? acts.map((a) => (a.k === 'lock' || a.k === 'lay' ? { ...a, cid: live[live.length - 1].id } : a)) : acts;
+    });
+    const bad = scoreField(play(cfg, far).E);
+    const v5 = (s: typeof good) => s.deductions.find((d) => d.rule === 'V5')?.pts ?? 0;
+    expect(v5(bad)).toBeLessThanOrEqual(v5(good));
+    expect(scoreField(play(field({ seed: 5, gun: 'zsu234' })).E).deductions.some((d) => d.rule === 'V5')).toBe(false);
+    expect(defaultConfig.doctrine.rules.V5).toBeTruthy();
+  });
+  it('instructor injects: a swarm from a bearing, a friendly crossing, sensor fail and restore; logged and replayed exactly', () => {
+    const cfg = field({ seed: 8, gun: 'zsu234', leadOnly: true, difficulty: 2 }), E = createGun(cfg);
+    const inj = (k: string, n = 315, i = 6): GunAction => ({ tick: 0, seat: 'ic', k: 'inject', item: k, n, i } as GunAction);
+    const plan = new Map<number, GunAction[]>([[150, [inj('swarm', 315, 6)]], [200, [inj('sensorFail')]], [320, [inj('sensorOk')]], [260, [inj('friendly', 90)]]]);
+    const log = driveGun(E, [controlRoomAI, crew, (x) => (plan.get(x.tick) ?? []).map((a) => ({ ...a, tick: x.tick }))]);
+    const swarm = E.targets.filter((t) => t.type === 'swarm');
+    expect(swarm.length).toBeGreaterThanOrEqual(6);
+    const brg = (t: (typeof swarm)[0]) => (Math.atan2(t.p0[0], t.p0[1]) * 180 / Math.PI + 360) % 360;
+    expect(swarm.filter((t) => Math.abs(((brg(t) - 315 + 540) % 360) - 180) < 15).length).toBeGreaterThanOrEqual(6);
+    expect(E.ev.filter((e) => e.k === 'inject').map((e) => e.text)).toEqual(['swarm', 'sensorFail', 'friendly', 'sensorOk']);
+    // While the sensor was down, no lock was taken and bursts were aimed by eye.
+    expect(E.ev.some((e) => e.k === 'lock' && e.tick > 200 && e.tick < 320)).toBe(false);
+    const R = runGun(cfg, { actions: log, until: E.tick });
+    expect(JSON.stringify(R.targets)).toBe(JSON.stringify(E.targets)); expect(scoreField(R).total).toBe(scoreField(E).total);
+    // An inject from the gun seat (not the instructor) is ignored.
+    const F = createGun(cfg); stepGun(F, [{ tick: 0, seat: 'gun', k: 'inject', item: 'swarm', n: 0, i: 5 } as GunAction]);
+    expect(F.targets.length).toBe(0);
+  });
   it('EVIDENCE: field drill, expert detachment on each gun (10 drills each, difficulty 4, mixed conditions)', () => {
     const conds = [['day', 'rural', 'clear'], ['day', 'urban', 'clear'], ['day', 'urban', 'rain'], ['night', 'rural', 'clear'], ['day', 'rural', 'dust']] as const;
     const row = (gun: string) => {

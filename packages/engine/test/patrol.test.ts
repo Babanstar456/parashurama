@@ -63,4 +63,12 @@ describe('Urban patrol drill (ZSU-23-4 on the move)', () => {
     expect(s.rules).toContain('P6');
     expect(s.rules).toContain('P4');
   });
+  it('traffic: false empties the streets; the route and the drones stay the same, and old configs keep their cars', () => {
+    const a = createPatrol(defaultPatrolCfg({ seed: 4 }), W), b = createPatrol(defaultPatrolCfg({ seed: 4, traffic: false }), W);
+    expect(a.cars.length).toBeGreaterThan(0); expect(b.cars.length).toBe(0);
+    expect(JSON.stringify(b.route)).toBe(JSON.stringify(a.route));
+    expect(JSON.stringify(b.spawns)).toBe(JSON.stringify(a.spawns));
+    const { E } = play(4, { traffic: false });
+    expect(scorePatrol(E).metrics.carHits).toBe(0);
+  });
 });

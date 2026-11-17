@@ -3,7 +3,7 @@ import cookie from '@fastify/cookie';
 import fstatic from '@fastify/static';
 import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { applyPack, defaultConfig, drillsToCsv, mastery, TRUST_KEYS, validateConfig, verifyPack, type Config, type ThreatPack, type TrustKey } from '@parashurama/engine';
+import { allDrillsToCsv, applyPack, defaultConfig, drillsToCsv, type AnyDrillRow, mastery, TRUST_KEYS, validateConfig, verifyPack, type Config, type ThreatPack, type TrustKey } from '@parashurama/engine';
 import { audit, openDb, type DB } from './db';
 import { createSession, createUser, dropSession, Limiter, userForToken, usernameFor, type Cohort, type Role, type User } from './auth';
 import { BadRequest, cleanCfg, cleanSpawns, verifyDrill } from './verify';
@@ -11,6 +11,7 @@ import { isSealed, open as unseal, seal } from './crypto';
 import { registerLectures } from './lectures';
 import { registerGun } from './gun';
 import { registerVoice } from './voice';
+import { loadPatrolWorld, registerPatrol } from './patrol';
 
 export interface Options { dataDir: string; webDir?: string; secureCookies?: boolean; logger?: boolean; /** Trusted threat-pack keys (default: config/trust/keys.json). */ trustKeys?: TrustKey[];
   /** AES-256 key for drill records and decision logs at rest (null = plaintext). */ dataKey?: Buffer | null;
@@ -140,6 +141,17 @@ export async function buildApp(o: Options) {
     return { operators: rows.map((u) => { const H = history(u.id); return { ...u, mastery: mastery(H, C), drills: H.length, lastTotal: H.length ? H[H.length - 1].total : null }; }) };
   });
 
+  // Every drill of every kind (radar, gun drills, urban patrol) as one CSV: trainees get their own, other roles the unit.
+  app.get('/api/export/all.csv', { preHandler: need() }, async (req, reply) => {
+    const own = req.user!.role === 'trainee', args = own ? [req.user!.id] : [];
+    const q = (table: string) => db.prepare(`SELECT t.record, t.verified, u.name, u.unit FROM ${table} t JOIN users u ON u.id=t.user_id ${own ? 'WHERE t.user_id=?' : ''} ORDER BY t.created_at, t.id`).all(...args) as any[];
+    const rows: AnyDrillRow[] = [];
+    for (const r of q('drills')) { const d = JSON.parse(unseal(r.record, key)), c = d.cfg ?? {}; rows.push({ operator: r.name, unit: r.unit, kind: 'radar', date: d.date, time: c.time, terrain: c.terrain, weather: c.weather, difficulty: c.difficulty, seed: c.seed, total: d.total, verified: !!r.verified, hostiles: d.cls?.hostiles }); }
+    for (const r of q('gun_drills')) { const d = JSON.parse(unseal(r.record, key)), c = d.cfg ?? {}; rows.push({ operator: r.name, unit: r.unit, kind: d.game, date: d.date, gun: c.gun, time: c.time, terrain: c.terrain, weather: c.weather, difficulty: c.difficulty, seed: c.seed, total: d.total, verified: !!r.verified, kills: d.metrics?.kills, hostiles: d.metrics?.hostiles, struck: d.game === 'field' ? (d.rules ?? []).includes('V4') : undefined }); }
+    for (const r of q('patrol_drills')) { const d = JSON.parse(unseal(r.record, key)), c = d.cfg ?? {}; rows.push({ operator: r.name, unit: r.unit, kind: 'patrol', date: d.date, gun: 'zsu234', time: c.time, terrain: 'urban', weather: c.weather, difficulty: c.difficulty, seed: c.seed, total: d.total, verified: !!r.verified, kills: d.metrics?.kills, hostiles: d.metrics?.hostiles }); }
+    audit(db, req.user!.id, 'export-csv-all', `${rows.length} drills${own ? ' (own)' : ''}`);
+    return reply.header('content-type', 'text/csv; charset=utf-8').header('content-disposition', 'attachment; filename="parashurama-all-drills.csv"').send(allDrillsToCsv(rows, activeConfig().config.training.certification.passMark));
+  });
   // Drill history as CSV for after-action review: trainees get their own drills, other roles the whole unit.
   app.get('/api/export/drills.csv', { preHandler: need() }, async (req, reply) => {
     const own = req.user!.role === 'trainee';
@@ -182,6 +194,7 @@ export async function buildApp(o: Options) {
   registerLectures(app, db, o.dataDir, need as any, o.lectureMaxBytes ?? 1024 * 1048576);
   registerGun(app, db, key, need as any, activeConfig, o.crewTickMs);
   registerVoice(app, need as any);
+  registerPatrol(app, db, key, need as any, activeConfig, loadPatrolWorld(o.webDir));
   app.post('/api/admin/backup', { preHandler: need('admin') }, async (req) => { const file = backup(db, o.dataDir); audit(db, req.user!.id, 'backup', file); return { file }; });
   app.get('/api/admin/audit', { preHandler: need('admin') }, async () => ({ events: db.prepare('SELECT a.at,a.action,a.detail,u.username FROM audit a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT 200').all() }));
 
@@ -197,7 +210,7 @@ export function encryptExisting(db: DB, key: Buffer): number {
   let n = 0;
   db.exec('BEGIN');
   try {
-    for (const table of ['drills', 'gun_drills']) {
+    for (const table of ['drills', 'gun_drills', 'patrol_drills']) {
       const rows = db.prepare(`SELECT id, record, actions FROM ${table}`).all() as { id: number; record: string; actions: string }[];
       const up = db.prepare(`UPDATE ${table} SET record=?, actions=? WHERE id=?`);
       for (const r of rows) if (!isSealed(r.record) || !isSealed(r.actions)) { up.run(isSealed(r.record) ? r.record : seal(r.record, key), isSealed(r.actions) ? r.actions : seal(r.actions, key), r.id); n++; }
