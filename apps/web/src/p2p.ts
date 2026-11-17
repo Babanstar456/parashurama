@@ -12,6 +12,13 @@ if (env.VITE_TURN_URL) ICE.push({ urls: env.VITE_TURN_URL, username: env.VITE_TU
 const PREFIX = 'parashuramaRoom';
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CHUNK = 15000;
+// The public broker checks message bodies against the PeerJS client's format and drops a connection that sends
+// anything else, so the handshake uses exactly those shapes (checked against wss://0.peerjs.com, 2026-11).
+const BROWSER = /firefox/i.test(navigator.userAgent) ? 'firefox' : /safari/i.test(navigator.userAgent) && !/chrome|chromium|edg/i.test(navigator.userAgent) ? 'safari' : 'chrome';
+const sdpOf = (d: RTCSessionDescription | null) => ({ type: d!.type, sdp: d!.sdp });
+const offerMsg = (cid: string, d: RTCSessionDescription | null) => ({ sdp: sdpOf(d), type: 'data', connectionId: cid, label: cid, reliable: true, serialization: 'json', metadata: null, browser: BROWSER });
+const answerMsg = (cid: string, d: RTCSessionDescription | null) => ({ sdp: sdpOf(d), type: 'data', connectionId: cid, browser: BROWSER });
+const candMsg = (cid: string, c: RTCIceCandidate) => ({ candidate: { candidate: c.candidate, sdpMid: c.sdpMid, sdpMLineIndex: c.sdpMLineIndex }, type: 'data', connectionId: cid });
 
 const rnd = (n: number, chars = 'abcdefghijkmnpqrstuvwxyz23456789') => { const a = new Uint32Array(n); crypto.getRandomValues(a); return Array.from(a, (x) => chars[x % chars.length]).join(''); };
 export const newCode = () => rnd(5, CODE_CHARS);
@@ -88,8 +95,18 @@ export class Wire {
 export class HostNet {
   wires = new Map<string, Wire>();
   onjoin: (id: string) => void = () => undefined; onleave: (id: string) => void = () => undefined; onmsg: (id: string, m: any) => void = () => undefined;
-  constructor(public code: string, private b: Broker) {
-    b.onmsg = (m) => void this.signal(m);
+  private closed = false;
+  constructor(public code: string, private b: Broker) { this.bind(b); }
+  private bind(b: Broker) {
+    this.b = b; b.onmsg = (m) => void this.signal(m);
+    // A background tab's timers slow down and the broker may drop the host: register the room code again, so new
+    // players can still join (players already in the room are connected directly and are not affected).
+    b.onlost = () => { if (!this.closed) setTimeout(() => void this.rebind(), 2000); };
+  }
+  private async rebind() {
+    for (let i = 0; i < 30 && !this.closed; i++) {
+      try { this.bind(await Broker.open(PREFIX + this.code)); return; } catch { await new Promise((r) => setTimeout(r, 3000)); }
+    }
   }
   static async create(): Promise<HostNet> {
     for (let i = 0; i < 4; i++) {
@@ -102,39 +119,40 @@ export class HostNet {
     const src = String(m.src ?? ''), p = m.payload ?? {};
     if (m.type === 'OFFER') {
       if (this.wires.size >= 7) return; // a room holds the host and up to 7 guests
-      const w = new Wire(src, p.cid); this.wires.get(src)?.close(); this.wires.set(src, w);
-      w.pc.onicecandidate = (e) => { if (e.candidate) this.b.send('CANDIDATE', src, { cid: w.cid, c: e.candidate.toJSON() }); };
+      const w = new Wire(src, p.connectionId); this.wires.get(src)?.close(); this.wires.set(src, w);
+      w.pc.onicecandidate = (e) => { if (e.candidate) this.b.send('CANDIDATE', src, candMsg(w.cid, e.candidate)); };
       w.pc.ondatachannel = (e) => w.attach(e.channel);
       w.onopen = () => this.onjoin(src);
       w.onmsg = (x) => this.onmsg(src, x);
       w.onclose = () => { if (this.wires.get(src) === w) { this.wires.delete(src); this.onleave(src); } };
-      try { await w.remoteDesc(p.sdp); const a = await w.pc.createAnswer(); await w.pc.setLocalDescription(a); this.b.send('ANSWER', src, { cid: w.cid, sdp: w.pc.localDescription }); } catch { w.close(); }
-    } else if (m.type === 'CANDIDATE') { const w = this.wires.get(src); if (w && w.cid === p.cid) await w.candidate(p.c); }
+      try { await w.remoteDesc(p.sdp); const a = await w.pc.createAnswer(); await w.pc.setLocalDescription(a); this.b.send('ANSWER', src, answerMsg(w.cid, w.pc.localDescription)); } catch { w.close(); }
+    } else if (m.type === 'CANDIDATE') { const w = this.wires.get(src); if (w && w.cid === p.connectionId) await w.candidate(p.candidate); }
     else if (m.type === 'LEAVE') this.wires.get(src)?.close();
   }
   send(id: string, m: unknown) { this.wires.get(id)?.send(m); }
   broadcast(m: unknown) { for (const w of this.wires.values()) w.send(m); }
-  close() { this.b.close(); for (const w of [...this.wires.values()]) w.close(); this.wires.clear(); }
+  close() { this.closed = true; this.b.close(); for (const w of [...this.wires.values()]) w.close(); this.wires.clear(); }
 }
 
 /** Guest: connects to the host of a room code. Resolves once the data channel is open. */
 export async function joinNet(code: string): Promise<Wire> {
   const me = PREFIX + 'g' + rnd(10), host = PREFIX + cleanCode(code);
   const b = await Broker.open(me);
-  const w = new Wire(host, rnd(8));
+  const w = new Wire(host, 'dc_' + rnd(10));
   return new Promise<Wire>((ok, bad) => {
     let done = false;
     const fail = (msg: string) => { if (done) return; done = true; clearTimeout(t); b.close(); w.onclose = () => undefined; w.close(); bad(new Error(msg)); };
     const t = setTimeout(() => fail('Could not connect directly to the host. Both computers need internet access that allows peer-to-peer connections (the same Wi-Fi or a phone hotspot usually works).'), 25000);
+    b.onlost = () => fail('The signalling service dropped the connection. Try joining again.');
     b.onmsg = (m) => {
       const p = m.payload ?? {};
       if (m.type === 'EXPIRE') fail(`No room with the code ${cleanCode(code)}. Check the code, and that the host still has the room open.`);
-      else if (m.type === 'ANSWER' && p.cid === w.cid) void w.remoteDesc(p.sdp).catch(() => fail('The host refused the connection.'));
-      else if (m.type === 'CANDIDATE' && p.cid === w.cid) void w.candidate(p.c);
+      else if (m.type === 'ANSWER' && p.connectionId === w.cid) void w.remoteDesc(p.sdp).catch(() => fail('The host refused the connection.'));
+      else if (m.type === 'CANDIDATE' && p.connectionId === w.cid) void w.candidate(p.candidate);
     };
-    w.pc.onicecandidate = (e) => { if (e.candidate) b.send('CANDIDATE', host, { cid: w.cid, c: e.candidate.toJSON() }); };
+    w.pc.onicecandidate = (e) => { if (e.candidate) b.send('CANDIDATE', host, candMsg(w.cid, e.candidate)); };
     w.attach(w.pc.createDataChannel('room', { ordered: true }));
     w.onopen = () => { if (done) return; done = true; clearTimeout(t); setTimeout(() => b.close(), 3000); ok(w); };
-    w.pc.createOffer().then((o) => w.pc.setLocalDescription(o)).then(() => b.send('OFFER', host, { cid: w.cid, sdp: w.pc.localDescription })).catch(() => fail('This browser could not start a peer-to-peer connection.'));
+    w.pc.createOffer().then((o) => w.pc.setLocalDescription(o)).then(() => b.send('OFFER', host, offerMsg(w.cid, w.pc.localDescription))).catch(() => fail('This browser could not start a peer-to-peer connection.'));
   });
 }

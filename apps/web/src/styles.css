@@ -804,6 +804,9 @@ body.gunOn{overflow:hidden}
 .hmCrumb{display:block;font:600 12px var(--cond);letter-spacing:.12em;text-transform:uppercase;color:#3fa796;margin-bottom:2px}
 .hmBig.two .hb{min-height:240px}
 .hmBig.two .hb b{font-size:38px}
+.hmBig.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.hmBig.three .hb b{font-size:32px}
+@media (max-width:980px){.hmBig.three{grid-template-columns:minmax(0,1fr)}.hmBig.two.three .hb{min-height:0}}
 .hbTag.hard{background:rgba(229,72,77,.2);color:#ff8a8d}
 .hmSmall{margin:22px 0 0;font:400 15px/1.6 var(--body);color:#9fb0bd;text-align:center}
 .hmLink{all:unset;cursor:pointer;color:#e8eef2;text-decoration:underline;text-underline-offset:3px;font-weight:600}
