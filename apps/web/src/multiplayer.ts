@@ -16,6 +16,7 @@ import { toast } from './toast';
 import { HostNet, joinNet, p2pSupported, cleanCode, type Wire } from './p2p';
 import { openCrew, openGunWith, fieldCfg, isGunOpen, closeGun, type CrewLink } from './gun';
 import { closeHome } from './home';
+import { setVoiceRoom, voiceIn } from './voice';
 
 type Kind = 'crew' | 'radar' | 'field';
 interface LiveScore { score: number; kills: number; hostiles: number; }
@@ -134,6 +135,7 @@ function hostHandle(from: string, m: any) {
   }
   const p = players.find((x) => x.id === from); if (!p) return;
   if (m.t === 'crew') { crew?.handle(from, m.m ?? {}); return; }
+  if (m.t === 'voice') { relayVoice(from, p.name, m.d); return; }
   if (!round || round.kind === 'crew' || !round.ids.includes(from)) return;
   if (m.t === 'live' && !p.final) { const d = m.d ?? {}; p.live = { score: +d.score || 0, kills: +d.kills || 0, hostiles: +d.hostiles || 0 }; broadcastRoom(); return; }
   if (m.t === 'final' && !p.final) {
@@ -146,6 +148,16 @@ function hostHandle(from: string, m: any) {
 function hostLeave(id: string) {
   players = players.filter((p) => p.id !== id); crew?.leave(id); checkDone(); broadcastRoom();
 }
+/** Push-to-talk in the room: the host stamps the sender's name and relays to everyone else (nothing is stored). */
+function relayVoice(from: string, name: string, d: any) {
+  if (!d || typeof d !== 'object') return;
+  const v: any = { station: name, seq: +d.seq || 0 };
+  if (typeof d.pcm === 'string' && d.pcm.length <= 40000) { v.pcm = d.pcm; v.sr = d.sr; } else if (d.on != null) v.on = !!d.on; else return;
+  for (const p of players) if (p.id !== from && p.id !== myId) net?.send(p.id, { t: 'voice', d: v });
+  if (from !== myId) voiceIn(v);
+}
+const voiceRoom = () => setVoiceRoom({ label: code, name: myName, peers: () => players.length,
+  send: (m) => (role === 'host' ? relayVoice(myId, myName, m) : wire?.send({ t: 'voice', d: m })) });
 const toHost = (m: any) => (role === 'host' ? hostHandle(myId, m) : wire?.send(m));
 
 /** Host: start a new round for everyone in the room. */
@@ -237,6 +249,7 @@ async function host() {
     players = [{ id: myId, name: myName, host: true }]; round = null; seenRound = 0; roundN = 0;
     net.onmsg = (id, m) => hostHandle(id, m);
     net.onleave = (id) => hostLeave(id);
+    voiceRoom();
     broadcastRoom();
   } catch (e: any) { toast(e.message); }
   busy = false; renderRoom();
@@ -252,14 +265,17 @@ async function join(c: string) {
       else if (m.t === 'room') { if (myId) applyRoom(m.d); }
       else if (m.t === 'crew') deliverCrew(m.ev, m.d);
       else if (m.t === 'err') toast(m.msg);
+      else if (m.t === 'voice') voiceIn(m.d);
     };
     w.onclose = () => { if (!leaving) { toast('The room closed: the host left or the connection dropped.'); deliverCrew('error', null); } reset(); };
     w.send({ t: 'hello', name: myName });
+    voiceRoom();
     history.replaceState(null, '', `${location.pathname}?room=${c}`);
   } catch (e: any) { toast(e.message, 9000); }
   busy = false; renderRoom();
 }
 function reset() {
+  setVoiceRoom(null);
   crew?.stop(); crew = null; crewFns = null; net = null; wire = null; role = null; code = ''; myId = ''; players = []; round = null;
   playing = false; clearInterval(liveTimer);
   if (location.search.includes('room=')) history.replaceState(null, '', location.pathname);
