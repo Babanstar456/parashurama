@@ -1,4 +1,5 @@
 import { decisionClass } from '@parashurama/engine';
+import { t } from './i18n';
 import { C, TYPES, ORDER, EFF } from './cfg';
 import { $ } from './dom';
 import { app, on } from './app';
@@ -19,16 +20,16 @@ function html(): string {
     return `<tr><td><b style="color:${col}">${t.label}</b></td><td>~${Math.round(t.speed * 3.6)} km/h</td><td>${t.alt[0]}–${t.alt[1]} m</td><td>${t.echo}</td>
       <td>${t.rf}</td><td>${t.behaviour.replace('{n}', 'others')}</td><td>${CAMERA[t.shape]}</td>${ac ? `<td>${t.acoustic ? `${t.acoustic.sig} (~${t.acoustic.rangeM} m)` : '—'}</td>` : ''}<td><b>${actionFor(k)}</b></td></tr>`;
   }).join('');
-  return `<div class="fgHead"><h3>Field guide</h3><button class="fgClose" id="fgClose" aria-label="Close field guide">Close <kbd>F</kbd></button></div>
+  return `<div class="fgHead"><h3>${t('Field guide')}</h3><button class="fgClose" id="fgClose" aria-label="Close field guide">${t('Close')} <kbd>F</kbd></button></div>
   <ol class="fgSteps">
-    <li><b>Friendly check says “matches flight plan”?</b> It is ours. Identify Friendly UAV, then <b>Hold</b>. Never fire.</li>
-    <li><b>RF signal shows a control or video link?</b> Someone is flying it by radio. <b>RF jam</b> cuts the link.</li>
-    <li><b>No radio emission, slow and erratic?</b> A bird. <b>Hold</b>; don't waste a weapon.</li>
-    <li><b>No radio emission, fast and straight in, or flying in a group?</b> It navigates by satellite. Jamming fails; <b>GNSS spoof</b> works (it also hits nearby swarm drones).</li>
-    <li><b>Weapon greyed out?</b> It is not in reach yet. Watch the coloured bar on its card, and handle the most urgent contact first.</li>
-    <li><b>How sure are you?</b> Say <b>Certain</b> only when friendly check, radio and behaviour all agree. If a sensor is down, say Confident.</li>
-    <li><b>Rain, fog or dust?</b> Radar paints blips less often and the camera only works close in. Do not wait for the picture: decide from <b>RF signal and behaviour</b>, and say Confident rather than Certain.</li>${ac ? `
-    <li><b>Acoustic sensor.</b> It hears what radio cannot: a fibre-optic FPV screams like any racing quad but shows no radio. It only hears close in, less in towns, rain and dust, and a little further at night.</li>` : ''}
+    <li>${t('<b>Friendly check says “matches flight plan”?</b> It is ours. Identify Friendly UAV, then <b>Hold</b>. Never fire.')}</li>
+    <li>${t('<b>RF signal shows a control or video link?</b> Someone is flying it by radio. <b>RF jam</b> cuts the link.')}</li>
+    <li>${t("<b>No radio emission, slow and erratic?</b> A bird. <b>Hold</b>; don't waste a weapon.")}</li>
+    <li>${t('<b>No radio emission, fast and straight in, or flying in a group?</b> It navigates by satellite. Jamming fails; <b>GNSS spoof</b> works (it also hits nearby swarm drones).')}</li>
+    <li>${t('<b>Weapon greyed out?</b> It is not in reach yet. Watch the coloured bar on its card, and handle the most urgent contact first.')}</li>
+    <li>${t('<b>How sure are you?</b> Say <b>Certain</b> only when friendly check, radio and behaviour all agree. If a sensor is down, say Confident.')}</li>
+    <li>${t('<b>Rain, fog or dust?</b> Radar paints blips less often and the camera only works close in. Do not wait for the picture: decide from <b>RF signal and behaviour</b>, and say Confident rather than Certain.')}</li>${ac ? `
+    <li>${t('<b>Acoustic sensor.</b> It hears what radio cannot: a fibre-optic FPV screams like any racing quad but shows no radio. It only hears close in, less in towns, rain and dust, and a little further at night.')}</li>` : ''}
   </ol>
   <div class="wrapx"><table class="fgTable"><tr><th>Contact</th><th>Speed</th><th>Height</th><th>Echo</th><th>Radio</th><th>Behaviour</th><th>Camera</th>${ac ? '<th>Acoustic</th>' : ''}<th>Do this</th></tr>${rows}</table></div>
   <p class="fgNote">Speeds vary by about ±12%.${ac ? ' Hearing ranges are for open, quiet ground.' : ''} The guide is available on the brief, in the Academy and in the debrief, not during scored drills.</p>`;
