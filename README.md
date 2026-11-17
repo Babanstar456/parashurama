@@ -19,7 +19,7 @@ Trainees detect, identify and defeat drone and swarm threats on a laptop. A guid
 | Admin / IT | [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) |
 | Developer | this file |
 
-Inside the app: a one-click narrated **90-second demo** (or open with `?demo`), a **Mission Hub** home screen, a **3D tactical view** (press **V** in a drill; VR-ready), **weather** and **real-world missions**, a guided **tour** on first visit (the **?** button replays it), the four-lesson **Academy**, the **Field guide** (**F**), and the coach.
+Inside the app: a one-click narrated **90-second demo** (or open with `?demo`), a **Mission Hub** home screen, a **3D tactical view** (press **V** in a drill; WebXR-ready, headset trial next), **weather** and **real-world missions**, a guided **tour** on first visit (the **?** button replays it), the four-lesson **Academy**, the **Field guide** (**F**), and the coach.
 
 ## Quick start
 
@@ -84,7 +84,7 @@ Also verified manually during development: all four Academy lessons completed by
 - Phase 1 (monorepo, config, tests, CI): done.
 - Phase 2 (server, logins, roles, sync, verification): done.
 - Phase 3 (installable offline app, Docker, backups, HTTPS): done. Docker files were not executed in the build environment.
-- Phase 4 (instructor editor, what-if rewind, sound and radio callouts): done. **VR mode is deferred**: it needs headset testing, which was not available.
+- Phase 4 (instructor editor, what-if rewind, sound and radio callouts): done. **VR: WebXR-ready, headset trial next** (the Enter VR button appears on a headset browser; not yet tried on a headset).
 
 ## Known limitations
 

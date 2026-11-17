@@ -5,7 +5,7 @@ Every figure below is printed by the test suite as an `EVIDENCE …` line (`npm 
 | PS requirement | Where it is built | Proved by |
 |---|---|---|
 | Desktop simulator, scripted and procedural scenarios | `packages/engine/src/engine.ts`, `scenario.ts`, `scenarios.ts`; `config/scenarios.json`; instructor drill builder `apps/web/src/editor.ts` | `determinism.test.ts`, `scenarios.test.ts`, `fuzz.test.ts`, e2e `drill.spec.ts` |
-| VR optional | `apps/web/src/view3d.ts` (Three.js, WebXR entry) | e2e `hub.spec.ts` (3D view). WebXR has not been tried on a headset. |
+| VR optional | `apps/web/src/view3d.ts` (Three.js, WebXR entry) | e2e `hub.spec.ts` (3D view). WebXR-ready, headset trial next. |
 | Day/night, degraded sensors, urban/rural, weather | `DrillConfig` (`time`, `fault`, `terrain`, `weather`); `config/training.json` | `weather.test.ts`, `scoring.test.ts` |
 | Acoustic sensing | Optional `acoustic` signature per threat (`config/threats.json`) and sensor block (`config/training.json`: terrain, night and weather factors); `acousticClue()` in `engine.ts`; *Acoustic* clue in the drill and a column in the field guide | `acoustic.test.ts` (ranges by condition; a fibre-optic FPV with no radio is heard close in; drills and scores identical with and without the sensor; old configs still valid) |
 | Single drones and swarms; many drone types | `config/threats.json` (14 types: all three defeat classes, plus friendly, civil and clutter), swarm motion and area effect in `engine.ts` | `library.test.ts` (the expert ghost defeats every hostile type), `scoring.test.ts` |
@@ -85,7 +85,7 @@ Before the 13-type library, the same suite measured 14 distinct threat mixes (th
 |---|---|
 | Frame rate on the presentation laptop | `npm run fps:web -- --url <the Vercel link>` on that laptop (full build: menus, radar drill, 3D field drill, sight, urban patrol), and `npm run build:single && npm run fps` for the offline copy, or or open `docs/index.html?fps`, use the menus, a drill and the 3D view (**V**), then click the meter to copy the report. Record it here. |
 | Load over a real LAN | `npm run loadtest -- --url http://<server>:8080` from a second PC against a test server. |
-| VR headset | WebXR entry is built; not yet tried on a headset. |
+| VR headset | WebXR-ready, headset trial next. |
 | Gun, ammunition, reload and UAV values; words of command | All are training values or placeholders (`config/guns.json`). DSSC / AAD College to confirm or replace. |
 | Gun drills on a real LAN | `npm run fps:web` now covers the gun drills and the patrol; still to do: `npm run crewload` and a two-PC crew drill (with the push-to-talk radio) on the unit network. |
 | Hindi wording | First draft in `apps/web/src/i18n.ts`; to be checked by the unit. |
