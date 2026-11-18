@@ -67,7 +67,8 @@ const sec = (E: PatrolEngine, s: number) => Math.round(s / E.dt);
 export const defaultPatrolCfg = (o: Partial<PatrolCfg> = {}): PatrolCfg => ({ seed: 1, time: 'day', difficulty: 3, met: { tempC: 30, pressureHpa: 1005, wind: [0, 0, 0], latitudeDeg: 26 }, ...o });
 
 // ---------- world queries ----------
-function buildGrid(W: PatrolWorld): PatrolEngine['grid'] {
+/** Spatial grid over a world's buildings, walls and posts (the patrol and the Igla drill share it). */
+export function buildGrid(W: PatrolWorld): PatrolEngine['grid'] {
   const cell = 16, ext = W.half + 60, x0 = W.centre[0] - ext, y0 = W.centre[1] - ext, n = Math.ceil((2 * ext) / cell);
   const rects = [...W.boxes.map((b) => [...b, 0]), ...W.walls.map((b) => [...b, 1])], cells: number[][] = Array.from({ length: n * n }, () => []);
   const put = (ax: number, ay: number, bx: number, by: number, v: number) => {
@@ -116,7 +117,7 @@ export function hullBlocked(E: PatrolEngine, x: number, y: number, hdgDeg: numbe
   return null;
 }
 /** First crossing of the segment a→b (world) with a building or wall: fraction 0…1, or null. */
-export function segBlocked(E: PatrolEngine, a: Vec3, b: Vec3, wallsToo = true): number | null {
+export function segBlocked(E: Pick<PatrolEngine, 'grid'>, a: Vec3, b: Vec3, wallsToo = true): number | null {
   const G = E.grid, x1 = G.x0 + G.n * G.cell, y1 = G.y0 + G.n * G.cell;
   if (Math.min(a[2], b[2]) > G.maxTop + 1) return null;
   const cand = new Set<number>(), L = Math.hypot(b[0] - a[0], b[1] - a[1]), steps = Math.max(1, Math.ceil(L / (G.cell * 0.5)));

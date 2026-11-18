@@ -15,6 +15,7 @@ import { $ } from './dom';
 import { toast } from './toast';
 import { initGcs, startGcs, stopGcs } from './gcs';
 import { patrolActive, patrolHistory, startPatrol, stopPatrol } from './patrol';
+import { iglaActive, iglaHistory, startIgla, stopIgla } from './igla';
 import { hasWebGL, mountField, type FieldView } from './field3d';
 
 const KEY = 'parashurama.gunH';
@@ -155,7 +156,7 @@ function startField(gun?: string, easy = false, raid?: number) {
   start('field', { ...p.cfg, gun: g, attack: true, leadOnly: true, ...(g === 'zu23' && gun ? { time: 'day' as const } : {}) });
 }
 function lobby() {
-  stop(); stopGcs(); stopPatrol();
+  stop(); stopGcs(); stopPatrol(); stopIgla();
   const m = gunMastery(H), pats = patrolHistory();
   const tried = { field: H.some((h) => h.game === 'field'), patrol: pats.length > 0, ground: H.some((h) => h.game === 'ground'), control: H.some((h) => h.game === 'control') };
   const order = ['field', 'patrol', 'control'] as const, here = order.find((k) => !tried[k]);
@@ -183,6 +184,9 @@ function lobby() {
         <span>Drive a ZSU-23-4 along a route through an old town. Drones pop up over the rooftops: report, identify, lock and engage only hostiles, without hitting the buildings.</span>
         <em>${pats.length ? `${pats.length} patrols · last ${pats[pats.length - 1].total} · Begin →` : 'Begin →'}</em></button>
       ${card('control', 3, 'Control Room', 'Give the fire orders', 'You are the fire-control officer: pick the most urgent drone and give Alert, Target, Method, FIRE. Call Cease or Hold fire when needed.')}
+      <button class="gnCard" id="gnIgla"><small><span class="gnNum">4</span>On foot</small><b>Igla (MANPADS)</b>
+        <span>Walk the town as the Igla gunner. Identify each contact through the sight and spend a missile only on a target worth one: switch on the battery-coolant unit, wait for the lock tone, lead and fire, then reload.</span>
+        <em>${iglaHistory().length ? `${iglaHistory().length} drills · last ${iglaHistory()[iglaHistory().length - 1].total} · Begin →` : 'Begin →'}</em></button>
     </div>
     <details class="gnMore"><summary>More drills and options <small>reload practice · UAV strike · crew over the LAN · unit readiness</small></summary>
       <div class="gnPractice"><b>Reload drill</b><span>Timed practice: ${RELOAD_REPS} reloads against the time standard, every step in the right order. The step buttons are shuffled, so you must know the drill.</span>
@@ -200,6 +204,7 @@ function lobby() {
   document.querySelectorAll<HTMLElement>('#gunApp [data-egun]').forEach((b) => (b.onclick = () => startField(b.dataset.egun!, true)));
   document.querySelectorAll<HTMLElement>('#gunApp [data-practice]').forEach((b) => (b.onclick = () => startReload(b.dataset.practice!)));
   const pat = document.getElementById('gnPatrol'); if (pat) pat.onclick = () => { stop(); void startPatrol(lobby); };
+  const ig = document.getElementById('gnIgla'); if (ig) ig.onclick = () => { stop(); void startIgla(lobby); };
   const uav = document.getElementById('gnUav'); if (uav) uav.onclick = () => { stop(); startGcs(lobby); };
   const room = document.getElementById('gnRoom'); if (room) room.onclick = () => { closeGun(); hooks.openMultiplayer?.(); };
   ((here === 'patrol' ? pat : document.querySelector(`#gunApp [data-game=${here ?? 'field'}]`)) as HTMLElement)?.focus();
@@ -918,11 +923,11 @@ function finish(quit: boolean) {
 }
 
 // ---------- open / close / keys ----------
-export function openGun(game?: GunGame | 'patrol', opts: { gun?: string; easy?: boolean; raid?: number } = {}) {
+export function openGun(game?: GunGame | 'patrol' | 'igla', opts: { gun?: string; easy?: boolean; raid?: number } = {}) {
   let el = $('#gunApp') as HTMLElement | null;
   if (!el) { el = document.createElement('div'); el.id = 'gunApp'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Air defence gun drills'); document.body.appendChild(el); }
   el.classList.add('on'); open = true; document.body.classList.add('gunOn');
-  if (game === 'patrol') void startPatrol(lobby); else if (game === 'field') startField(opts.gun, opts.easy, opts.raid); else if (game) start(game); else lobby();
+  if (game === 'patrol') void startPatrol(lobby); else if (game === 'igla') void startIgla(lobby); else if (game === 'field') startField(opts.gun, opts.easy, opts.raid); else if (game) start(game); else lobby();
 }
 /** Open the gun drills straight into a drill with a fixed config (multiplayer score fight). */
 export function openGunWith(game: GunGame, cfg: GunDrillConfig) {
@@ -937,7 +942,7 @@ export function fieldCfg(gun: string, easy: boolean): GunDrillConfig {
   return { ...p.cfg, gun, attack: true, leadOnly: true };
 }
 export function isGunOpen() { return open; }
-export function closeGun() { closeFeed(); stop(); stopGcs(); stopPatrol(); open = false; $('#gunApp')?.classList.remove('on'); document.body.classList.remove('gunOn'); hooks.showHome?.(); }
+export function closeGun() { closeFeed(); stop(); stopGcs(); stopPatrol(); stopIgla(); open = false; $('#gunApp')?.classList.remove('on'); document.body.classList.remove('gunOn'); hooks.showHome?.(); }
 const ORDER_KEYS: Record<string, OrderKind> = { r: 'rangeClear', a: 'alert', t: 'target', m: 'method', f: 'engage', c: 'cease', h: 'hold', u: 'unload', g: 'rangeGreen' };
 const GUN_KEYS: Record<string, string> = { k: 'ack', p: 'post', r: 'load', f: 'safety', l: 'lay', q: 'lock', c: 'clear', b: 'barrel', x: 'kill', u: 'unload', n: 'report' };
 export function initGun() {
@@ -945,7 +950,7 @@ export function initGun() {
   initGcs();
   void connect();
   document.addEventListener('keydown', (e) => {
-    if (!open || patrolActive()) return; // the urban patrol drill has its own keys (patrol.ts)
+    if (!open || patrolActive() || iglaActive()) return; // the urban patrol and Igla drills have their own keys (patrol.ts, igla.ts)
     e.stopPropagation();
     if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
     const k = e.key.toLowerCase();
@@ -991,6 +996,6 @@ export function initGun() {
     history: () => H,
   };
   const q = new URLSearchParams(location.search);
-  if (q.has('gun')) { if (q.get('gun') === 'uav') { openGun(); startGcs(lobby); } else if (q.get('gun') === 'patrol') openGun('patrol'); else openGun((['ground', 'control', 'field'] as const).find((g) => q.get('gun') === g)); }
+  if (q.has('gun')) { if (q.get('gun') === 'uav') { openGun(); startGcs(lobby); } else if (q.get('gun') === 'patrol') openGun('patrol'); else if (q.get('gun') === 'igla') openGun('igla'); else openGun((['ground', 'control', 'field'] as const).find((g) => q.get('gun') === g)); }
   void engageRange; void muzzleVelocity; void inSafeArc; void hasWebGL;
 }

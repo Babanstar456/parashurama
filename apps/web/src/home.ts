@@ -56,7 +56,7 @@ function screen(title: string, lead: string, cards: Card[], extra = '', startHer
 
 function stageHtml(): string {
   const local = (k: string): any[] => { try { const v = JSON.parse(localStorage.getItem(k) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
-  const field = local('parashurama.gunH').filter((r) => r?.game === 'field'), pats = local('parashurama.patrolH');
+  const field = local('parashurama.gunH').filter((r) => r?.game === 'field'), pats = local('parashurama.patrolH'), iglas = local('parashurama.iglaH');
   const byGun = (g: string) => field.filter((r) => r?.cfg?.gun === g), lastOf = (a: any[]) => (a.length ? t('Last score {n} · Start →', { n: a[a.length - 1].total }) : undefined);
   const aca = new Set<number>(app.DB.academy?.done ?? []), m = mastery(app.DB.H);
   const weakest = (['night', 'swarm', 'degraded', 'weather'] as const).reduce((a, b) => (m[a] <= m[b] ? a : b));
@@ -74,6 +74,7 @@ function stageHtml(): string {
       { id: 'hcL70', tag: t('Easy'), tagCls: 'easy', title: t('L-70 gun'), body: t('The thermal sight and laser rangefinder track the drone and work out the lead for you.'), done: byGun('l70').length > 0, foot: lastOf(byGun('l70')) },
       { id: 'hcZsu', tag: t('Easy'), tagCls: 'easy', title: t('Shilka (ZSU-23-4)'), body: t('The radar locks on and shows you where to aim (the lead). You report, identify and fire.'), done: byGun('zsu234').length > 0, foot: lastOf(byGun('zsu234')) },
       { id: 'hcPatrol', tag: t('Medium'), tagCls: 'medium', title: t('Urban patrol'), body: t('Drive the Shilka through an old town. Drones pop up over the rooftops: engage only hostiles.'), done: pats.length > 0, foot: lastOf(pats) },
+      { id: 'hcIgla', tag: t('Medium'), tagCls: 'medium', title: t('Igla on foot'), body: t('Walk the town with an Igla shoulder-fired missile. Fire only at a target worth a missile; take cover from FPV drones.'), done: iglas.length > 0, foot: lastOf(iglas) },
       { id: 'hcRaid', tag: t('Hard'), tagCls: 'hard', title: t('Saturation raid'), body: t('14 Shahed-type drones in waves. The outer layer stops some; you take the leakers, closest first, before they reach you.'), foot: t('Start →'), menu: true },
       { id: 'hcZu', tag: t('Medium'), tagCls: 'medium', title: t('ZU-23-2 (upgraded)'), body: t('The upgraded twin gun: day camera, thermal imager, laser rangefinder and a digital fire-control computer. Old manual sight under More gun drills.'), done: byGun('zu23m').length > 0, foot: lastOf(byGun('zu23m')) },
     ], `<p class="hmSmall"><button class="hmLink" id="hcGun">${t('More gun drills')}</button>${t(': crew the gun on orders, run the control room, reload practice, UAV strike.')}</p>`);
@@ -152,6 +153,7 @@ function render() {
   on('hcZsu', go(() => hooks.openGun?.('field', { gun: 'zsu234', easy: true })));
   on('hcZu', go(() => hooks.openGun?.('field', { gun: 'zu23m', easy: true })));
   on('hcPatrol', go(() => hooks.openGun?.('patrol')));
+  on('hcIgla', go(() => hooks.openGun?.('igla')));
   on('hcRaid', go(() => hooks.openGun?.('field', { gun: 'zsu234', raid: 14 })));
   on('hcGun', go(() => hooks.openGun?.()));
   on('hcAcademy', () => { const done = new Set<number>(app.DB.academy?.done ?? []); const nx = LESSONS.find((l) => !done.has(l.n)) ?? LESSONS[0]; closeHome(); markTourSeen(); startLesson(nx.n); });

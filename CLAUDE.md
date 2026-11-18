@@ -32,7 +32,7 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
 - **Supply chain:** run `npm run audit:prod` (CI fails on high or critical) and `npm run sbom && npm run notices`. Licence: Apache-2.0 (`LICENSE`, `NOTICE`).
 - **Capacity checks:** `npm run loadtest` (unit server, many trainees; `--url` for a real server), `npm run crewload` (LAN crew drills at the real clock) and `npm run fps` (frame rate per view, visible browser; needs `npm run build:single`).
 - `apps/web/index.html` is the Vite **source** entry page (it loads `/src/main.ts`). Never overwrite it with a built bundle.
-- **App URL flags:** `?demo`, `?reset`, `?nohome`, `?instructor` (offline editor), `?fps` (frame-rate meter), `?lite` (force Lite mode), `?lectures`, `?gun` (gun drills lobby), `?gun=ground|control|uav|patrol`.
+- **App URL flags:** `?demo`, `?reset`, `?nohome`, `?instructor` (offline editor), `?fps` (frame-rate meter), `?lite` (force Lite mode), `?lectures`, `?gun` (gun drills lobby), `?gun=ground|control|uav|patrol|igla`.
 
 ## Engine rules to preserve
 - **Determinism.** A drill is fully defined by its seed and its time-stamped decision log. Never use `Math.random()` in the engine; use `mulberry` and `hash2` from `util.ts`. The server re-runs every drill, and the log is SHA-256 chained.
@@ -69,6 +69,10 @@ Conditions to cover: day/night, degraded sensors, urban/rural, single drones and
   - Web `apps/web/src/patrol.ts` (3D view, HUD, minimap) and `city3d.ts`. History under `parashurama.patrolH`. Automation handle `window.PARA_PATROL`.
   - City package: `node tools/city/bake-city.mjs <path to Project-Reality>` regenerates `apps/web/public/city/` (seed 1337, area −200…200 m). Gun models from `Models_New/`: `tools/blender/shilka.py` (ZSU-23-4), `tools/blender/import_guns.py --only zu23` (ZU-23-2). The L70 is built by `tools/blender/guns.py --only l70` (the Bofors scan is not used: it is an L/60 whose shields block the layer's view).
   - Vehicle values (`VEH`) are training values. The server does not re-run patrol drills yet.
+- **Igla (MANPADS) drill on foot** (separate module, records and keys; never mixed into the gun, patrol or radar drills):
+  - Engine `igla.ts`: first-person gunner in the patrol's town (`PatrolWorld`, shares `buildGrid`/`segBlocked`), air defence net calls, identify through the sight, battery-coolant unit (ready 5 s, spent 35 s), seeker lock with launch interlock, gimbal, lead and super-elevation, proportional-navigation missile, reload (gripstock to a fresh tube, then a fresh BCU), FPV hunters that need line of sight, rules I1–I9, `iglaAI` expert (path search to cover and to a clear launch line). All values in `IGLA` are training values; `IGLA.types[...].value` says which drones are worth a missile (doctrine for DSSC to confirm).
+  - Web `apps/web/src/igla.ts` (first person, clip-on sight with day/thermal channels, launcher sounds, coach line). History under `parashurama.iglaH`. Automation handle `window.PARA_IGLA` (`skip(sec)`, `ai(on)`, `trig()`). `?gun=igla`. The server does not re-run Igla drills yet.
+  - Launcher model: `models/manpad_local.glb` if present (the user's 9K333 Verba scan, Sketchfab Standard licence: git-ignored, never commit or ship it); otherwise a built-in tube, gripstock, BCU and sight. A CC BY / CC0 Igla model would replace both.
 - **Planner options and security features:**
   - Control-group planning: `planNext(H, C, { adaptive: false })`, with a `cohort` per user.
   - Signed threat packs: `pack.ts`, `config/trust/keys.json`, `POST /api/packs`.

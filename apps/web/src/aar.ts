@@ -10,11 +10,12 @@ import { api, serverMode } from './online';
 import { CERT } from './cfg';
 import { gunHistory } from './gun';
 import { patrolHistory } from './patrol';
+import { iglaHistory } from './igla';
 import { recogHistory } from './recog';
 
 interface PRec { date: number; total: number; cfg: any; metrics?: any }
-const KIND_COL: Record<string, string> = { radar: '#3fa796', field: '#f2c94c', control: '#5da9ff', ground: '#c08bff', patrol: '#ff8a5c', recognition: '#e5484d' };
-const KIND_LABEL: Record<string, string> = { radar: 'Radar drill', field: '3D field firing', control: 'Control Room', ground: 'On Ground', patrol: 'Urban patrol', recognition: 'Recognition (% right)' };
+const KIND_COL: Record<string, string> = { radar: '#3fa796', field: '#f2c94c', control: '#5da9ff', ground: '#c08bff', patrol: '#ff8a5c', recognition: '#e5484d', igla: '#9fe0a8' };
+const KIND_LABEL: Record<string, string> = { radar: 'Radar drill', field: '3D field firing', control: 'Control Room', ground: 'On Ground', patrol: 'Urban patrol', recognition: 'Recognition (% right)', igla: 'Igla on foot' };
 /** Gun-drill readiness columns: the 3D field drill's skills, the Control Room's (averaged), and the patrol's recent score. */
 const COLS: [string, string][] = [['vDetect', 'Detect'], ['vIdent', 'Identify'], ['vDecide', 'Fire decision'], ['vShoot', 'Lead and shooting'], ['vDrill', 'Gun drill and safety'], ['control', 'Control Room'], ['patrol', 'Urban patrol']];
 const esc = (s: unknown) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
@@ -42,6 +43,7 @@ function series(): { kind: string; date: number; total: number }[] {
   app.DB.H.forEach((r: any, i: number) => out.push({ kind: 'radar', date: r.date ?? i, total: r.total }));
   gunHistory().forEach((r, i) => out.push({ kind: r.game, date: r.date ?? i, total: r.total }));
   patrolHistory().forEach((r, i) => out.push({ kind: 'patrol', date: r.date ?? i, total: r.total }));
+  iglaHistory().forEach((r, i) => out.push({ kind: 'igla', date: r.date ?? i, total: r.total }));
   recogHistory().forEach((r) => out.push({ kind: 'recognition', date: r.date, total: r.total }));
   return out.sort((a, b) => a.date - b.date);
 }
@@ -49,7 +51,7 @@ function series(): { kind: string; date: number; total: number }[] {
 /** Score over time, one line per drill kind, with the pass mark. Inline SVG, so it works offline. */
 function chart(): string {
   const s = series();
-  if (!s.length) return '<p class="aarEmpty">No drills yet. Every drill you finish appears here: radar, 3D field firing, Control Room and the urban patrol.</p>';
+  if (!s.length) return '<p class="aarEmpty">No drills yet. Every drill you finish appears here: radar, 3D field firing, Control Room, the urban patrol and the Igla drill.</p>';
   const Wd = 720, Ht = 220, L = 34, R = 10, Tp = 10, B = 24, n = s.length, x = (i: number) => L + (n === 1 ? (Wd - L - R) / 2 : (i / (n - 1)) * (Wd - L - R)), y = (v: number) => Tp + (1 - v / 100) * (Ht - Tp - B);
   const kinds = [...new Set(s.map((p) => p.kind))];
   const lines = kinds.map((k) => {
@@ -108,6 +110,7 @@ function downloadAll() {
   app.DB.H.forEach((r: any) => { const c = r.cfg ?? {}; rows.push({ operator: op, unit, kind: 'radar', date: r.date, time: c.time, terrain: c.terrain, weather: c.weather, difficulty: c.difficulty, seed: c.seed, total: r.total, hostiles: r.cls?.hostiles }); });
   gunHistory().forEach((r) => { const c = r.cfg; rows.push({ operator: op, unit, kind: r.game, date: r.date, gun: c.gun, time: c.time, terrain: c.terrain, weather: c.weather, difficulty: c.difficulty, seed: c.seed, total: r.total, kills: r.metrics?.kills, hostiles: r.metrics?.hostiles, struck: r.game === 'field' ? r.rules.includes('V4') : undefined }); });
   (patrolHistory() as any[]).forEach((r) => { const c = r.cfg ?? {}; rows.push({ operator: op, unit, kind: 'patrol', date: r.date, gun: 'zsu234', time: c.time, terrain: 'urban', weather: c.weather, difficulty: c.difficulty, seed: c.seed, total: r.total, kills: r.metrics?.kills, hostiles: r.metrics?.hostiles }); });
+  iglaHistory().forEach((r) => { const c = r.cfg; rows.push({ operator: op, unit, kind: 'igla', date: r.date, gun: 'igla', time: c.time, terrain: 'urban', weather: c.weather, difficulty: c.difficulty, seed: c.seed, total: r.total, kills: r.metrics?.kills, hostiles: r.metrics?.worth, struck: r.metrics?.struck }); });
   recogHistory().forEach((r) => rows.push({ operator: op, unit, kind: 'recognition', date: r.date, total: r.total }));
   const blob = new Blob([allDrillsToCsv(rows, CERT.passMark)], { type: 'text/csv' }), a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = 'parashurama-all-drills.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
