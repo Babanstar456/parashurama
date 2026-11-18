@@ -6,10 +6,11 @@ test.describe('Mission Hub and 3D view', () => {
     await expect(page.locator('#home')).toHaveClass(/on/);
     await expect(page.locator('#tour')).not.toHaveClass(/on/); // the tour waits until a path is chosen
     await expect(page.locator('.homeTitle')).toHaveText('PARASHURAMA');
-    // Only Play at first; then On Ground or Radar; then that branch's own choices.
+    // Only Play at first; then On Ground, Radar or Multiplayer; then that branch's own choices.
     await expect(page.locator('.hb')).toHaveCount(0);
     await page.click('#hcPlay');
-    await expect(page.locator('.hb')).toHaveCount(2);
+    await expect(page.locator('.hb')).toHaveCount(3);
+    await expect(page.locator('#hcMultiCard')).toBeVisible();
     await page.click('#hcGround');
     await expect(page.locator('#hcL70')).toBeVisible();
     await page.click('#hcBack');

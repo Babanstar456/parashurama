@@ -55,6 +55,8 @@ const HI: Record<string, string> = {
   'The radar locks on and shows you where to aim (the lead). You report, identify and fire.': 'रडार लॉक करता है और बताता है कि कहाँ निशाना लगाना है (लीड)। आप रिपोर्ट करें, पहचानें और फ़ायर करें।',
   'Urban patrol': 'शहरी गश्त',
   'Drive the Shilka through an old town. Drones pop up over the rooftops: engage only hostiles.': 'शिल्का को एक पुराने शहर से चलाएँ। ड्रोन छतों के ऊपर से अचानक आते हैं: केवल दुश्मन पर फ़ायर करें।',
+  'Igla on foot': 'इग्ला (पैदल)',
+  'Walk the town with an Igla shoulder-fired missile. Fire only at a target worth a missile; take cover from FPV drones.': 'इग्ला कंधे से दागी जाने वाली मिसाइल के साथ शहर में चलें। मिसाइल केवल उसी लक्ष्य पर दागें जो इसके लायक हो; एफ़पीवी ड्रोन से आड़ लें।',
   'Saturation raid': 'सैचुरेशन हमला',
   '14 Shahed-type drones in waves. The outer layer stops some; you take the leakers, closest first, before they reach you.': 'लहरों में 14 शाहेद-प्रकार के ड्रोन। बाहरी परत कुछ को रोकती है; बचे हुए आप रोकें, सबसे नज़दीकी पहले, इससे पहले कि वे आप तक पहुँचें।',
   'ZU-23-2 (upgraded)': 'ZU-23-2 (उन्नत)',

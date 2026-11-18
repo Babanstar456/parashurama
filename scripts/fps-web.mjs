@@ -1,6 +1,6 @@
 // Frame rate of the full web app (the build the judges play on Vercel), per view, in a VISIBLE Chromium window
 // (headless rendering is not representative): the menus, a radar drill, the 3D field drill (L70, normal view and
-// through the sight), and the urban patrol driving through the town.
+// through the sight), the urban patrol driving through the town, and the Igla drill on foot.
 //   npm run fps:web -- --url https://<your-vercel-app>      (or a local build: npm run build && npx vite preview)
 // Flags: --url (default http://localhost:4173), --sec <seconds measured per view> (default 12).
 // Prints EVIDENCE lines: average frames per second, the slowest 1% of frames, and draw calls / triangles in the 3D views.
@@ -57,4 +57,10 @@ await page.evaluate(() => { window.PARA_GUN.open('patrol'); });
 await page.waitForFunction(() => window.PARA_PATROL.state()?.tick > 5, null, { timeout: 90000 });
 await page.evaluate(() => window.PARA_PATROL.ai(true));
 await measure('urban patrol (driving)');
+// Igla on foot: the expert gunner walking, shouldering and searching through the sight
+await page.goto(`${url}/?reset&nohome`); await page.waitForTimeout(1500); await page.waitForFunction(() => window.PARA_GUN, null, { timeout: 60000 });
+await page.evaluate(() => { window.PARA_GUN.open('igla'); });
+await page.waitForFunction(() => window.PARA_IGLA?.state()?.tick > 5, null, { timeout: 90000 });
+await page.evaluate(() => { window.PARA_IGLA.skip(20); window.PARA_IGLA.ai(true); });
+await measure('Igla on foot (expert gunner)');
 await browser.close();

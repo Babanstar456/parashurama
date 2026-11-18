@@ -54,7 +54,7 @@ export function drillsToCsv(drills: CsvDrill[], passMark: number): string {
 
 /** One row per drill of any kind, for an after-action review across the whole programme: radar drills, the gun drills
  *  (3D field firing, On Ground, Control Room) and the urban patrol. */
-export interface AnyDrillRow { operator: string; unit?: string; kind: 'radar' | 'field' | 'ground' | 'control' | 'patrol' | 'recognition'; date?: number; gun?: string; time?: string; terrain?: string; weather?: string; difficulty?: number; seed?: number; total: number; verified?: boolean | null; struck?: boolean; kills?: number; hostiles?: number; }
+export interface AnyDrillRow { operator: string; unit?: string; kind: 'radar' | 'field' | 'ground' | 'control' | 'patrol' | 'recognition' | 'igla'; date?: number; gun?: string; time?: string; terrain?: string; weather?: string; difficulty?: number; seed?: number; total: number; verified?: boolean | null; struck?: boolean; kills?: number; hostiles?: number; }
 const ALL_COLUMNS = ['operator', 'unit', 'kind', 'date', 'gun', 'time', 'terrain', 'weather', 'difficulty', 'seed', 'total', 'pass', 'verified', 'hostiles_destroyed', 'hostiles', 'position_struck'] as const;
 export function allDrillsToCsv(rows: AnyDrillRow[], passMark: number): string {
   const body = [...rows].sort((a, b) => (a.date ?? 0) - (b.date ?? 0)).map((r) => [r.operator, r.unit ?? '', r.kind, r.date != null ? new Date(r.date).toISOString() : '', r.gun ?? '', r.time ?? '', r.terrain ?? '', r.weather ?? 'clear',
