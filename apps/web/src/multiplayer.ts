@@ -14,7 +14,8 @@ import { TYPES } from './cfg';
 import { $ } from './dom';
 import { toast } from './toast';
 import { HostNet, joinNet, p2pSupported, cleanCode, type RoomHost, type RoomWire } from './p2p';
-import { RelayHost, relayJoin } from './relay';
+import { relayJoin } from './relay';
+import { api } from './online';
 import { openCrew, openGunWith, fieldCfg, isGunOpen, closeGun, type CrewLink } from './gun';
 import { closeHome } from './home';
 import { setVoiceRoom, voiceIn } from './voice';
@@ -162,17 +163,21 @@ const voiceRoom = () => setVoiceRoom({ label: code, name: myName, peers: () => p
 const toHost = (m: any) => (role === 'host' ? hostHandle(myId, m) : wire?.send(m));
 
 /** Host: start a new round for everyone in the room. */
+/** The player who picks the rounds: the browser host on the public site; on the unit server, the room's leader. */
+const isLeader = () => role === 'host' || players.some((p) => p.id === myId && p.host);
 function startRound(kind: Kind, opt: string, easy: boolean) {
-  if (role !== 'host') return;
+  if (!isLeader()) return;
   if (round && !round.done && round.kind !== 'crew') { toast('Wait for this round to finish.'); return; }
-  crew?.stop(); crew = null;
+  const server = role !== 'host'; // unit server: the server hosts the room and runs the round
+  if (!server) { crew?.stop(); crew = null; }
   let cfg: any, spawns: any = null, label = '';
-  if (kind === 'crew') { cfg = { ...planGun([], 'ground').cfg, seed: rand31() }; crew = new CrewHost(cfg); label = `Crew drill · ${gunsOf(getConfig()).guns[cfg.gun]?.short ?? cfg.gun}`; }
+  if (kind === 'crew') { if (!server) { cfg = { ...planGun([], 'ground').cfg, seed: rand31() }; crew = new CrewHost(cfg); } label = `Crew drill · ${gunsOf(getConfig()).guns[(cfg ?? planGun([], 'ground').cfg).gun]?.short ?? ''}`; }
   else if (kind === 'radar') {
     const s = opt === 'quick' ? null : SCENARIOS[+opt];
     if (s) { cfg = scenarioCfg(s, app.plan.cfg.drill); spawns = s.spawns; label = `Radar · ${s.name}`; }
     else { cfg = { ...app.plan.cfg, seed: rand31() }; label = 'Radar · quick drill'; }
   } else { cfg = { ...fieldCfg(opt, easy), seed: rand31() }; label = `On Ground · ${gunsOf(getConfig()).guns[opt]?.short ?? opt}${easy ? ' · easy' : ''}`; }
+  if (server) { wire?.send({ t: 'startRound', kind, label, cfg, spawns }); return; }
   for (const p of players) { p.live = null; p.final = null; }
   round = { n: ++roundN, kind, label, cfg, spawns, ids: players.map((p) => p.id), done: false };
   broadcastRoom();
@@ -245,9 +250,13 @@ function sendFinal(d: any) {
 async function host() {
   if (busy) return; busy = true; renderRoom();
   try {
-    // On the unit server the server relays the room (no internet needed); on the public website, direct WebRTC.
-    net = serverMode ? await RelayHost.create() : await HostNet.create();
-    lan = net.lan ?? [];
+    if (serverMode) {
+      // Unit server: the server itself hosts the room; this player joins it first and becomes the room leader.
+      const r = await api('/api/rooms', { method: 'POST', body: '{}' });
+      lan = r.lan ?? []; busy = false; await join(r.code); return;
+    }
+    net = await HostNet.create();
+    lan = [];
     role = 'host'; code = net.code; myId = 'host'; leaving = false;
     players = [{ id: myId, name: myName, host: true }]; round = null; seenRound = 0; roundN = 0;
     net.onmsg = (id, m) => hostHandle(id, m);
@@ -337,13 +346,13 @@ function renderRoom() {
   } else {
     // On the unit server, invite with the server's network address (a "localhost" link would not work on another PC).
     const base = serverMode && lan.length && /^(localhost|127\.)/.test(location.hostname) ? lan[0] : location.origin;
-    const isHost = role === 'host', link = `${base}${location.pathname}?room=${code}`;
+    const isHost = isLeader(), link = `${base}${location.pathname}?room=${code}`;
     const r = round, running = r && !r.done && r.kind !== 'crew';
     el.innerHTML = `${head}<div class="mpBody">
-      <div class="mpCodeBox"><small>Room code</small><b>${esc(code)}</b><span>${isHost ? `Share the code or the link. Keep this tab open: your browser hosts the room.${serverMode && lan.length ? ` Other PCs open <b>${esc(lan[0])}</b> and enter the code.` : ''}` : 'Connected to the host.'}</span>
-        <div><button class="smallBtn" id="mpCopy">Copy invite link</button> <button class="smallBtn" id="mpLeave">${isHost ? 'Close the room' : 'Leave the room'}</button></div></div>
+      <div class="mpCodeBox"><small>Room code</small><b>${esc(code)}</b><span>${serverMode ? `Hosted by this unit server: the room keeps going if a browser closes.${lan.length ? ` Other PCs open <b>${esc(lan[0])}</b> and enter the code, or use the invite link.` : ''}${isHost ? ' You are the room leader: you pick the rounds.' : ''}` : isHost ? 'Share the code or the link. Keep this tab open: your browser hosts the room.' : 'Connected to the host.'}</span>
+        <div><button class="smallBtn" id="mpCopy">Copy invite link</button> <button class="smallBtn" id="mpLeave">${role === 'host' ? 'Close the room' : 'Leave the room'}</button></div></div>
       <div class="mpTwo">
-        <div class="mpCard"><h3>Players · ${players.length}</h3><ul class="mpPlayers">${players.map((p) => `<li>${esc(p.name)}${p.host ? ' <i>host</i>' : ''}${p.id === myId ? ' <i>you</i>' : ''}</li>`).join('')}</ul>
+        <div class="mpCard"><h3>Players · ${players.length}</h3><ul class="mpPlayers">${players.map((p) => `<li>${esc(p.name)}${p.host ? (serverMode ? ' <i>leader</i>' : ' <i>host</i>') : ''}${p.id === myId ? ' <i>you</i>' : ''}</li>`).join('')}</ul>
           ${r ? `<h3>${r.done ? 'Last round' : 'Now playing'} · ${esc(r.label)}</h3>${r.kind === 'crew' ? `<p>Crew drill${r.done ? ' finished: each player sees the crew debrief.' : '.'} <button class="smallBtn" id="mpCrewOpen">Open the crew drill</button></p>` : resultsTable(r)}` : ''}</div>
         <div class="mpCard">${isHost ? `<h3>Start a round</h3>
           <div class="mpRound"><b>Crew drill</b><span>Co-op. One player in the Control Room gives the orders, one crews the gun. Empty seat = AI. Seats are picked next.</span><button class="smallBtn solid" id="mpCrew" ${running ? 'disabled' : ''}>Start crew drill</button></div>
@@ -352,7 +361,7 @@ function renderRoom() {
           <div class="mpRound"><b>Score fight · On Ground</b><span>Everyone sits at the same gun in the 3D field drill.</span>
             <select id="mpGun">${guns.map((k) => `<option value="${k}">${esc(gunsOf(getConfig()).guns[k].short)}</option>`).join('')}</select><label class="mpChk"><input type="checkbox" id="mpEasy" checked> Easy</label><button class="smallBtn solid" id="mpFightG" ${running ? 'disabled' : ''}>Start fight</button></div>
           ${running ? '<p class="mpNote">A score fight is running. New rounds can start when everyone has finished.</p>' : ''}`
-        : `<h3>Waiting for the host</h3><p>The host picks the next round: a crew drill or a score fight in Radar or On Ground. It starts on your screen by itself.</p>`}</div>
+        : `<h3>Waiting for the ${serverMode ? 'room leader' : 'host'}</h3><p>${serverMode ? 'The room leader' : 'The host'} picks the next round: a crew drill or a score fight in Radar or On Ground. It starts on your screen by itself.</p>`}</div>
       </div></div>`;
     $('#mpCopy').onclick = () => { navigator.clipboard?.writeText(link).then(() => toast('Invite link copied'), () => toast(link, 9000)); };
     $('#mpLeave').onclick = leave;

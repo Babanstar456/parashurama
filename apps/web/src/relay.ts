@@ -1,8 +1,8 @@
-// Room-code multiplayer through the unit server (no internet needed): the same host / guest connections as p2p.ts,
-// relayed by the server (apps/server/src/rooms.ts) instead of direct WebRTC. multiplayer.ts uses this on the unit server
-// and p2p.ts on the public website; everything above the connection (rounds, scoring, re-run checks) is the same.
+// Room-code multiplayer on the unit server (no internet needed): the server hosts the room (apps/server/src/rooms.ts)
+// and every browser connects to it as a player, with the same messages a browser host sends on the public site
+// (p2p.ts). multiplayer.ts uses this on the unit server and p2p.ts on the public website.
 import { api } from './online';
-import type { RoomHost, RoomWire } from './p2p';
+import type { RoomWire } from './p2p';
 
 /** Sends in order: one request at a time, and messages queued meanwhile go together in the next one. */
 function sender(code: string, token: () => string) {
@@ -25,25 +25,6 @@ function openStream(url: string): Promise<{ es: EventSource; id: string; token: 
     es.addEventListener('hello', (e: MessageEvent) => { if (done) return; done = true; clearTimeout(t); const d = JSON.parse(e.data); ok({ es, id: d.id, token: d.token }); });
     es.onerror = () => { if (done) return; done = true; clearTimeout(t); es.close(); bad(new Error('No room with that code on this server (or it is full).')); };
   });
-}
-
-export class RelayHost implements RoomHost {
-  onjoin: (id: string) => void = () => undefined; onleave: (id: string) => void = () => undefined; onmsg: (id: string, m: any) => void = () => undefined;
-  private out: ReturnType<typeof sender>;
-  private constructor(public code: string, public lan: string[], private es: EventSource, token: string) {
-    this.out = sender(code, () => token);
-    es.addEventListener('join', (e: MessageEvent) => this.onjoin(JSON.parse(e.data).id));
-    es.addEventListener('leave', (e: MessageEvent) => this.onleave(JSON.parse(e.data).id));
-    es.addEventListener('msg', (e: MessageEvent) => { const d = JSON.parse(e.data); this.onmsg(d.from, d.m); });
-  }
-  static async create(): Promise<RelayHost> {
-    const r = await api('/api/rooms', { method: 'POST', body: '{}' });
-    const s = await openStream(`/api/rooms/${r.code}/events?role=host`);
-    return new RelayHost(r.code, r.lan ?? [], s.es, s.token);
-  }
-  send(id: string, m: unknown) { this.out.push(id, m); }
-  broadcast(m: unknown) { this.out.push('*', m); }
-  close() { this.out.stop(); this.es.close(); }
 }
 
 export async function relayJoin(code: string): Promise<RoomWire> {
