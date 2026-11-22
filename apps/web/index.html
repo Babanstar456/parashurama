@@ -93,7 +93,8 @@
 <section class="phase" id="learn">
   <div class="learnWrap">
     <div class="learnTabs"><button class="on" data-t="drill">Your drill</button><button data-t="unit">Unit readiness</button></div>
-    <div id="tabDrill">
+    <div id="tabDrill" class="empty">
+      <div class="card noDrill" id="noDrill"><h3>No drill yet in this session</h3><p>Play a radar drill and its debrief appears here: your score, the three lessons, the replay, the drill tape and the doctrine audit.</p><button class="primary" id="noDrillGo">Start a drill</button></div>
       <div class="hero">
         <div class="card scoreCard" id="scoreCard"></div>
         <div class="card" id="lessonsCard"><div class="cardHead"><h3>Three lessons from this drill</h3><span>Biggest point losses, with the clue you missed</span></div><div class="lessons" id="lessons"></div></div>

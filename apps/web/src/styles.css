@@ -175,6 +175,8 @@ kbd{font-family:var(--cond);font-size:12px;font-weight:600;padding:1px 6px;borde
 .learnTabs{display:flex;gap:0;margin-bottom:14px;border-bottom:1px solid var(--rule)}
 .learnTabs button{background:transparent;border:0;border-bottom:3px solid transparent;padding:8px 16px;font-size:17px;color:var(--ink3);font-weight:600}
 .learnTabs button.on{color:var(--ink);border-bottom-color:var(--ink)}
+#tabDrill.empty>:not(#noDrill){display:none}#tabDrill:not(.empty)>#noDrill{display:none}
+.noDrill{padding:22px 24px;max-width:640px}.noDrill h3{margin:0 0 6px;font-family:var(--stencil);font-weight:400;letter-spacing:.07em;text-transform:uppercase}.noDrill p{color:var(--ink2);margin:0 0 14px}
 .hero{display:grid;grid-template-columns:330px minmax(0,1fr);gap:14px;margin-bottom:14px}
 #brkCard{margin-bottom:14px}
 .brk{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr);gap:18px;padding:4px 16px 16px}
@@ -899,6 +901,7 @@ body.recogOn{overflow:hidden}
 .rcSide{padding:16px;background:#0b1116;border-left:1px solid #1d2a33;overflow:auto}
 .rcSide h4{margin:0 0 10px;font:700 13px var(--cond);letter-spacing:.12em;color:#9fb0bd}
 .rcAns{display:grid;gap:6px}
+.rcAns.off button{opacity:.4;pointer-events:none}.rcAns.off button.right{opacity:1}
 .rcAns button{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;background:#141d24;border:1px solid #22303a;font:600 14px var(--body)}
 .rcAns button:hover{border-color:#3fa796}.rcAns button.right{background:rgba(60,255,122,.18);border-color:#3cff7a}
 .rcAns kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:4px;background:#22303a;font:700 12px var(--cond)}

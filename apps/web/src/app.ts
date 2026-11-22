@@ -292,6 +292,7 @@ function finishDrill(){
 function bestCall(type){const Ty=TYPES[type];if(Ty.friendly)return 'hold fire';if(!Ty.hostile)return 'hold, no effector';const cls=decisionClass(Ty);return EFF[C.doctrine.defeat.preferred[cls]].label+(cls==='gnssOnly'?' (or interceptor)':'');}
 function labelOf(c){if(R.labels[c.id])return R.labels[c.id];if(c.area&&R.labels[c.areaFrom])return R.labels[c.areaFrom]+'+';return 'Missed';}
 function renderLearn(){
+  $('#tabDrill').classList.remove('empty');
   const c=R.cfg;const conds=[c.time==='night'?'Night':'Day',cap(c.terrain)];if(c.fault!=='none')conds.push(FAULT_LABEL[c.fault]);if((c.weather||'clear')!=='clear')conds.push(WEATHER_LABEL[c.weather]);if(c.pattern==='swarm')conds.push('Swarm');
   const pass=R.total>=CERT.passMark;const hostiles=R.E.contacts.filter(x=>TYPES[x.type].hostile);const stopped=hostiles.filter(x=>x.state==='neutralised').length;
   $('#scoreCard').innerHTML=`<div class="kicker">Drill ${String(c.drill).padStart(2,'0')} · ${conds.join(', ')}</div><div class="scoreBig"><b class="num">${R.total}</b><span>/ 100</span></div>
@@ -383,8 +384,9 @@ function drawReplay(){
   $('#scrubT').textContent=fmt(replay.tick*DT);
   const ph=$('#playhead');if(ph&&R.tapeX){const x=R.tapeX(replay.tick*DT);ph.setAttribute('x1',x);ph.setAttribute('x2',x);}
 }
-$('#scrub').addEventListener('input',e=>{replay.tick=+e.target.value;drawReplay();});
-$('#playBtn').onclick=()=>{replay.playing=!replay.playing;if(replay.playing&&replay.tick>=R.endTick)replay.tick=0;$('#playBtn').textContent=replay.playing?'❚❚':'▶';};
+$('#scrub').addEventListener('input',e=>{if(!R)return;replay.tick=+e.target.value;drawReplay();});
+$('#noDrillGo').onclick=()=>{renderBrief();setPhase('brief');};
+$('#playBtn').onclick=()=>{if(!R)return;replay.playing=!replay.playing;if(replay.playing&&replay.tick>=R.endTick)replay.tick=0;$('#playBtn').textContent=replay.playing?'❚❚':'▶';};
 let rpAcc=0;function tickReplay(dt){rpAcc+=dt*4;const n=Math.floor(rpAcc/DT);if(!n)return;rpAcc-=n*DT;replay.tick=Math.min(R.endTick,replay.tick+n);$('#scrub').value=replay.tick;drawReplay();if(replay.tick>=R.endTick){replay.playing=false;$('#playBtn').textContent='▶';}}
 function renderCal(){
   const hist=sumCal(DB.H.slice(-6));const W=360,H=230,x0=44,y0=20,h=160,bw=60;const Y=v=>y0+h*(1-v);

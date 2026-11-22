@@ -65,6 +65,9 @@ export async function openRecog(back?: () => void) {
   const ans = el.querySelector('#rcAns') as HTMLElement;
   ans.innerHTML = types.map((k, i) => `<button data-k="${k}">${i < 10 ? `<kbd>${(i + 1) % 10}</kbd>` : ''}${esc(TYPES[k].short)}</button>`).join('');
   ans.querySelectorAll<HTMLButtonElement>('button').forEach((b) => (b.onclick = () => answer(b.dataset.k!)));
+  /** Answers count only while a drone is up: grey the buttons out before Start, during feedback and after the last one. */
+  const setAns = (on: boolean) => ans.classList.toggle('off', !on);
+  setAns(false);
   keyH = (e: KeyboardEvent) => {
     if (!open) return;
     if (e.key === 'Escape') { e.preventDefault(); close(); return; }
@@ -110,6 +113,7 @@ export async function openRecog(back?: () => void) {
     msg.textContent = ''; msg.className = 'rcMsg';
     (el.querySelector('#rcProg') as HTMLElement).textContent = `Drone ${trials.length} of ${N}`;
     (el.querySelector('#rcView') as HTMLElement).textContent = `${VIEW_LABEL[view]}${night ? ' · night' : ''}`;
+    setAns(true);
   }
 
   function answer(k: string) {
@@ -119,7 +123,7 @@ export async function openRecog(back?: () => void) {
     // Exposure follows this session's accuracy: shorter when it is easy, longer when it is not.
     const done = trials.filter((x) => x.ans), acc = done.filter((x) => x.ans === x.type).length / done.length;
     if (done.length >= 6) exposureMs = acc > 0.85 ? 1000 : acc < 0.5 ? 2000 : 1500;
-    cur.phase = 'feedback'; cur.obj.visible = true;
+    cur.phase = 'feedback'; cur.obj.visible = true; setAns(false);
     msg.className = `rcMsg ${ok ? 'ok' : 'bad'}`;
     msg.innerHTML = ok ? `✓ ${esc(TYPES[t.type].label)} <small>${(t.rtMs / 1000).toFixed(1)} s</small>` : `✗ It was <b>${esc(TYPES[t.type].label)}</b><small>you said ${esc(TYPES[k].short)}</small>`;
     ans.querySelectorAll<HTMLButtonElement>('button').forEach((b) => b.classList.toggle('right', b.dataset.k === t.type));
@@ -127,7 +131,7 @@ export async function openRecog(back?: () => void) {
   }
 
   function results() {
-    cancelAnimationFrame(raf); cur = null;
+    cancelAnimationFrame(raf); cur = null; setAns(false);
     const ok = trials.filter((t) => t.ans === t.type).length, acc = Math.round((ok / trials.length) * 100);
     const rts = trials.filter((t) => t.rtMs != null).map((t) => t.rtMs!), rt = rts.length ? Math.round(rts.reduce((a, b) => a + b, 0) / rts.length) : 0;
     const conf = new Map<string, number>(); for (const t of trials) if (t.ans && t.ans !== t.type) conf.set(`${t.type}>${t.ans}`, (conf.get(`${t.type}>${t.ans}`) ?? 0) + 1);
