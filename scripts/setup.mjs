@@ -25,6 +25,13 @@ const say = (s) => console.log(`\x1b[36m[setup]\x1b[0m ${s}`);
 const fail = (s) => { console.error(`\x1b[31m[setup] ${s}\x1b[0m`); process.exit(1); };
 const run = (cmd, a) => { const r = spawnSync(cmd, a, { stdio: 'inherit', shell: win }); return r.status === 0; };
 if (!win && process.getuid?.() === 0 && process.env.SUDO_USER) fail('Please run it without sudo (./setup.sh). Nothing in the setup needs administrator rights, and as root it cannot open your browser.');
+// Files left by an earlier run with sudo belong to root: then installs, builds and the database (sign-in) fail.
+if (!win && process.getuid?.() !== 0) {
+  const uid = process.getuid();
+  const mine = (p) => { try { return statSync(p).uid === uid; } catch { return true; } };
+  const bad = ['node_modules', 'apps/web/dist', 'apps/server/dist', 'apps/server/data', 'apps/server/data/parashurama.db', 'apps/server/data/parashurama.db-wal'].filter((p) => !mine(p));
+  if (bad.length) fail(`Some files belong to another user (left by an earlier run with sudo): ${bad.join(', ')}.\n[setup] Fix once with:   sudo chown -R "$USER:$USER" "${root}"   then run ./setup.sh again.`);
+}
 
 // ---------- 1. dependencies ----------
 const lockHash = createHash('sha256').update(readFileSync('package-lock.json')).digest('hex');
