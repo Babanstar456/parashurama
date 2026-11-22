@@ -23,7 +23,9 @@ Inside the app: a one-click narrated **90-second demo** (or open with `?demo`), 
 
 ## Quick start
 
-Requires Node.js 22.5 or newer.
+**One step:** on Windows double-click `setup.bat`; on Linux or macOS run `./setup.sh`. It installs Node.js 22 if it is missing (winget on Windows, nvm on Linux/macOS), installs the dependencies on the first run (and again only when `package-lock.json` changes), builds when the sources have changed, starts the unit server and opens http://localhost:8080 in the browser. It also prints the address other PCs on the network can use. Ctrl+C stops it. Options: `--offline` (web app only, http://localhost:5173), `--port N`, `--rebuild`, `--check` (install and build only), `--no-open`.
+
+By hand (requires Node.js 22.5 or newer):
 
 ```bash
 npm install
