@@ -297,6 +297,7 @@ function renderLearn(){
   $('#scoreCard').innerHTML=`<div class="kicker">Drill ${String(c.drill).padStart(2,'0')} · ${conds.join(', ')}</div><div class="scoreBig"><b class="num">${R.total}</b><span>/ 100</span></div>
    <div class="verdict ${pass?'yes':'no'}">${pass?'Certified for these conditions':'Not yet certified for these conditions'} · pass mark ${CERT.passMark}</div>
    <div class="cmp"><div>Expert ghost<b class="num">${R.totalX}</b></div><div>Last drill<b class="num">${R.prevTotal==null?'—':`${R.total-R.prevTotal>=0?'+':''}${R.total-R.prevTotal}`}</b></div><div>Hostiles stopped<b class="num">${stopped} / ${hostiles.length}</b></div></div>`;
+  renderBreakdown();
   // lessons
   const losses=R.sc.map(s=>{const lD=30-s.D,lC=30-s.C,lF=40-s.F;return{s,loss:100-s.total,lD,lC,lF};}).sort((a,b)=>b.loss-a.loss);
   const les=losses.filter(x=>x.loss>8).slice(0,3).map(({s,lD,lC,lF})=>{
@@ -313,7 +314,7 @@ function renderLearn(){
   renderTape();drawReplay();
   // analytics
   renderCal();renderAtt();
-  $('#fpSvg').innerHTML=radarChart(R.after,R.before);
+  $('#fpSvg').innerHTML=radarChart(R.after,R.before,{w:440,h:290});
   const diffs=SKILLS.map(([k,l])=>[l,R.after[k]-R.before[k],R.after[k]]).sort((a,b)=>b[1]-a[1]);const weakest=SKILLS.map(([k,l])=>[l,R.after[k]]).sort((a,b)=>a[1]-b[1])[0];
   $('#fpCap').innerHTML=`Biggest gain: <b>${diffs[0][0]}</b> (${diffs[0][1]>=0?'+':''}${Math.round(diffs[0][1]*100)} pts). Weakest now: <b>${weakest[0]}</b> (${Math.round(weakest[1]*100)}%). Dashed = before this drill.`;
   // audit
@@ -325,6 +326,24 @@ function renderLearn(){
   $('#nextText').innerHTML=`It noticed: ${plan.lines.map(l=>l.b.replace(/\.$/,'')).slice(0,2).join('; ')}. <b>Drill ${String(plan.cfg.drill).padStart(2,'0')} will test ${plan.tests.join(', ')}.</b>`;
   renderUnit();
   emit('learn',R);
+}
+// Score breakdown: points by phase (you vs the expert ghost) and the three measures the PS asks for. Display only:
+// every number comes from the same scoreRun() result (and classificationStats(), as in the CSV export).
+function renderBreakdown(){
+  const you=R.sc,xp=R.scX,ph=[['D','Detect',30,'Track fast once it is on radar'],['C','Identify',30,'Right type, honest confidence'],['F','Defeat',40,'Right response for the drone, or hold']];
+  const meter=([k,l,max,hint])=>{const a=avg(you.map(s=>s[k])),b=avg(xp.map(s=>s[k])),pa=a/max*100,pb=b/max*100;const cls=pa>=90?'good':pa>=70?'mid':'bad';
+    return `<div class="brkM"><div class="brkL"><b>${l}</b><span class="num ${cls}">${a.toFixed(1)}<small> / ${max}</small></span></div><div class="brkBar"><i class="${cls}" style="width:${pa.toFixed(1)}%"></i><em style="left:${pb.toFixed(1)}%" title="Expert ghost ${b.toFixed(1)}"></em></div><small>${hint} · expert ${b.toFixed(1)}</small></div>`;};
+  const dets=you.filter(s=>s.det!=null).map(s=>s.det),xdets=xp.filter(s=>s.det!=null).map(s=>s.det);
+  const cs=classificationStats(you,C),xs=classificationStats(xp,C);
+  const right=you.filter(s=>s.F>=40).length,xright=xp.filter(s=>s.F>=40).length;
+  const tile=(v,l,sub,bad)=>`<div class="brkT ${bad?'bad':''}"><b class="num">${v}</b><span>${l}</span><small>${sub}</small></div>`;
+  const dAvg=dets.length?avg(dets):null,xAvg=xdets.length?avg(xdets):null;
+  $('#brk').innerHTML=`<div class="brkMeters">${ph.map(meter).join('')}</div><div class="brkTiles">`+
+    tile(dAvg==null?'—':`${dAvg.toFixed(1)} s`,'Average detection time',xAvg==null?'':`expert ${xAvg.toFixed(1)} s · full marks under 3 s`,dAvg!=null&&dAvg>3)+
+    tile(`${Math.round(cs.idRate*100)}%`,'Classification accuracy',`${cs.correct} of ${cs.contacts} right · expert ${Math.round(xs.idRate*100)}%`,cs.idRate<0.75)+
+    tile(`${right} / ${you.length}`,'Engagement decisions fully right',`expert ${xright} / ${xp.length}`,right<you.length*0.75)+
+    tile(cs.falsePositives,'False alarms','non-hostiles engaged',cs.falsePositives>0)+
+    tile(cs.missedHostiles+cs.leaked,'Missed or leaked hostiles',`${cs.missedHostiles} never tracked · ${cs.leaked} reached the asset`,cs.missedHostiles+cs.leaked>0)+`</div>`;
 }
 function renderTape(){
   const lanes=R.sc.slice().sort((a,b)=>a.c.born-b.c.born);const endS=R.endTick*DT;const x0=150,x1=920,W=1000;const X=t=>x0+(t/endS)*(x1-x0);const H=34+lanes.length*34+28;

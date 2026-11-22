@@ -109,8 +109,8 @@ async function openBrowser() {
 // server and everything npm started with it; a stale server never keeps the port.
 const opts = { stdio: ['ignore', 'inherit', 'inherit'], shell: win, detached: !win };
 const child = has('--offline')
-  ? spawn(npm, ['run', 'dev', '-w', '@parashurama/web', '--', '--port', '5173', '--strictPort'], opts)
-  : spawn(npm, ['run', 'server'], { ...opts, env: { ...process.env, PORT: String(port), ...(has('--keep-running') ? {} : { PARASHURAMA_IDLE_EXIT: '10' }) } });
+  ? spawn(npm, ['run', 'dev', '-w', '@parashurama/web', '--', '--host', '0.0.0.0', '--port', '5173', '--strictPort'], opts)
+  : spawn(npm, ['run', 'server'], { ...opts, env: { ...process.env, HOST: '0.0.0.0', PORT: String(port), ...(has('--keep-running') ? {} : { PARASHURAMA_IDLE_EXIT: '10' }) } });
 let stopping = false;
 const stop = () => {
   if (stopping) return; stopping = true;
@@ -133,7 +133,9 @@ const poll = async () => {
   const lan = Object.values(networkInterfaces()).flat().filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => i.address);
   console.log('');
   say(`PARASHURAMA is running: \x1b[1m${url}\x1b[0m`);
-  if (!has('--offline')) for (const ip of lan) say(`Other PCs on this network: http://${ip}:${port}`);
+  const lanPort = has('--offline') ? 5173 : port;
+  for (const ip of lan) say(`Other PCs on this network: http://${ip}:${lanPort}`);
+  if (lan.length) say('If another PC cannot connect, allow Node.js through this PC\'s firewall (Windows asks on the first run: tick Private networks).');
   say(has('--offline') || has('--keep-running') ? 'Press Ctrl+C to stop.' : 'It stops by itself about 10 s after the last app tab is closed (or press Ctrl+C). Use --keep-running to keep it up.');
   openBrowser();
 })();
