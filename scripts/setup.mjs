@@ -61,11 +61,41 @@ if (has('--check')) { say('Setup complete. Run setup again (without --check) to 
 
 // ---------- 3. run ----------
 const url = has('--offline') ? 'http://localhost:5173' : `http://localhost:${port}`;
-const openBrowser = () => {
+/** Environment for launching the browser. A terminal inside a snap app (VS Code installed as a snap on Ubuntu)
+ *  passes the snap's own GTK / GIO / XDG settings to everything it starts; with them xdg-open cannot find the
+ *  browser (the Firefox snap is registered in /var/lib/snapd/desktop, which the snap's XDG_DATA_DIRS leaves out).
+ *  Restore the originals the snap saved, and drop the snap-only settings. */
+function browserEnv() {
+  const e = { ...process.env };
+  for (const k of Object.keys(e)) {
+    if (!k.endsWith('_VSCODE_SNAP_ORIG')) continue;
+    const base = k.slice(0, -'_VSCODE_SNAP_ORIG'.length);
+    if (e[k]) e[base] = e[k]; else delete e[base];
+    delete e[k];
+  }
+  for (const k of ['GTK_PATH', 'GTK_EXE_PREFIX', 'GTK_IM_MODULE_FILE', 'GIO_MODULE_DIR', 'GDK_PIXBUF_MODULE_FILE', 'GDK_PIXBUF_MODULEDIR', 'LOCPATH', 'GIO_LAUNCHED_DESKTOP_FILE', 'GIO_LAUNCHED_DESKTOP_FILE_PID']) delete e[k];
+  for (const k of Object.keys(e)) if (k.startsWith('SNAP')) delete e[k];
+  return e;
+}
+/** Launch one opener. wait = the command hands the URL over and exits (exit code 0 = done); otherwise it is the
+ *  browser itself, which keeps running (no error within a moment = started). */
+const tryOpen = (cmd, a, wait, env) => new Promise((done) => {
+  let c; try { c = spawn(cmd, a, { stdio: 'ignore', detached: true, env }); } catch { done(false); return; }
+  c.on('error', () => done(false));
+  if (wait) { c.on('exit', (code) => done(code === 0)); setTimeout(() => done(true), 8000).unref(); }
+  else setTimeout(() => { c.unref(); done(c.exitCode == null || c.exitCode === 0); }, 1500);
+});
+async function openBrowser() {
   if (has('--no-open')) return;
-  const [c, a] = win ? ['cmd', ['/c', 'start', '""', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
-  try { spawn(c, a, { stdio: 'ignore', detached: true, shell: false }).unref(); } catch { /* no browser: the URL is printed */ }
-};
+  const env = browserEnv();
+  const openers = win ? [['rundll32', ['url.dll,FileProtocolHandler', url], true], ['explorer', [url], false]]
+    : process.platform === 'darwin' ? [['open', [url], true]]
+    : [['xdg-open', [url], true], ['gio', ['open', url], true], ['sensible-browser', [url], false],
+       ...['firefox', 'google-chrome-stable', 'google-chrome', 'chromium', 'chromium-browser', 'brave-browser', 'microsoft-edge'].map((b) => [b, [url], false])];
+  if (!win && process.platform !== 'darwin' && !env.DISPLAY && !env.WAYLAND_DISPLAY) { say(`No desktop session found: open ${url} in a browser yourself.`); return; }
+  for (const [cmd, a, wait] of openers) if (await tryOpen(cmd, a, wait, env)) { say(`Opened ${url} in the browser (${cmd}).`); return; }
+  say(`Could not open a browser automatically: open ${url} in Firefox or Chrome yourself.`);
+}
 // The app runs in its own process group, so stopping setup (Ctrl+C, closing the terminal, kill) always stops the
 // server and everything npm started with it; a stale server never keeps the port.
 const opts = { stdio: ['ignore', 'inherit', 'inherit'], shell: win, detached: !win };
