@@ -13,7 +13,8 @@ import { app, hooks, on } from './app';
 import { TYPES } from './cfg';
 import { $ } from './dom';
 import { toast } from './toast';
-import { HostNet, joinNet, p2pSupported, cleanCode, type Wire } from './p2p';
+import { HostNet, joinNet, p2pSupported, cleanCode, type RoomHost, type RoomWire } from './p2p';
+import { RelayHost, relayJoin } from './relay';
 import { openCrew, openGunWith, fieldCfg, isGunOpen, closeGun, type CrewLink } from './gun';
 import { closeHome } from './home';
 import { setVoiceRoom, voiceIn } from './voice';
@@ -30,7 +31,7 @@ const rand31 = () => { const a = new Uint32Array(1); crypto.getRandomValues(a); 
 
 let serverMode = false;
 let role: 'host' | 'guest' | null = null, code = '', myId = '', myName = '';
-let net: HostNet | null = null, wire: Wire | null = null, leaving = false, busy = false;
+let net: RoomHost | null = null, wire: RoomWire | null = null, lan: string[] = [], leaving = false, busy = false;
 let players: Player[] = [], round: Round | null = null, seenRound = 0, playing = false, finalSent = false, liveTimer = 0, roundN = 0;
 let crew: CrewHost | null = null, crewFns: Record<string, ((d: any) => void)[]> | null = null;
 
@@ -107,7 +108,7 @@ function crewTo(id: string, ev: string, d: unknown) { if (id === myId) deliverCr
 function crewAll(ev: string, d: unknown) { net?.broadcast({ t: 'crew', ev, d }); deliverCrew(ev, d); }
 function errTo(id: string, msg: string) { if (id === myId) toast(msg); else net?.send(id, { t: 'err', msg }); }
 
-function roomView() { return { code, players, round }; }
+function roomView() { return { code, players, round, lan }; }
 function broadcastRoom() { const v = roomView(); net?.broadcast({ t: 'room', d: v }); applyRoom(JSON.parse(JSON.stringify(v))); }
 
 /** Re-run a score-fight log on the host and check the claimed score. */
@@ -244,7 +245,9 @@ function sendFinal(d: any) {
 async function host() {
   if (busy) return; busy = true; renderRoom();
   try {
-    net = await HostNet.create();
+    // On the unit server the server relays the room (no internet needed); on the public website, direct WebRTC.
+    net = serverMode ? await RelayHost.create() : await HostNet.create();
+    lan = net.lan ?? [];
     role = 'host'; code = net.code; myId = 'host'; leaving = false;
     players = [{ id: myId, name: myName, host: true }]; round = null; seenRound = 0; roundN = 0;
     net.onmsg = (id, m) => hostHandle(id, m);
@@ -258,11 +261,11 @@ async function join(c: string) {
   c = cleanCode(c); if (c.length !== 5) { toast('A room code has 5 letters or digits.'); return; }
   if (busy) return; busy = true; renderRoom();
   try {
-    const w = await joinNet(c);
+    const w = serverMode ? await relayJoin(c) : await joinNet(c);
     wire = w; role = 'guest'; code = c; leaving = false; seenRound = 0;
     w.onmsg = (m) => {
       if (m.t === 'welcome') myId = m.id;
-      else if (m.t === 'room') { if (myId) applyRoom(m.d); }
+      else if (m.t === 'room') { if (myId) { lan = m.d.lan ?? lan; applyRoom(m.d); } }
       else if (m.t === 'crew') deliverCrew(m.ev, m.d);
       else if (m.t === 'err') toast(m.msg);
       else if (m.t === 'voice') voiceIn(m.d);
@@ -276,7 +279,7 @@ async function join(c: string) {
 }
 function reset() {
   setVoiceRoom(null);
-  crew?.stop(); crew = null; crewFns = null; net = null; wire = null; role = null; code = ''; myId = ''; players = []; round = null;
+  crew?.stop(); crew = null; crewFns = null; net = null; wire = null; lan = []; role = null; code = ''; myId = ''; players = []; round = null;
   playing = false; clearInterval(liveTimer);
   if (location.search.includes('room=')) history.replaceState(null, '', location.pathname);
   renderRoom(); renderHud();
@@ -315,27 +318,29 @@ function renderRoom() {
   const guns = ['l70', 'zsu234', 'zu23m'].filter((k) => gunsOf(getConfig()).guns[k]);
   const head = `<div class="mpTop"><div><small class="hmCrumb">Play › Multiplayer</small><h2>Multiplayer</h2></div><button class="hmBack" id="mpClose">Close</button></div>`;
   if (!role) {
-    const blocked = serverMode ? '<p class="mpWarn">This copy runs on the unit server. On the unit LAN, use <b>Gun drills › More › Crew drill over the LAN</b>. Room codes work on the public website.</p>'
+    const blocked = serverMode ? ''
       : !p2pSupported() ? '<p class="mpWarn">This browser cannot make peer-to-peer connections. Use a current Chrome, Edge or Firefox.</p>' : '';
     el.innerHTML = `${head}<div class="mpBody">
-      <p class="hmLead">Play with others on any computer with internet: one player hosts and gets a room code, the others join with it. Then play a <b>crew drill</b> together (Control Room + gun) or a <b>score fight</b> (everyone plays the same Radar or On Ground drill; highest score wins).</p>
+      <p class="hmLead">${serverMode ? 'Play with others on this unit network (no internet needed)' : 'Play with others on any computer with internet'}: one player hosts and gets a room code, the others join with it. Then play a <b>crew drill</b> together (Control Room + gun) or a <b>score fight</b> (everyone plays the same Radar or On Ground drill; highest score wins).</p>
       ${blocked}
       <label class="mpName">Your callsign <input id="mpName" maxlength="24" value="${esc(myName)}" autocomplete="off"></label>
       <div class="mpTwo">
         <div class="mpCard"><h3>Host a room</h3><p>You get a 5-letter code to share. You choose each round.</p><button class="hpPlay mpBtn" id="mpHost" ${blocked || busy ? 'disabled' : ''}>${busy ? 'Connecting…' : 'Host a room'}</button></div>
         <div class="mpCard"><h3>Join a room</h3><p>Type the code from the host.</p><input id="mpCode" class="mpCode" maxlength="5" placeholder="CODE" autocomplete="off" value="${esc(new URLSearchParams(location.search).get('room') ?? '')}"><button class="hpPlay mpBtn" id="mpJoin" ${blocked || busy ? 'disabled' : ''}>${busy ? 'Connecting…' : 'Join'}</button></div>
       </div>
-      <p class="mpNote">Players connect directly, browser to browser (encrypted WebRTC). A public signalling service is used only to introduce the two browsers; drill data does not pass through it. Some strict office or military networks block direct connections: a phone hotspot usually works.</p></div>`;
+      <p class="mpNote">${serverMode ? 'Players connect through this unit server, over the local network. The room, its drills and the radio stay on the unit network; the server keeps nothing.' : 'Players connect directly, browser to browser (encrypted WebRTC). A public signalling service is used only to introduce the two browsers; drill data does not pass through it. Some strict office or military networks block direct connections: a phone hotspot usually works.'}</p></div>`;
     const nm = $('#mpName') as HTMLInputElement; nm.onchange = () => saveName(nm.value);
     $('#mpHost').onclick = () => { saveName(nm.value); void host(); };
     const cd = $('#mpCode') as HTMLInputElement; cd.oninput = () => { cd.value = cleanCode(cd.value); };
     cd.onkeydown = (e) => { if (e.key === 'Enter') { saveName(nm.value); void join(cd.value); } };
     $('#mpJoin').onclick = () => { saveName(nm.value); void join(cd.value); };
   } else {
-    const isHost = role === 'host', link = `${location.origin}${location.pathname}?room=${code}`;
+    // On the unit server, invite with the server's network address (a "localhost" link would not work on another PC).
+    const base = serverMode && lan.length && /^(localhost|127\.)/.test(location.hostname) ? lan[0] : location.origin;
+    const isHost = role === 'host', link = `${base}${location.pathname}?room=${code}`;
     const r = round, running = r && !r.done && r.kind !== 'crew';
     el.innerHTML = `${head}<div class="mpBody">
-      <div class="mpCodeBox"><small>Room code</small><b>${esc(code)}</b><span>${isHost ? 'Share the code or the link. Keep this tab open: your browser hosts the room.' : 'Connected to the host.'}</span>
+      <div class="mpCodeBox"><small>Room code</small><b>${esc(code)}</b><span>${isHost ? `Share the code or the link. Keep this tab open: your browser hosts the room.${serverMode && lan.length ? ` Other PCs open <b>${esc(lan[0])}</b> and enter the code.` : ''}` : 'Connected to the host.'}</span>
         <div><button class="smallBtn" id="mpCopy">Copy invite link</button> <button class="smallBtn" id="mpLeave">${isHost ? 'Close the room' : 'Leave the room'}</button></div></div>
       <div class="mpTwo">
         <div class="mpCard"><h3>Players · ${players.length}</h3><ul class="mpPlayers">${players.map((p) => `<li>${esc(p.name)}${p.host ? ' <i>host</i>' : ''}${p.id === myId ? ' <i>you</i>' : ''}</li>`).join('')}</ul>
@@ -394,5 +399,5 @@ export function initMultiplayer(o: { online: boolean }) {
   };
   addEventListener('beforeunload', (e) => { if (role === 'host' && players.length > 1) { e.preventDefault(); e.returnValue = ''; } });
   const q = new URLSearchParams(location.search).get('room');
-  if (q && !serverMode) { openMp(); if (cleanCode(q).length === 5) void join(q); }
+  if (q) { openMp(); if (cleanCode(q).length === 5) void join(q); }
 }

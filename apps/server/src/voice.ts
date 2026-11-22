@@ -1,13 +1,14 @@
 // Push-to-talk voice net (radio): live speech between the stations on the unit server.
 // A station holds the mic and sends short chunks of 16-bit mono PCM (about 0.12 s each); the server relays each chunk at
 // once to every other station listening on the same net (Server-Sent Events) and keeps nothing: no recording, no log of
-// what was said. Nets: "unit" (everyone on the server) or "crew-<code>" (the two seats of a LAN crew drill).
+// what was said. Nets: "unit" (everyone on the server), "crew-<code>" (the two seats of a LAN crew drill) or "room-<code>" (a
+// room-code multiplayer room, rooms.ts).
 // Stations are anonymous callsigns chosen by the browser ("Station 4F2", "Gun", "Control Room"): no names (DPDP).
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { BadRequest } from './verify';
 
 interface Listener { reply: FastifyReply; station: string; }
-const NET = /^(unit|crew-[A-Za-z0-9]{2,12})$/;
+const NET = /^(unit|crew-[A-Za-z0-9]{2,12}|room-[A-Za-z0-9]{2,12})$/;
 const STATION = /^[A-Za-z0-9 \-]{1,24}$/;
 /** Largest chunk accepted (base64 of 16-bit PCM): 0.5 s at 24 kHz is 24 000 bytes, so 64 KB leaves room. */
 const MAX_CHUNK_B64 = 65_536;

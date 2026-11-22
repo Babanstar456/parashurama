@@ -27,7 +27,7 @@ function myStation(): string {
   return s;
 }
 const callsign = () => crewSeat ?? room?.name ?? station;
-const netLabel = () => (room && !online ? `ROOM ${room.label}` : net === 'unit' ? 'UNIT' : `CREW ${net.slice(5)}`);
+const netLabel = () => (room && !online ? `ROOM ${room.label}` : net === 'unit' ? 'UNIT' : net.startsWith('room-') ? `ROOM ${net.slice(5)}` : `CREW ${net.slice(5)}`);
 /** Send one voice message on the current net (unit server, or the room). */
 function post(body: any) {
   if (room && !online) { room.send({ station: callsign(), ...body }); return; }
@@ -47,7 +47,12 @@ export function voiceIn(m: any) {
 }
 /** Join (or leave, with null) a multiplayer room's radio net. */
 export function setVoiceRoom(r: VoiceRoom | null) {
-  if (online) return; // the unit server's nets take precedence
+  if (online) {
+    // Unit server: the room gets its own radio net on the server ("room-<code>"), under the player's room name.
+    const n = r ? `room-${r.label}` : 'unit', st = r ? (r.name.replace(/[^A-Za-z0-9 -]/g, '').trim().slice(0, 24) || 'Player') : null;
+    if (n === net && st === crewSeat) return;
+    stop(); net = n; crewSeat = st; nextAt.clear(); speaking.clear(); listen(); return;
+  }
   stop(); room = r; nextAt.clear(); speaking.clear();
   if (r && localOn) { localOn = false; stream?.getTracks().forEach((t) => t.stop()); stream = null; }
   render();

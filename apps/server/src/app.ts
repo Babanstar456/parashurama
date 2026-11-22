@@ -11,6 +11,7 @@ import { isSealed, open as unseal, seal } from './crypto';
 import { registerLectures } from './lectures';
 import { registerGun } from './gun';
 import { registerVoice } from './voice';
+import { registerRooms } from './rooms';
 import { loadPatrolWorld, registerPatrol } from './patrol';
 
 export interface Options {
@@ -212,6 +213,7 @@ export async function buildApp(o: Options) {
   registerLectures(app, db, o.dataDir, need as any, o.lectureMaxBytes ?? 1024 * 1048576);
   registerGun(app, db, key, need as any, activeConfig, o.crewTickMs);
   registerVoice(app, need as any);
+  registerRooms(app, need as any);
   registerPatrol(app, db, key, need as any, activeConfig, loadPatrolWorld(o.webDir));
   app.post('/api/admin/backup', { preHandler: need('admin') }, async (req) => { const file = backup(db, o.dataDir); audit(db, req.user!.id, 'backup', file); return { file }; });
   app.get('/api/admin/audit', { preHandler: need('admin') }, async () => ({ events: db.prepare('SELECT a.at,a.action,a.detail,u.username FROM audit a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT 200').all() }));

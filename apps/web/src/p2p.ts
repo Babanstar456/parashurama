@@ -23,6 +23,10 @@ const candMsg = (cid: string, c: RTCIceCandidate) => ({ candidate: { candidate: 
 const rnd = (n: number, chars = 'abcdefghijkmnpqrstuvwxyz23456789') => { const a = new Uint32Array(n); crypto.getRandomValues(a); return Array.from(a, (x) => chars[x % chars.length]).join(''); };
 export const newCode = () => rnd(5, CODE_CHARS);
 export const cleanCode = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+/** A hosted room, whichever way it is connected: directly (HostNet, public website) or through the unit server (relay.ts). */
+export interface RoomHost { code: string; lan?: string[]; onjoin: (id: string) => void; onleave: (id: string) => void; onmsg: (id: string, m: any) => void; send(id: string, m: unknown): void; broadcast(m: unknown): void; close(): void; }
+/** A guest's connection to the host, either way. */
+export interface RoomWire { onmsg: (m: any) => void; onclose: () => void; send(m: unknown): void; close(): void; }
 export const p2pSupported = () => typeof RTCPeerConnection === 'function' && typeof WebSocket === 'function';
 
 /** Connection to the signalling broker. */

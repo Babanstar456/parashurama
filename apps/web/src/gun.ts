@@ -216,6 +216,7 @@ async function renderCrews() {
   const el = $('#gnCrew'); if (!el) return;
   let list: any[] = [];
   try { list = (await api('/api/crews')).crews; } catch (e: any) { el.innerHTML = `<p class="gnNote">Crew drills unavailable: ${esc(e.message)}</p>`; return; }
+  if (!el.isConnected) return; // the lobby was replaced (e.g. a crew waiting room opened) while the list loaded
   el.innerHTML = `<h4>Crew drill over the LAN <small>· one PC in the Control Room, one on the gun; an empty seat is played by the AI</small></h4>
     <div class="gnCrewList">${list.filter((r) => !r.started).map((r) => `<div class="gnCrewRow"><b>${esc(r.code)}</b>
       <span>Control Room: ${esc(r.seats.cr ?? 'free')}</span><span>Gun: ${esc(r.seats.gun ?? 'free')}</span>
