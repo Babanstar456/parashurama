@@ -772,6 +772,7 @@ body.gunOn{overflow:hidden}
 .hpDemo{all:unset;cursor:pointer;margin-top:22px;font:500 16px var(--body);color:#9fb0bd;text-decoration:underline;text-underline-offset:4px}
 .hpDemo:hover,.hpDemo:focus-visible{color:#fff}
 .hpDemo:focus-visible{outline:2px solid #3fa796;outline-offset:4px}
+.hpDeck{display:block;margin-top:12px;font-size:14px}
 .homeMenu{position:relative;flex:1;width:100%;max-width:1180px;margin:0 auto;padding:40px 32px 28px;box-sizing:border-box}
 .hmTop{display:flex;align-items:center;gap:18px}
 .hmTop h2{margin:0;font:400 34px var(--stencil);letter-spacing:.04em;color:#fff}

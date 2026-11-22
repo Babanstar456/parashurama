@@ -31,6 +31,7 @@ function playHtml(): string {
       <button class="hpPlay hpLearn" id="hcLearn" aria-label="Learn: open the classroom"><i aria-hidden="true">📖</i><b>${t('Learn')}</b></button>
     </div>
     <button class="hpDemo" id="hcDemo">${t('or watch the 90-second demo')}</button>
+    <a class="hpDemo hpDeck" id="hcDeck" href="https://sih.gov.in/uploads/template/SMARTINDIAHACKATHON2026120261020182853.pdf" target="_blank" rel="noopener noreferrer">${t('View our SIH 2026 idea deck (PDF)')}</a>
   </div>
   <button class="hpLang" id="hcLang" lang="${lang === 'hi' ? 'en' : 'hi'}">${lang === 'hi' ? 'English' : 'हिंदी'}</button>
   <div class="homeFoot"><span>Team Dhwanik_TH06</span><span>${t('Training values only, not equipment specifications')}</span></div>`;

@@ -33,6 +33,7 @@ const HI: Record<string, string> = {
   'Play with others: host a room or join with a code. Crew the gun together, or fight for the top score in Radar or On Ground.': 'दूसरों के साथ खेलें: रूम होस्ट करें या कोड से जुड़ें। साथ मिलकर गन चलाएँ, या रडार या ऑन ग्राउंड में सबसे ऊँचे स्कोर के लिए मुकाबला करें।',
   'Play': 'खेलें', 'Learn': 'सीखें',
   'or watch the 90-second demo': 'या 90 सेकंड का डेमो देखें',
+  'View our SIH 2026 idea deck (PDF)': 'हमारा SIH 2026 आइडिया डेक देखें (PDF)',
   'Training values only, not equipment specifications': 'केवल प्रशिक्षण मान, उपकरण विनिर्देश नहीं',
   // Home: cards and navigation
   'Start here': 'यहाँ से शुरू करें', 'Done ✓': 'पूरा ✓', 'Start →': 'शुरू करें →', '← Back': '← वापस',

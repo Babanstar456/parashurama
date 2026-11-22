@@ -3,6 +3,7 @@ export * from './config';
 export * from './validate';
 export * from './types';
 export * from './scenario';
+export * from './behaviour';
 export * from './engine';
 export * from './expert';
 export * from './scoring';

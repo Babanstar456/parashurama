@@ -1,5 +1,6 @@
 import { acousticRange, cameraRange, getConfig, ticks, isEffective, weatherFx, type Config } from './config';
 import { buildScenario } from './scenario';
+import { action, condition, selector, sequence, type BTNode } from './behaviour';
 import { UNKNOWN, type Action, type Contact, type DrillConfig, type Engine, type Spawn } from './types';
 import { clamp, hash2, mulberry, brgOf } from './util';
 
@@ -40,37 +41,56 @@ export function tti(c: Contact, C: Config = getConfig()): number {
   return Math.max(0, (Math.hypot(c.x, c.y) - C.training.sim.assetRadiusM) / c.v);
 }
 
+// ---------- threat AI: one behaviour tree, ticked for every live drone at every step ----------
+/** What the tree sees and changes for one drone on one tick. */
+export interface ThreatCtx {
+  E: Engine; c: Contact; swarm: Contact[]; motion: string; dt: number; t: number;
+  /** Distance to the asset (m) and the steering direction being built this tick. */ d: number; dx: number; dy: number;
+}
+const isMotion = (m: string) => condition<ThreatCtx>(`motion is ${m}`, (x) => x.motion === m);
+const orbitStep = (x: ThreatCtx) => { const c = x.c; c.oc += (c.v / c.orad) * x.dt; c.x = Math.sin(c.oc) * c.orad; c.y = -Math.cos(c.oc) * c.orad; c.hdg = c.oc + Math.PI / 2; };
+/**
+ * The threat behaviour tree. Each drone type has a motion profile in config/threats.json (wander, orbit, surveil,
+ * approachHover, straight, weave, swarm); the tree picks, every tick, the first behaviour whose conditions hold.
+ * Birds wander; friendly patrols orbit; surveillance UAVs fly in, then take station and circle at stand-off; recon
+ * quadcopters stop and hover once close; everything else makes an attack run on the asset, flocking (boids-style
+ * cohesion and separation) when part of a swarm and weaving when its type weaves.
+ */
+export const THREAT_TREE: BTNode<ThreatCtx> = selector<ThreatCtx>('threat behaviour',
+  sequence('wander (bird / clutter)', isMotion('wander'), action('drift and turn back at the radar edge', (x) => {
+    const c = x.c, R = x.E.C.training.sim.radarRangeM;
+    c.hdg += Math.sin(x.t * 0.7 + c.wob) * 0.6 * x.dt; c.x += Math.sin(c.hdg) * c.v * x.dt; c.y -= Math.cos(c.hdg) * c.v * x.dt;
+    if (Math.hypot(c.x, c.y) > R * 0.93) c.hdg += Math.PI * x.dt * 4;
+  })),
+  sequence('patrol orbit (friendly)', isMotion('orbit'), action('fly the orbit', orbitStep)),
+  sequence('surveillance on station', isMotion('surveil'), condition('on station or at stand-off range', (x) => x.c.orbit || x.d <= x.c.orad),
+    action('take station', (x) => { const c = x.c; if (!c.orbit) { c.orbit = true; c.hover = true; c.orad = x.d; c.oc = Math.atan2(c.x, -c.y); } }),
+    action('circle the asset and watch', orbitStep)),
+  sequence('hover at stand-off', isMotion('approachHover'), condition('inside hover range', (x) => x.d <= x.c.hoverR),
+    action('hold position', (x) => { const c = x.c; c.hover = true; c.x += Math.sin(x.t * 0.5 + c.wob) * 0.8 * x.dt; c.y += Math.cos(x.t * 0.4 + c.wob) * 0.6 * x.dt; })),
+  sequence('attack run',
+    action('steer at the asset', (x) => { x.dx = -x.c.x / x.d; x.dy = -x.c.y / x.d; }),
+    selector('swarm flocking', sequence('in a swarm', isMotion('swarm'), action('cohesion and separation', (x) => {
+      const c = x.c; let cx = 0, cy = 0, sx = 0, sy = 0, n = 0;
+      for (const o of x.swarm) {
+        if (o === c) continue;
+        const ox = o.x - c.x, oy = o.y - c.y, od = Math.hypot(ox, oy) || 1;
+        if (od < 500) { cx += ox; cy += oy; n++; if (od < 90) { sx -= ox / od; sy -= oy / od; } }
+      }
+      if (n) { x.dx += cx / n / 600 + sx * 0.6; x.dy += cy / n / 600 + sy * 0.6; }
+    })), action('alone', () => undefined)),
+    selector('evasive weave', sequence('weaving type', isMotion('weave'), action('weave', (x) => { x.dx += Math.sin(x.t * 1.7 + x.c.wob) * 0.3; x.dy += Math.cos(x.t * 1.3 + x.c.wob) * 0.3; })),
+      action('fly straight', () => undefined)),
+    action('move', (x) => { const c = x.c, m = Math.hypot(x.dx, x.dy) || 1; c.x += (x.dx / m) * c.v * x.dt; c.y += (x.dy / m) * c.v * x.dt; c.hdg = Math.atan2(x.dx, -x.dy); }),
+    action('reached the asset?', (x) => { if (Math.hypot(x.c.x, x.c.y) < x.E.C.training.sim.assetRadiusM) { x.c.state = 'leaked'; x.c.endTick = x.E.tick; } })),
+);
+// One context object reused for every drone (no allocation per drone per tick).
+const ctx: ThreatCtx = { E: null as unknown as Engine, c: null as unknown as Contact, swarm: [], motion: '', dt: 0, t: 0, d: 0, dx: 0, dy: 0 };
 function moveContact(E: Engine, c: Contact, swarm: Contact[]): void {
-  const dt = E.C.training.sim.dt, t = E.tick * dt, Ty = E.C.threats.threats[c.type], R = E.C.training.sim.radarRangeM;
-  if (Ty.motion === 'wander') {
-    c.hdg += Math.sin(t * 0.7 + c.wob) * 0.6 * dt; c.x += Math.sin(c.hdg) * c.v * dt; c.y -= Math.cos(c.hdg) * c.v * dt;
-    if (Math.hypot(c.x, c.y) > R * 0.93) c.hdg += Math.PI * dt * 4;
-    return;
-  }
-  if (Ty.motion === 'orbit') { c.oc += (c.v / c.orad) * dt; c.x = Math.sin(c.oc) * c.orad; c.y = -Math.cos(c.oc) * c.orad; c.hdg = c.oc + Math.PI / 2; return; }
-  const d = Math.hypot(c.x, c.y);
-  // Surveillance UAV: flies in, then circles the asset at standoff range to watch (hover = on station, so no time to impact).
-  if (Ty.motion === 'surveil' && (c.orbit || d <= c.orad)) {
-    if (!c.orbit) { c.orbit = true; c.hover = true; c.orad = d; c.oc = Math.atan2(c.x, -c.y); }
-    c.oc += (c.v / c.orad) * dt; c.x = Math.sin(c.oc) * c.orad; c.y = -Math.cos(c.oc) * c.orad; c.hdg = c.oc + Math.PI / 2; return;
-  }
-  if (Ty.motion === 'approachHover' && d <= c.hoverR) {
-    c.hover = true; c.x += Math.sin(t * 0.5 + c.wob) * 0.8 * dt; c.y += Math.cos(t * 0.4 + c.wob) * 0.6 * dt; return;
-  }
-  let dx = -c.x / d, dy = -c.y / d;
-  if (Ty.motion === 'swarm') {
-    let cx = 0, cy = 0, sx = 0, sy = 0, n = 0;
-    for (const o of swarm) {
-      if (o === c) continue;
-      const ox = o.x - c.x, oy = o.y - c.y, od = Math.hypot(ox, oy) || 1;
-      if (od < 500) { cx += ox; cy += oy; n++; if (od < 90) { sx -= ox / od; sy -= oy / od; } }
-    }
-    if (n) { dx += cx / n / 600 + sx * 0.6; dy += cy / n / 600 + sy * 0.6; }
-  }
-  if (Ty.motion === 'weave') { dx += Math.sin(t * 1.7 + c.wob) * 0.3; dy += Math.cos(t * 1.3 + c.wob) * 0.3; }
-  const m = Math.hypot(dx, dy) || 1;
-  c.x += (dx / m) * c.v * dt; c.y += (dy / m) * c.v * dt; c.hdg = Math.atan2(dx, -dy);
-  if (Math.hypot(c.x, c.y) < E.C.training.sim.assetRadiusM) { c.state = 'leaked'; c.endTick = E.tick; }
+  const dt = E.C.training.sim.dt;
+  ctx.E = E; ctx.c = c; ctx.swarm = swarm; ctx.motion = E.C.threats.threats[c.type].motion; ctx.dt = dt; ctx.t = E.tick * dt;
+  ctx.d = Math.hypot(c.x, c.y); ctx.dx = 0; ctx.dy = 0;
+  THREAT_TREE.tick(ctx);
 }
 
 function paintProb(E: Engine, c: Contact, b: number): number {
