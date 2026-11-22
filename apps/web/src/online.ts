@@ -36,6 +36,9 @@ async function flushOutbox(chip: HTMLElement) {
 export let serverMode = false;
 export function initOnline(app: any, hooks: any, on: any, s: Session) {
   serverMode = true;
+  // Presence: held open while this tab is open (the browser closes it with the tab). Started by setup.sh / setup.bat,
+  // the server stops once every app tab has been closed for a few seconds. It reconnects by itself after a drop.
+  try { new EventSource('/api/presence'); } catch { /* old browser: no auto-stop */ }
   const chip = document.getElementById('syncChip')!; chip.hidden = false;
   app.TRAINEE.name = s.user.name; app.TRAINEE.unit = s.user.unit;
   document.getElementById('whoName')!.textContent = s.user.name;

@@ -7,6 +7,7 @@
 //          --rebuild   build even if the build looks current
 //          --check     install and build only, do not start
 //          --no-open   do not open the browser
+//          --keep-running  do not stop when the last app tab is closed (default: stop about 10 s after it)
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
@@ -109,7 +110,7 @@ async function openBrowser() {
 const opts = { stdio: ['ignore', 'inherit', 'inherit'], shell: win, detached: !win };
 const child = has('--offline')
   ? spawn(npm, ['run', 'dev', '-w', '@parashurama/web', '--', '--port', '5173', '--strictPort'], opts)
-  : spawn(npm, ['run', 'server'], { ...opts, env: { ...process.env, PORT: String(port) } });
+  : spawn(npm, ['run', 'server'], { ...opts, env: { ...process.env, PORT: String(port), ...(has('--keep-running') ? {} : { PARASHURAMA_IDLE_EXIT: '10' }) } });
 let stopping = false;
 const stop = () => {
   if (stopping) return; stopping = true;
@@ -119,7 +120,7 @@ const stop = () => {
   setTimeout(() => { try { process.kill(-child.pid, 'SIGKILL'); } catch { /* gone */ } process.exit(0); }, 5000).unref();
 };
 for (const s of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(s, stop);
-child.on('exit', (code) => process.exit(stopping ? 0 : code ?? 0));
+child.on('exit', (code) => { if (!stopping && code === 0) say('Server stopped (all app tabs were closed). Run setup again to start it.'); process.exit(stopping ? 0 : code ?? 0); });
 
 // Wait until the app answers, then open it and show the addresses for other PCs on the network.
 const t0 = Date.now();
@@ -133,6 +134,6 @@ const poll = async () => {
   console.log('');
   say(`PARASHURAMA is running: \x1b[1m${url}\x1b[0m`);
   if (!has('--offline')) for (const ip of lan) say(`Other PCs on this network: http://${ip}:${port}`);
-  say('Press Ctrl+C to stop.');
+  say(has('--offline') || has('--keep-running') ? 'Press Ctrl+C to stop.' : 'It stops by itself about 10 s after the last app tab is closed (or press Ctrl+C). Use --keep-running to keep it up.');
   openBrowser();
 })();

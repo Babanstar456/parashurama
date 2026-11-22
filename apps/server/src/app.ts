@@ -13,7 +13,9 @@ import { registerGun } from './gun';
 import { registerVoice } from './voice';
 import { loadPatrolWorld, registerPatrol } from './patrol';
 
-export interface Options { dataDir: string; webDir?: string; secureCookies?: boolean; logger?: boolean; /** Trusted threat-pack keys (default: config/trust/keys.json). */ trustKeys?: TrustKey[];
+export interface Options {
+  /** Seconds after the last open app tab closes before onIdle() is called (setup scripts only; unset = never). */ idleExitSec?: number; onIdle?: () => void;
+  dataDir: string; webDir?: string; secureCookies?: boolean; logger?: boolean; /** Trusted threat-pack keys (default: config/trust/keys.json). */ trustKeys?: TrustKey[];
   /** AES-256 key for drill records and decision logs at rest (null = plaintext). */ dataKey?: Buffer | null;
   /** Largest lecture video accepted, in bytes (default 1 GB). */ lectureMaxBytes?: number;
   /** Crew drill tick period in ms (default: the drill's 100 ms; tests run faster). */ crewTickMs?: number; }
@@ -93,6 +95,22 @@ export async function buildApp(o: Options) {
   });
   app.post('/api/auth/logout', async (req, reply) => { dropSession(db, req.cookies[COOKIE]); reply.clearCookie(COOKIE, { path: '/' }); return { ok: true }; });
   app.get('/api/me', { preHandler: need() }, async (req) => ({ user: req.user }));
+  // Presence: every open app tab (on this PC or another on the network) holds this stream open. Started by the setup
+  // scripts with PARASHURAMA_IDLE_EXIT, the server stops when no tab has been open for that many seconds, so closing
+  // the browser tab also stops the server. Without it the count is kept and nothing else happens.
+  let tabs = 0, idleTimer: NodeJS.Timeout | null = null;
+  const presenceChanged = () => {
+    if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+    if (!tabs && o.idleExitSec && o.onIdle) idleTimer = setTimeout(() => { if (!tabs) o.onIdle!(); }, o.idleExitSec * 1000);
+  };
+  app.get('/api/presence', { preHandler: need() }, (req, reply) => {
+    reply.hijack();
+    reply.raw.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive', 'x-content-type-options': 'nosniff' });
+    reply.raw.write(': open\n\n');
+    tabs++; presenceChanged();
+    const ping = setInterval(() => { try { reply.raw.write(': ping\n\n'); } catch { /* gone */ } }, 15_000);
+    req.raw.on('close', () => { clearInterval(ping); tabs = Math.max(0, tabs - 1); presenceChanged(); });
+  });
   app.put('/api/me/settings', { preHandler: need() }, async (req) => {
     const s = JSON.stringify(req.body ?? {}); if (s.length > 20_000) throw new BadRequest('settings too large');
     db.prepare('UPDATE users SET settings=? WHERE id=?').run(s, req.user!.id); return { ok: true };
