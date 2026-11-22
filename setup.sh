@@ -2,7 +2,9 @@
 # PARASHURAMA: set up and start (Linux / macOS). The Windows twin is setup.bat; both do the same steps.
 #   ./setup.sh             install what is missing, build, start the unit server and open http://localhost:8080
 #   ./setup.sh --offline   web app only, no unit server (http://localhost:5173)
-#   Other options: --port N, --rebuild, --check (install and build only), --no-open, --keep-running
+#   Other options: --port N, --rebuild, --check (install and build only), --no-open, --keep-running,
+#                  --update (pull the latest code first)
+# This one file is enough: run on its own, it gets the project first (Git clone, or a GitHub download without Git).
 # Node.js 22.5 or newer is needed. Order: a portable copy in .node/ inside this folder, then the system's Node.js;
 # if neither fits (missing or too old), the official Node.js 22 for this computer is downloaded from nodejs.org into
 # .node/ and its SHA-256 checksum is verified. No administrator rights, nothing installed system-wide.
@@ -24,6 +26,46 @@ node_ok() {
   node -e "const [a,b]=process.versions.node.split('.').map(Number);process.exit(a>$NEED_MAJOR||(a===$NEED_MAJOR&&b>=$NEED_MINOR)?0:1)" 2>/dev/null
 }
 fetch() { if command -v curl >/dev/null 2>&1; then curl -fsSL "$1"; elif command -v wget >/dev/null 2>&1; then wget -qO- "$1"; else return 9; fi; }
+
+# ---------- 0. The project itself ----------
+# Run on its own (downloaded without the project), this file fetches the project into ./parashurama and runs the
+# project's own setup.sh: with Git if it is installed (a shallow clone; later runs update it), otherwise as a
+# GitHub archive (no Git needed). Inside the project, --update pulls the latest code first.
+REPO_URL="https://github.com/Babanstar456/parashurama.git"
+REPO_TGZ="https://codeload.github.com/Babanstar456/parashurama/tar.gz/refs/heads/main"
+git_ok() {
+  [ "${PARASHURAMA_NO_GIT:-}" = "1" ] && return 1 # testing: behave as if Git were missing
+  command -v git >/dev/null 2>&1 || return 1
+  local v; v="$(git --version 2>/dev/null | sed -E 's/[^0-9]*([0-9]+)\.([0-9]+).*/\1 \2/')"
+  [ "${v%% *}" -ge 2 ] 2>/dev/null
+}
+if [ ! -f "$ROOT/package.json" ] || [ ! -f "$ROOT/scripts/setup.mjs" ]; then
+  DEST="${PARASHURAMA_DIR:-$ROOT/parashurama}"
+  if [ -d "$DEST/.git" ] && git_ok; then
+    echo "[setup] Updating the project in $DEST ($(git --version))…"
+    git -C "$DEST" pull --ff-only || echo "[setup] Could not update (offline, or local changes): using the copy as it is."
+  elif [ -f "$DEST/scripts/setup.mjs" ]; then
+    echo "[setup] Using the project in $DEST."
+  elif git_ok; then
+    echo "[setup] $(git --version) found: cloning the project into $DEST…"
+    git clone --depth 1 "$REPO_URL" "$DEST" || { echo "[setup] Clone failed. Check the internet connection and run this again."; exit 1; }
+  else
+    if [ "${PARASHURAMA_NO_GIT:-}" = "1" ]; then echo "[setup] Git not used (PARASHURAMA_NO_GIT=1): downloading the project without Git."
+    elif command -v git >/dev/null 2>&1; then echo "[setup] $(git --version) is too old (2.0 or newer needed): downloading the project without Git."
+    else echo "[setup] Git is not installed: downloading the project without Git (later runs download it again only if it is missing)."; fi
+    mkdir -p "$DEST"
+    fetch "$REPO_TGZ" | tar -xz -C "$DEST" --strip-components=1 || { echo "[setup] Download failed. Check the internet connection and run this again."; exit 1; }
+  fi
+  chmod +x "$DEST/setup.sh"
+  echo "[setup] Starting the project's setup in $DEST."
+  exec "$DEST/setup.sh" "$@"
+fi
+for a in "$@"; do
+  if [ "$a" = "--update" ]; then
+    if [ -d "$ROOT/.git" ] && git_ok; then echo "[setup] --update: pulling the latest code…"; git -C "$ROOT" pull --ff-only || echo "[setup] Could not update (offline, or local changes): continuing with this copy."
+    else echo "[setup] --update needs a Git clone of the project: skipped."; fi
+  fi
+done
 
 # 1. A portable Node.js from an earlier run.
 [ -x "$ROOT/.node/bin/node" ] && export PATH="$ROOT/.node/bin:$PATH"
