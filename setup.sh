@@ -7,6 +7,14 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Do not run with sudo: nothing here needs administrator rights, files written as root break later normal runs,
+# and a root process cannot open the browser in your desktop session.
+if [ "$(id -u)" = "0" ] && [ -n "${SUDO_USER:-}" ]; then
+  echo "[setup] Please run it without sudo:   ./setup.sh"
+  echo "[setup] Nothing in the setup needs administrator rights, and as root it cannot open your browser."
+  exit 1
+fi
+
 NEED_MAJOR=22; NEED_MINOR=5
 node_ok() {
   command -v node >/dev/null 2>&1 || return 1

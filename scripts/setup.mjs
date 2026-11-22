@@ -24,6 +24,7 @@ const npm = win ? 'npm.cmd' : 'npm';
 const say = (s) => console.log(`\x1b[36m[setup]\x1b[0m ${s}`);
 const fail = (s) => { console.error(`\x1b[31m[setup] ${s}\x1b[0m`); process.exit(1); };
 const run = (cmd, a) => { const r = spawnSync(cmd, a, { stdio: 'inherit', shell: win }); return r.status === 0; };
+if (!win && process.getuid?.() === 0 && process.env.SUDO_USER) fail('Please run it without sudo (./setup.sh). Nothing in the setup needs administrator rights, and as root it cannot open your browser.');
 
 // ---------- 1. dependencies ----------
 const lockHash = createHash('sha256').update(readFileSync('package-lock.json')).digest('hex');
