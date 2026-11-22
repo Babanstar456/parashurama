@@ -304,12 +304,14 @@ function openMp() {
   let el = $('#mpApp') as HTMLElement | null;
   if (!el) {
     el = document.createElement('div'); el.id = 'mpApp'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Multiplayer room');
-    el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') closeMp(); });
+    el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') leaveScreen(); });
     document.body.appendChild(el);
   }
-  closeHome(); el.classList.add('on'); renderRoom();
+  closeHome(); el.classList.add('on'); renderRoom(); renderHud();
 }
-function closeMp() { $('#mpApp')?.classList.remove('on'); }
+function closeMp() { $('#mpApp')?.classList.remove('on'); if (role) renderHud(); }
+/** Close / Esc: back to the home menu (closeMp alone is for starting a drill, which takes over the screen). */
+function leaveScreen() { closeMp(); hooks.showHome?.(); }
 const mpOpen = () => !!$('#mpApp')?.classList.contains('on');
 
 function resultsTable(r: Round): string {
@@ -372,7 +374,7 @@ function renderRoom() {
       $('#mpFightG').onclick = () => startRound('field', ($('#mpGun') as HTMLSelectElement).value, ($('#mpEasy') as HTMLInputElement).checked);
     }
   }
-  $('#mpClose').onclick = closeMp;
+  $('#mpClose').onclick = leaveScreen;
 }
 
 /** Corner panel: live scores during a score fight, results after it, and a way back to the room. */
@@ -385,6 +387,8 @@ function renderHud() {
     el.className = r!.done ? 'big' : '';
     el.innerHTML = `<div class="mpHudHead"><b>${r!.done ? 'SCORE FIGHT · RESULT' : 'SCORE FIGHT · LIVE'}</b><small>${esc(r!.label)} · room ${esc(code)}</small></div>${resultsTable(r!)}
       ${!r!.done && finalSent ? '<p class="mpNote">Your score is in. Waiting for the others…</p>' : ''}<button class="smallBtn" id="mpHudRoom">Back to the room</button>${r!.done ? ' <button class="smallBtn" id="mpHudHide">Hide</button>' : ''}`;
+  } else if (mpOpen()) {
+    el.className = 'pill'; el.innerHTML = ''; // the room screen is open: no badge over its Close button
   } else {
     el.className = 'pill';
     el.innerHTML = `<button class="smallBtn" id="mpHudRoom">Room ${esc(code)} · ${players.length} player${players.length === 1 ? '' : 's'}</button>`;

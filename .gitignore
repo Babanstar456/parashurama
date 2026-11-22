@@ -16,3 +16,5 @@ tools/blender/src-assets/
 tools/city/.build/
 # Sketchfab Standard licence (no redistribution): used on this PC only, never committed. The build falls back to a built-in launcher.
 apps/web/public/models/*_local.glb
+# Portable Node.js downloaded by setup.sh / setup.bat when the system has none (or too old)
+.node/

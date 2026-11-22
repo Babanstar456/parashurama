@@ -939,7 +939,14 @@ button.hpMulti:hover,button.hpMulti:focus-visible{border-color:#f2c94c;backgroun
 .mpCode{display:block;width:9ch;font:700 28px var(--cond);letter-spacing:.3em;text-transform:uppercase;text-align:center;margin-bottom:6px}
 .mpCodeBox{display:grid;gap:4px;justify-items:start;margin-top:12px;padding:16px 20px;border-radius:10px;border:1px solid rgba(242,201,76,.45);background:rgba(242,201,76,.07)}
 .mpCodeBox small{font:600 12px var(--cond);letter-spacing:.14em;text-transform:uppercase;color:#f2c94c}
-.mpCodeBox b{font:400 52px/1 var(--stencil);letter-spacing:.22em;color:#fff}
+.mpCodeBox>b{font:400 52px/1 var(--stencil);letter-spacing:.22em;color:#fff}
+.mpCodeBox span b{color:#fff;font-weight:700;user-select:all}
+/* Buttons on the dark multiplayer screen and its corner panel (the app's default button style is for light pages). */
+#mpApp .smallBtn,#mpHud .smallBtn{background:var(--np2);color:var(--nt);border:1px solid var(--nl);border-radius:4px;padding:7px 14px;font-size:14px;cursor:pointer}
+#mpApp .smallBtn:hover,#mpHud .smallBtn:hover{border-color:#3fa796;color:#fff}
+#mpApp .smallBtn.solid{background:var(--nr);border-color:var(--nr);color:#06100c;font-weight:700}
+#mpApp .smallBtn.solid:hover{filter:brightness(1.12);color:#06100c}
+#mpApp .smallBtn:disabled{opacity:.4;cursor:not-allowed;filter:none}
 .mpCodeBox span{color:#b9c6cf}
 .mpPlayers{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:6px}
 .mpPlayers li{padding:7px 10px;border-radius:6px;background:#0f1820;font:600 16px var(--cond)}
@@ -969,7 +976,7 @@ button.hpMulti:hover,button.hpMulti:focus-visible{border-color:#f2c94c;backgroun
 #mpCount small{font:600 16px var(--cond);letter-spacing:.14em;text-transform:uppercase;color:#f2c94c}
 #mpCount b{font:400 140px/1 var(--stencil)}
 #mpCount span{color:#b9c6cf}
-@media (max-width:760px){.mpTwo{grid-template-columns:minmax(0,1fr)}.mpCodeBox b{font-size:40px}}
+@media (max-width:760px){.mpTwo{grid-template-columns:minmax(0,1fr)}.mpCodeBox>b{font-size:40px}}
 /* crew debrief (gun.ts) */
 .gnCrewAar{margin:16px 0;padding:16px 18px;border-radius:8px;background:var(--np);border:1px solid var(--nl)}
 .gnCrewAar h3{margin:0 0 10px;font:400 18px var(--stencil);letter-spacing:.08em}
